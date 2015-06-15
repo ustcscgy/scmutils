@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -79,7 +80,7 @@ y4
 #|
 (pp (text/cselim
      (expression
-      ((lagrange-interpolation-function '(y1 y2 y3 y4) '(x1 x2 x3 x4))
+      ((Lagrange-interpolation-function '(y1 y2 y3 y4) '(x1 x2 x3 x4))
        'x))))
 (let ((V-609 (- x3 x4)) (V-607 (- x2 x3)) (V-606 (* (- x2 x4) -1))
       (V-605 (- x x1)) (V-604 (- x1 x4)) (V-603 (- x1 x3))

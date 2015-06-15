@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -559,7 +560,7 @@ USA.
 		   (if (= i 0)
 		       1
 		       (expt (list-ref dtns j) i))))))
-      (let ((coeffs (default-simplify (m:rsolve C B)))
+      (let ((coeffs (g:simplify (m:rsolve C B)))
 	    (tnames (list-head '(tn-1 tn-2 tn-3 tn-4 tn-5 tn-6) order)))
 	(text/cselim
 	 `(lambda (dt1 ts)		;dt1=step

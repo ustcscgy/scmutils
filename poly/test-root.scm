@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -54,44 +55,49 @@ USA.
 			  (slp (cdr rs) best d))))))))))
   
 
-(define roots->poly poly:roots->)
-(define poly->roots poly:->roots)
+;(define roots->poly poly:roots->)
+;(define poly->roots poly:->roots)
 
 ;(test '(0 -1 -2 -3 -4 -5 -6 -7 -8 -9 -10))
 ;Value: 6.160867371818313e-10
+#| 7.534683987842072e-11 |#
 
 ;(test '(0 -1 1 -2 2))
 ;Value: 0.
+#| 0. |#
 
 ;(test '(1 1 2))
 ;Value: 2.31818306528373e-16
+#| 0. |#
 
 ;(test '(0 -1 1 -2 2 2 -2))
 ;Value: 1.3885371471200463e-16
+#| 0. |#
 
 ;(test '(1+1i 1-1i 1+1i 1-1i 0))
 ;Value: 0.
+#| 0. |#
 
 ;(pp (poly->roots (roots->poly '(1+1i 1-1i 1+1i 1-1i 0))))
 (0. 1.+1.i 1.+1.i 1.-1.i 1.-1.i)
 
 (test '(1+1i 1-1i 1+1i 1-1i 0 1+1i 1-1i 1+1i 1-1i 0))
 ;Value: 3.1086244689504383e-15
+#| 0. |#
 
-;(pp (poly->roots (roots->poly '(1+1i 1-1i 1+1i 1-1i 0 1+1i 1-1i 1+1i 1-1i 0))))
-(0.
- 0.
- 1.+1.000000000000003i
- 1.+1.000000000000003i
- 1.+1.000000000000003i
- 1.+1.000000000000003i
- 1.-1.000000000000003i
- 1.-1.000000000000003i
- 1.-1.000000000000003i
- 1.-1.000000000000003i)
-;No value
+(pp (poly->roots (roots->poly '(1+1i 1-1i 1+1i 1-1i 0 1+1i 1-1i 1+1i 1-1i 0))))
+#;
+(0. 0. 1.-1.i 1.-1.i 1.-1.i 1.-1.i 1.+1.i 1.+1.i 1.+1.i 1.+1.i)
 
-;(pp (poly->roots '(*sparse* 1 (12 . 1) (0 . 1))))
+
+(poly->roots '(*dense* 1 1 -70 900 27000 -540000))
+;Value (-20. 29.99999603453493+6.3846721169876244e-6i 29.999996463041075-6.633756128672598e-6i 30.000007502423998+2.490839936134864e-7i)
+#| (-20. 30. 30. 30.) |#
+
+
+
+(pp (poly->roots '(*sparse* 1 (12 . 1) (0 . 1))))
+#;
 (-.7071067811865476+.7071067811865472i
  -.7071067811865476-.7071067811865472i
  .7071067811865474-.7071067811865474i
@@ -125,6 +131,7 @@ USA.
 ;Wilkinson's Polynomial
 ;(test '(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20))
 ;Value: .01446231788755453
+#| 8.232881514148367e-3 |#
 
 ;Jenkens-Traub #2
 (test '(.025+.035i .025-.035i
@@ -136,6 +143,7 @@ USA.
 	10+2i    10-2i
 	-20 20 30 30 30))
 ;Value: 3.232969447708456e-13
+#| 1.1013412404281553e-13 |#
 
 (pp
  (poly->roots
@@ -149,7 +157,17 @@ USA.
       10+2i    10-2i
       -20 20 30 30 30))))
 
-;Henrici's root separation test.
-; Setting cluster-tolerance to 2000 makes e=2^-43 separable 
-; but e=2^-44 appear multiple.
-;(define (P e) `(*sparse* 1 (2 . 1) (1 . -1) (0 . ,(+ 1/4 e))))
+;Henrici's root-separation test.
+; Setting cluster-tolerance to 2000 makes e=2^-46 separable 
+; but e=2^-47 appear multiple.
+(define (P e) `(*sparse* 1 (2 . 1) (1 . -1) (0 . ,(+ 1/4 e))))
+
+(poly->roots (P (expt 2 -46)))
+#|
+(.4999999999778032+1.1916012606664697e-7i .500000000022219-1.1916014026578431e-7i)
+|#
+
+(poly->roots (P (expt 2 -47)))
+#| (.5 .5) |#
+
+

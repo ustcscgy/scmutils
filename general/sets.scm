@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -137,8 +138,27 @@ USA.
 (define (list->set set-type) (vector-ref set-type 11))
 (define (set->list set-type) (vector-ref set-type 12))
 
-(define symbols (make-sets-package eq? symbol<?))
-(define numbers (make-sets-package = <))
+(define symbols (make-sets-package eq? variable<?))
+(define real-numbers (make-sets-package = <))
+
+;;; There is no nice way to compare complex numbers, 
+;;; but a kludge is necessary to impose order for 
+;;; sets of them.
+
+(define (<numbers z1 z2)
+  (if (real? z1)
+      (if (real? z2)
+	  (< z1 z2)
+	  #t)
+      (if (real? z2)
+	  #f
+	  (cond ((< (real-part z1) (real-part z2))
+		 #t)
+		((= (real-part z1) (real-part z2))
+		 (< (imag-part z1) (imag-part z2)))
+		(else #f)))))
+
+(define numbers (make-sets-package = <numbers))
 
 #|
 ;;; For example

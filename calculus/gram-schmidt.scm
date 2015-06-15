@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -28,6 +29,13 @@ USA.
 (define (Gram-Schmidt vector-basis metric)
   (define (make-positive x)
     (sqrt (square x)))
+  #|
+  ;;; Fails in some symbolic situations!
+  (define (make-positive x)
+    (if (and (number? x) (negative? x))
+	(- x)
+	x))
+  |#
   (define (normalize v)
     (* (/ 1 (sqrt (make-positive (metric v v)))) v))
   (let* ((vects (ultra-flatten vector-basis))
@@ -44,6 +52,26 @@ USA.
 					 outv))
 				    outs))))
 		    outs))))))
+#|
+(define (Gram-Schmidt vector-basis metric)
+  (define (make-positive x)
+    (sqrt (square x)))
+  (define (normalize v)
+    (* (/ 1 (sqrt (make-positive (metric v v)))) v))
+  (let* ((vects (ultra-flatten vector-basis))
+	 (e0 (car vects)))
+    (let lp ((ins (cdr vects)) (outs (list e0)))
+      (if (null? ins)
+	  (apply down (map normalize (reverse outs)))
+	  (lp (cdr ins)
+	      (cons (- (car ins)			   
+		       (apply +
+			      (map (lambda (outv)
+				     (* (metric (car ins) outv)
+					outv))
+				   outs)))
+		    outs))))))
+|#
 
 #|
 ;;; Orthonormalizing with respect to the Lorentz metric in 2 dimensions. 

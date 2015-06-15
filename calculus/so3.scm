@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -24,8 +25,6 @@ USA.
 |#
 
 ;;;  review aspects of SO3
-
-;;; "rotations" is the manifold of rotations in SO3
 
 (define Euler-angles
   (coordinate-system-at 'Euler 'Euler-patch SO3))
@@ -192,6 +191,14 @@ that correspond to particular spatial rotations
      (+ (* -1 c (sin phi) (sin theta)) (* -1 b (cos phi)))
      0))
 
+(define foo-z
+  (solve
+   (lambda (p)
+     (list->vector
+      (map simplify
+	   (ultra-flatten (equation2-z p (up 'theta 'phi 'psi))))))
+   3 9 list))
+
 (pe ((cadr foo-z) #()))
 (up 1 0 0)
 
@@ -229,6 +236,14 @@ so
  (up (+ -1 (* -1 c (cos phi) (sin theta)) (* b (sin phi)))
      (+ (* -1 c (sin phi) (sin theta)) (* -1 b (cos phi)))
      0))
+
+(define foo-y
+  (solve
+   (lambda (p)
+     (list->vector
+      (map simplify
+	   (ultra-flatten (equation2-y p (up 'theta 'phi 'psi))))))
+   3 9 list))
 
 (pe ((cadr foo-y) #()))
 (up (/ (* (cos theta) (cos phi)) (sin theta))
@@ -1013,5 +1028,58 @@ check angular velocities in alternate angles
  (+ (* (sin (vartheta t)) ((D varphi) t)) ((D varpsi) t))
  (+ (* (cos (vartheta t)) (cos (varpsi t)) ((D varphi) t))
     (* ((D vartheta) t) (sin (varpsi t)))))
+
+|#
+
+;;; A theorem of SO3
+#|
+(define-coordinates (up x y z) R3-rect)
+
+(define Jz (- (* x d/dy) (* y d/dx)))
+(define Jx (- (* y d/dz) (* z d/dy)))
+(define Jy (- (* z d/dx) (* x d/dz)))
+
+(pe (- (series:sum
+	(((exp (* 'alpha D))
+	  (lambda (alpha)
+	    (* (Euler->M
+		(series:sum
+		 (((exp (* alpha e_z)) Euler-angles-chi)
+		  ((point Euler-angles) (up 'theta 'phi 'psi)))
+		 1))
+	       (up 'x 'y 'z))))
+	 0)
+	5)
+       (series:sum
+	(((exp (* 'alpha Jz)) (chart R3-rect)) 
+	 ((point R3-rect)
+	  (* (Euler->M (up 'theta 'phi 'psi))
+	     (up 'x 'y 'z))))
+	5)))
+(up 0 0 0)
+
+
+(pe (- (series:sum
+	(((exp (* 'alpha D))
+	  (lambda (alpha)
+	    (* (Euler->M
+		(series:sum
+		 (((exp (* alpha e_x)) Euler-angles-chi)
+		  ((point Euler-angles) (up 'theta 'phi 'psi)))
+		 4))
+	       (up 'x 'y 'z))))
+	 0)
+	3)
+       (series:sum
+	(((exp (* 'alpha Jx)) (chart R3-rect)) 
+	 ((point R3-rect)
+	  (* (Euler->M (up 'theta 'phi 'psi))
+	     (up 'x 'y 'z))))
+	3)))
+(up 0 0 0)
+
+(M((exp(a*e_x)chi_SO3) m_SO3))*xyz_R3
+   = ((exp(a*J_x)chi_R3)
+      (M (chi_SO3 m_SO3))*xyz_R3)
 
 |#

@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,6 +28,10 @@ USA.
 
 (declare (usual-integrations))
 
+(define ratnum?
+  (access ratnum?
+	  (->environment '(runtime number))))
+
 (define (g:cube x)
   (g:* x x x))
 
@@ -42,8 +47,13 @@ USA.
   (g:expt 2 x))
 
 
+;;; See numbers.scm
+
 (define (g:tan x)
   (g:/ (g:sin x) (g:cos x)))
+(define (g:cot x)
+  (g:/ (g:cos x) (g:sin x)))
+
 (define (g:sec x)
   (g:/ :one (g:cos x)))
 (define (g:csc x)
@@ -57,7 +67,6 @@ USA.
 (define (g:csch x)
   (g:/ :one (g:sinh x)))
 
-
 (define (g:asinh z)
   (g:log (g:+ z (g:sqrt (g:+ :one (g:square z))))))
 
@@ -67,8 +76,9 @@ USA.
 		   (g:sqrt (g:/ (g:- z :one) :two))))))
 
 (define (g:atanh z)
-  (g:/ (g:- (g:log (g:+ :one z)) (g:log (g:- :one z))) :two))
-
+  (g:/ (g:- (g:log (g:+ :one z))
+	    (g:log (g:- :one z)))
+       :two))
 
 (define (g:arg-shift f . shifts)
   (define (g . xs)

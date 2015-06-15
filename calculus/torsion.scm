@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -30,7 +31,7 @@ USA.
 
 ;;; Hawking and Ellis page 34.
 
-(define ((torsion Cartan) X Y)
+(define ((torsion-vector Cartan) X Y)
   (let ((nabla (covariant-derivative Cartan)))
     (+ ((nabla X) Y)
        (* -1 ((nabla Y) X))
@@ -47,7 +48,7 @@ USA.
 
 ;;; This version takes nabla, allowing use over the map, etc.
 
-(define ((torsion nabla) X Y)
+(define ((torsion-vector nabla) X Y)
   (+ ((nabla X) Y)
      (* -1 ((nabla Y) X))
      (* -1 (commutator X Y))))
@@ -62,13 +63,24 @@ USA.
 
 ;;; Riemann tensor now takes the nabla too.
 
-(define ((Riemann nabla) w x u v)
-  (assert (and (form-field? w)
-	       (vector-field? u)
-	       (vector-field? v)
-	       (vector-field? x)))
-  (w (((Riemann-curvature nabla) u v) x)))
+(define (Riemann nabla)
+  (define (the-Riemann-tensor w x u v)
+    (w (((Riemann-curvature nabla) u v) x)))
+  (declare-argument-types! the-Riemann-tensor
+			   (list 1form-field?
+				 vector-field?
+				 vector-field?
+				 vector-field?))
+  the-Riemann-tensor)
 
+(define (torsion nabla)
+  (define (the-torsion w x y)
+    (w ((torsion-vector nabla) x y)))
+  (declare-argument-types! the-torsion
+			   (list 1form-field?
+				 vector-field?
+				 vector-field?))
+  the-torsion)
 
 
 ;;; use the connection derived from Lagrange equations on a sphere
@@ -150,7 +162,7 @@ solving for the highest order terms...
 (set! *divide-out-terms* #f)
 
 
-(pec ((((torsion (covariant-derivative sphere-Cartan)) v w) f)
+(pec ((((torsion-vector (covariant-derivative sphere-Cartan)) v w) f)
       ((M '->point) (up 'theta 'phi))))
 #| Result:
 (/ (+ (* 2
@@ -215,7 +227,7 @@ torsion for this connection
    (for-each
     (lambda (y)
       (pe
-       ((((torsion (covariant-derivative sphere-Cartan)) x y) a-function)
+       ((((torsion-vector (covariant-derivative sphere-Cartan)) x y) a-function)
 	((M '->point) (up 'theta 'phi)))))
     (list d/dtheta d/dphi)))
  (list d/dtheta d/dphi))
@@ -332,7 +344,7 @@ modified from ricci.scm
 
 (define ((Ricci nabla basis) u v)
   (let ((R (Riemann-curvature nabla)))
-    (contract-2 
+    (contract
      (lambda (d/dx dx) (dx ((R d/dx v) u)))
      basis)))
 

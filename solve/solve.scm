@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -108,6 +109,8 @@ The general strategy is:
 6. If more variables and more equations,
      go to step #1.
 |#
+
+(define solve-simplifier g:simplify)
 
 (define (residual-equations solution) (car solution))
 (define (residual-variables solution) (cadr solution))
@@ -118,9 +121,10 @@ The general strategy is:
   (if (default-object? substitutions) (set! substitutions '()))
   (if (default-object? hopeless) (set! hopeless '()))
   (let lp ((residual-eqs
-	    (map (lambda (equation)
-		   (apply-substitutions-to-equation equation substitutions))
-		 equations))
+	    (flush-tautologies
+	     (map (lambda (equation)
+		    (apply-substitutions-to-equation equation substitutions))
+		  equations)))
 	   (residual-vars     variables)
 	   (substitutions     substitutions)
 	   (hopeless-vars     hopeless)
@@ -323,9 +327,10 @@ The general strategy is:
 	     (justs '()))
     (cond  ((null? substs) (cons expression justs))
 	   ((occurs? (substitution-variable (car substs)) expression)
-	    (loop (substitute (substitution-expression (car substs))
-			      (substitution-variable (car substs))
-			      expression)
+	    (loop (solve-simplifier
+		   (substitute (substitution-expression (car substs))
+			       (substitution-variable (car substs))
+			       expression))
 		  (cdr substs)
 		  (list-union justs
 			      (substitution-justifications (car substs)))))
@@ -341,7 +346,7 @@ The general strategy is:
 				 (equation-justifications equation))))))
 
 (define (make-substitution var value justs)
-  (list (list '= var (default-simplify value)) justs))
+  (list (list '= var (solve-simplifier value)) justs))
 
 (define (substitution-variable subst) (cadar subst))
 (define (substitution-expression subst) (caddar subst))
@@ -465,7 +470,7 @@ The general strategy is:
 				     cdr-map
 				     cdr-functions)))))
 	  (continue elist map functions)))
-    (let lp ((residual (default-simplify residual)))
+    (let lp ((residual (solve-simplifier residual)))
       (walk-expression (if (quotient? residual)
 			   (symb:dividend residual)
 			   residual)
@@ -474,7 +479,7 @@ The general strategy is:
 		       (lambda (expression map funs)
 			 (if redo
 			     (begin (set! redo #f)
-				    (lp (default-simplify expression)))
+				    (lp (solve-simplifier expression)))
 			     (list expression map funs)))))))
 
 #|

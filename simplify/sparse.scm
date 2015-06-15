@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -181,7 +182,8 @@ USA.
 (define (sparse-abs p)
   (if (null? p)
       '()
-      (if (< (sparse-coefficient (car p)) 0)
+      (if (let ((c (sparse-coefficient (car p))))
+	    (and (real? c) (< c 0)))
 	  (map (lambda (term)
 		 (sparse-term (sparse-exponents term)
 			      (- (sparse-coefficient term))))
@@ -213,8 +215,47 @@ USA.
 						    r)))))))))
     (dloop numerator-terms cont)))
 
+
 (define (sparse-divisible? n d)
   (null? (sparse-divide n d (lambda (q r) r))))
+
+#|
+;;; This was a bad idea.  It actually gives wrong answers:
+;;; (x+1)/3 = 1/3 x + 1/3 but for x=6 7/3 is not integer divisible.
+
+(define *heuristic-sparse-divisible-enabled* #t)
+
+;;; Effectiveness Statistics
+(define *heuristic-sparse-divisible-win* 0)
+(define *heuristic-sparse-divisible-lose* 0)
+(define *heuristic-sparse-divisible-bad-decision* 0)
+(define *heuristic-sparse-divisible-testing* #t)
+
+(define (sparse-divisible? n d)
+  (if *heuristic-sparse-divisible-enabled*
+      (let ((m (length (sparse-exponents (car n)))))
+	(let ((na (sparse-evaluate n (generate-list m interpolate-random)))
+	      (da (sparse-evaluate d (generate-list m interpolate-random))))
+	  (if (and (integer? na) (integer? da) (zero? (remainder na da)))
+	      (let ((val (null? (sparse-divide n d (lambda (q r) r)))))
+		(set! *heuristic-sparse-divisible-lose*
+		      (+ *heuristic-sparse-divisible-lose* 1))
+		(if (not val)
+		    (set! *heuristic-sparse-divisible-bad-decision*
+			  (+ *heuristic-sparse-divisible-bad-decision* 1)))
+		val)
+	      (begin
+		(set! *heuristic-sparse-divisible-win*
+		      (+ *heuristic-sparse-divisible-win* 1))
+		(if *heuristic-sparse-divisible-testing*
+		    (let ((val (null? (sparse-divide n d (lambda (q r) r)))))
+		      (if val
+			  (begin (bkpt "Wrong answer! sparse-divisible")
+				 val)
+			  val))
+		    #f)))))
+      (null? (sparse-divide n d (lambda (q r) r)))))
+|#
 
 (define (fpf:->sparse p)
   (fpf:terms p))

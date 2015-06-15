@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -103,11 +104,58 @@ USA.
 		  (vector-basis->dual ovb coordinate-system))))
 
 #|
+(define-coordinates (up x y) R2-rect)
+
+(define (E2-metric v1 v2)
+  (+ (* (dx v1) (dx v2))
+     (* (dy v1) (dy v2))))
+#| E2-metric |#
+
+(define omega (wedge dx dy))
+#| omega |#
+
+(define E2-star
+  (Hodge-star E2-metric
+	      (coordinate-system->basis R2-rect)))
+#| E2-star |#
+
+((E2-star omega)
+ ((point R2-rect) (up 'x 'y)))
+#| 1 |#
+
+;;; What is a rank 0 form?
+
+
+(((E2-star dx)
+  (literal-vector-field 'V R2-rect))
+ ((point R2-rect) (up 'x 'y)))
+#|
+(V^1 (up x y))
+|#
+
+(((E2-star dy)
+  (literal-vector-field 'V R2-rect))
+ ((point R2-rect) (up 'x 'y)))
+#|
+(* -1 (V^0 (up x y)))
+|#
+
+(((E2-star (lambda (pt) 1))
+  (literal-vector-field 'V R2-rect)
+  (literal-vector-field 'W R2-rect))
+ ((point R2-rect) (up 'x 'y)))
+#|
+(+ (* (V^0 (up x y)) (W^1 (up x y)))
+   (* -1 (V^1 (up x y)) (W^0 (up x y))))
+|#
+|#
+
+#|
 ;;; First, some simple tests on 3-dimensional Euclidean space.
 (clear-arguments)
 (suppress-arguments (list '(up x0 y0 z0)))
 
-(install-coordinates R3-rect (up 'x 'y 'z))
+(define-coordinates (up x y z) R3-rect)
 (define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
 (define R3-basis (coordinate-system->basis R3-rect))
 
@@ -119,8 +167,37 @@ USA.
 (define E3-star (Hodge-star E3-metric R3-rect))
 
 #|
-(define E3-star (Hodge-star E3-metric (coordinate-system->basis R3-rect)))
+(define E3-star
+  (Hodge-star E3-metric
+	      (coordinate-system->basis R3-rect)))
 |#
+
+(((- (E3-star (lambda (pt) 1))
+     (wedge dx dy dz))
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect)
+       (literal-vector-field 'w R3-rect))
+      R3-point)
+#| 0 |#
+
+(((- (E3-star dx)
+     (wedge dy dz))
+  (literal-vector-field 'u R3-rect)
+  (literal-vector-field 'v R3-rect))
+ R3-point)
+#| 0 |#
+
+
+(((+ (E3-star (wedge dx dz)) dy)
+  (literal-vector-field 'u R3-rect))
+ R3-point)
+#| 0 |#
+
+
+((- (E3-star (wedge dx dy dz)) 1)
+ R3-point)
+#| 0 |#
+
 
 (pec (((E3-star (literal-scalar-field 'f R3-rect))
        (literal-vector-field 'u R3-rect)
@@ -245,9 +322,83 @@ alpha
 |#
 
 #|
-;;; Now for a 1-1 Minkowski space
+;;; Now for a 2+1 Minkowski space with c=1.
 
-(install-coordinates R2-rect (up 't 'x))
+(define-coordinates (up t x y) R3-rect)
+(define R3-point
+  ((R3-rect '->point) (up 't0 'x0 'y0)))
+(define R3-basis
+  (coordinate-system->basis R3-rect))
+
+(define (L3-metric u v)
+  (+ (* -1 (dt u) (dt v))
+     (* (dx u) (dx v))
+     (* (dy u) (dy v))))
+
+(define L3-star
+  (Hodge-star L3-metric R3-rect))
+
+((L3-metric d/dt d/dt) R3-point)
+#| -1 |#
+
+
+(((- (L3-star (lambda (m) 1))
+     (wedge dx dy dt))
+  (literal-vector-field 'U R3-rect)
+  (literal-vector-field 'V R3-rect)
+  (literal-vector-field 'W R3-rect))
+ R3-point)
+#| 0 |#
+
+(((- (L3-star dx)
+     (wedge dy dt))
+  (literal-vector-field 'U R3-rect)
+  (literal-vector-field 'V R3-rect))
+ R3-point)
+#| 0 |#
+
+(((- (L3-star dy)
+     (wedge dt dx))
+  (literal-vector-field 'U R3-rect)
+  (literal-vector-field 'V R3-rect))
+ R3-point)
+#| 0 |#
+
+
+(((- (L3-star dt)
+     (wedge dy dx))
+  (literal-vector-field 'U R3-rect)
+  (literal-vector-field 'V R3-rect))
+ R3-point)
+#| 0 |#
+
+
+(((- (L3-star (wedge dx dy)) dt)
+  (literal-vector-field 'U R3-rect))
+ R3-point)
+#| 0 |#
+
+
+(((+ (L3-star (wedge dy dt)) dx)
+  (literal-vector-field 'U R3-rect))
+ R3-point)
+#| 0 |#
+
+
+(((+ (L3-star (wedge dt dx)) dy)
+  (literal-vector-field 'U R3-rect))
+ R3-point)
+#| 0 |#
+
+((+ (L3-star (wedge dx dy dt)) 1)
+ R3-point)
+#| 0 |#
+|#
+
+#|
+;;; Now for a 1-1 Minkowski space with c.
+
+(define-coordinates (up t x) R2-rect)
 (define R2-point ((R2-rect '->point) (up 't0 'x0)))
 (define R2-basis (coordinate-system->basis R2-rect))
 (define c 'c)

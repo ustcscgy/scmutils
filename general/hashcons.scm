@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,6 +27,8 @@ USA.
 ;;;; cons-unique (aka hashcons)
 ;;;  Apparently invented by Ershov (CACM 1, 8, August 1958, pp. 3--6)
 ;;;  Re-introduced by E.Goto in 1974.
+;;;  Current version by GJS and Taylor Campbell 2010, improved by 
+;;;  Taylor Campbell in 2011.
 
 (declare (usual-integrations))
 
@@ -33,18 +36,28 @@ USA.
 ;;; same two arguments were previously combined with cons-unique it
 ;;; returns the same pair it returned the first time.
 
+#|
+;;; Test for correctness.  This should never return.  
+(let lp ((t (list 'a (cons 'b 3) 'c)))
+  (let ((c1 (canonical-copy t)) (c2 (canonical-copy t)))
+    (if (not (and (equal? t c1) (equal? t c2) (eq? c1 c2)))
+	`(lose (,(hash c1) ,c1) (,(hash c2) ,c2))
+	(lp (list 'a (cons 'b 3) 'c)))))
+;Value: (lose (21 (a (b . 3) c)) (20 (a (b . 3) c)))
+;;; This is what a loss looks like.
+|#
+
 (define cons-unique
   ;; I don't want to cons if unnecessary.
   (let ((the-test-pair (cons #f #f)))  
+    (define (generator) (weak-cons the-test-pair #f))
     (define (hashcons x y)
       (set-car! the-test-pair x)
       (set-cdr! the-test-pair y)
       (let ((weak-pair
 	     (hash-table/intern! the-cons-table
 				 the-test-pair
-				 (lambda ()
-				   (weak-cons the-test-pair
-					      #f)))))
+				 generator)))
 	(let ((the-canonical-pair (weak-car weak-pair)))
 	  (cond ((eq? the-canonical-pair the-test-pair)
 		 ;; test pair used, make a new one
@@ -56,7 +69,25 @@ USA.
 	  the-canonical-pair)))
     hashcons))
 
+(define hash-cons cons-unique)
+
+;;; Support for the hashcons system.
 
+(define (pair-eqv? u v)
+  (and (eqv? (car u) (car v))
+       (eqv? (cdr u) (cdr v))))
+
+(define (pair-eqv-hash-mod key modulus)
+  (fix:remainder
+   (fix:xor (eqv-hash-mod (car key) modulus)
+	    (eqv-hash-mod (cdr key) modulus))
+   modulus))
+
+(define the-cons-table
+  ((weak-hash-table/constructor pair-eqv-hash-mod
+				pair-eqv?
+				#t)))
+
 ;;; Given a list structure, to get a canonical copy equal to the given
 ;;; list structure.  Must canonicalize and share all substructure.
 	    
@@ -80,25 +111,6 @@ USA.
       (cons-unique (p (car lst))
 		   (map-unique p (cdr lst)))
       lst))
-
-;;; Support for the hashcons system.
-
-(define (pair-eqv? u v)
-  (and (eqv? (car u) (car v))
-       (eqv? (cdr u) (cdr v))))
-
-(define (pair-eqv-hash-mod key modulus)
-  (int:remainder (pair-eqv-hash key)
-		 modulus))
-
-(define (pair-eqv-hash pair)
-  (int:+ (eqv-hash (car pair))
-	 (eqv-hash (cdr pair))))
-
-(define the-cons-table
-  ((weak-hash-table/constructor pair-eqv-hash-mod
-				pair-eqv?
-				#t)))
 
 #|
 ;;; For example...

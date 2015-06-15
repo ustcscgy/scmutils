@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,19 +24,28 @@ USA.
 
 |#
 
-;;; A 1form is an operator that takes a vector field to a real-valued
-;;; function on the manifold.
+;;;; 1Form fields
+
+;;; A form-field of rank n is an operator that takes n vector fields
+;;; to a real-valued function on the manifold.  A 1form field takes a
+;;; single vector field.
 
 (define (form-field? fop)
   (and (operator? fop)
        (eq? (operator-subtype fop) wedge)))
 
-;;; A 1form field multiplies by wedge.
+(define (1form-field? fop)
+  (and (form-field? fop) (= (get-rank fop) 1)))
+
+;;; 1form fields multiply by wedge.  
+;;;   (See wedge.scm for definition of get-rank.)
 
 (define (procedure->1form-field fp #!optional name)
   (if (default-object? name)
       (set! name 'unnamed-1form-field))
-  (make-operator fp name wedge))
+  (let ((the-field (make-operator fp name wedge)))
+    (declare-argument-types! the-field (list vector-field?))
+    the-field))
 
 ;;; Dummy... forward reference so I can define dx, dy before wedge.
 (define (wedge f1 f2)
@@ -153,6 +163,7 @@ USA.
 
 
 ;;; This is one of the two incompatible definitions of "differential".
+;;; This differential is a special case of exterior derivative.
 ;;; The other one appears in maps.scm.
 
 (define (function->1form-field f)

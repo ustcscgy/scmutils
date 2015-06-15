@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -336,7 +337,7 @@ others.  For example:
     (F (vector-with-substituted-coord v j u)))
   (let ((x1 (gensymbols n)) (x2 (gensymbols n)))
     (let ((fx1 (F x1)) (fx2 (F x2)))
-      (let* ((tiny? (lambda (x) (exact-zero? (default-simplify x))))
+      (let* ((tiny? (lambda (x) (exact-zero? (g:simplify x))))
 	     (same? (lambda (x y) (tiny? (g:- x y))))
 	     (interesting-equations-mask
 	      (map (lambda (f1 f2)
@@ -643,16 +644,56 @@ others.  For example:
 #|
 ;;; The following simple problem takes too long to simplify!
 
-(pe ((partial-solve
-      (lambda (as bs cs xs ys)
-	(vector (- (ref ys 0) (v:dot-product as xs))
-		(- (ref ys 1) (v:dot-product bs xs))
-		(- (ref ys 2) (v:dot-product cs xs))))
-      '(3 3 3 3 3)
-      3)
-     (vector 'a_11 'a_12 'a_13)
-     (vector 'a_21 'a_22 'a_23)
-     (vector 'a_31 'a_32 'a_33)
-     '?
-     (vector 'y_1 'y_2 'y_3)))
+(set! *divide-out-terms* #f)
+
+(pec ((partial-solve
+       (lambda (as bs cs xs ys)
+	 (vector (- (ref ys 0) (v:dot-product as xs))
+		 (- (ref ys 1) (v:dot-product bs xs))
+		 (- (ref ys 2) (v:dot-product cs xs))))
+       '(3 3 3 3 3)
+       3)
+      (vector 'a_11 'a_12 'a_13)
+      (vector 'a_21 'a_22 'a_23)
+      (vector 'a_31 'a_32 'a_33)
+      '?
+      (vector 'y_1 'y_2 'y_3)))
+#|
+(up (/ (+ (* a_22 a_33 y_1)
+	  (* -1 a_22 y_3 a_13)
+	  (* -1 a_23 a_32 y_1)
+	  (* a_23 y_3 a_12)
+	  (* a_32 y_2 a_13)
+	  (* -1 a_33 y_2 a_12))
+       (+ (* a_22 a_33 a_11)
+	  (* -1 a_22 a_13 a_31)
+	  (* -1 a_23 a_32 a_11)
+	  (* a_23 a_12 a_31)
+	  (* a_32 a_13 a_21)
+	  (* -1 a_33 a_12 a_21)))
+    (/ (+ (* a_11 a_33 y_2)
+	  (* -1 a_11 y_3 a_23)
+	  (* -1 a_13 a_31 y_2)
+	  (* a_13 y_3 a_21)
+	  (* a_31 y_1 a_23)
+	  (* -1 a_33 y_1 a_21))
+       (+ (* a_11 a_33 a_22)
+	  (* -1 a_11 a_23 a_32)
+	  (* -1 a_13 a_31 a_22)
+	  (* a_13 a_21 a_32)
+	  (* a_31 a_12 a_23)
+	  (* -1 a_33 a_12 a_21)))
+    (/ (+ (* a_11 a_22 y_3)
+	  (* -1 a_11 a_32 y_2)
+	  (* -1 a_12 a_21 y_3)
+	  (* a_12 a_31 y_2)
+	  (* a_21 a_32 y_1)
+	  (* -1 a_22 a_31 y_1))
+       (+ (* a_11 a_22 a_33)
+	  (* -1 a_11 a_32 a_23)
+	  (* -1 a_12 a_21 a_33)
+	  (* a_12 a_31 a_23)
+	  (* a_13 a_21 a_32)
+	  (* -1 a_13 a_22 a_31))))
+|#
 |#

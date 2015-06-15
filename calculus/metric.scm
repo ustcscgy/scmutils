@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -93,9 +94,128 @@ USA.
 |#
 |#
 
-(define ((metric->coefs metric basis) m)
-  (let ((vector-basis (basis->vector-basis basis))
-	(1form-basis (basis->1form-basis basis)))
+#|
+(define ((coordinate-system->metric-components coordsys) xi)
+  (let ((xi->x   	;assumes internal rectangular representation
+	 (lambda (xi)
+	   (manifold-point-representation
+	    ((point coordsys) xi)))))
+    (define (Qd v)
+      (* ((D xi->x) xi) v))
+    (* 1/2
+       ((D (D (lambda (v)
+		(dot-product (Qd v) (Qd v)))))
+	(zero-like xi)))))
+|#
+
+(define ((coordinate-system->metric-components coordsys) xi)
+  (let* ((n (coordsys 'dimension))
+	 (xi->x    ;assumes internal rectangular representation
+	  (compose manifold-point-representation
+		   (point coordsys)))
+	 (h ((D xi->x) xi)))
+    (s:generate n 'down
+		(lambda (i)
+		  (s:generate n 'down
+			      (lambda (j)
+				(dot-product (ref h i)
+					     (ref h j))))))))
+#|
+((coordinate-system->metric-components R3-spherical) (up 'r 'theta 'phi))
+#|
+(down (down 1 0 0)
+      (down 0 (expt r 2) 0)
+      (down 0 0 (* (expt r 2) (expt (sin theta) 2))))
+|#
+|#
+
+(define (coordinate-system->metric coordinate-system)
+  (let* ((basis (coordinate-system->basis coordinate-system))
+	 (1form-basis (basis->1form-basis basis))
+	 (->components
+	  (coordinate-system->metric-components coordinate-system))
+	 (Chi (chart coordinate-system)))
+  (define ((the-metric v1 v2) m)
+    (let ((gcoeffs (->components (Chi m))))
+      (* (* gcoeffs ((1form-basis v1) m))
+	 ((1form-basis v2) m))))
+  (declare-argument-types! the-metric
+			   (list vector-field? vector-field?))
+  the-metric))
+
+
+(define (coordinate-system->inverse-metric coordinate-system)
+  (let* ((basis (coordinate-system->basis coordinate-system))
+	 (vector-basis (basis->vector-basis basis))
+	 (->components
+	  (/ 1
+	     (coordinate-system->metric-components coordinate-system)))
+	 (Chi (chart coordinate-system)))
+  (define ((the-metric v1 v2) m)
+    (let ((gcoeffs (->components (Chi m))))
+      (* (* gcoeffs (vector-basis v1))
+	 (vector-basis v2))))
+  (declare-argument-types! the-metric
+			   (list 1form-field? 1form-field?))
+  the-metric))
+
+;;; Symbolic metrics are often useful for testing.
+
+(define (make-metric name coordinate-system)
+  (define (gij i j)
+    (if (<= i j)
+	(literal-manifold-function
+	 (string->symbol
+	  (string-append (symbol->string name)
+			 "_"
+			 (number->string i)
+			 (number->string j)))
+	 coordinate-system)
+	(gij j i)))
+  gij)
+				    
+(define (literal-metric name coordinate-system)
+  ;; Flat coordinate systems here only.
+  (let ((basis (coordinate-system->basis coordinate-system)))
+    (let ((1form-basis (basis->1form-basis basis))
+	  (gij (make-metric name coordinate-system)))
+      (let ((n (s:dimension 1form-basis)))
+	(let ((gcoeffs
+	       (s:generate n 'down
+			   (lambda (i)
+			     (s:generate n 'down
+					 (lambda (j)
+					   (gij i j)))))))
+	  (define (the-metric v1 v2)
+	    (* (* gcoeffs (1form-basis v1))
+	       (1form-basis v2)))
+	  (declare-argument-types! the-metric
+				   (list vector-field? vector-field?))
+	  the-metric)))))
+#|
+(install-coordinates R3-rect (up 'x 'y 'z))
+
+(set! *factoring* #f)
+
+(pec (((literal-metric 'g R3-rect)
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect))
+      ((R3-rect '->point) (up 'x0 'y0 'z0))))
+#| Result:
+(+ (* (v^0 (up x0 y0 z0)) (u^0 (up x0 y0 z0)) (g_00 (up x0 y0 z0)))
+   (* (v^0 (up x0 y0 z0)) (g_01 (up x0 y0 z0)) (u^1 (up x0 y0 z0)))
+   (* (v^0 (up x0 y0 z0)) (g_02 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
+   (* (u^0 (up x0 y0 z0)) (v^1 (up x0 y0 z0)) (g_01 (up x0 y0 z0)))
+   (* (u^0 (up x0 y0 z0)) (v^2 (up x0 y0 z0)) (g_02 (up x0 y0 z0)))
+   (* (v^1 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_11 (up x0 y0 z0)))
+   (* (v^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
+   (* (v^2 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)))
+   (* (v^2 (up x0 y0 z0)) (u^2 (up x0 y0 z0)) (g_22 (up x0 y0 z0))))
+|#
+|#
+
+(define ((metric->components metric basis) m)
+  (let ((vector-basis (basis->vector-basis basis)))
     (s:map/r (lambda (e_i)
 	       (s:map/r (lambda (e_j)
 			  ((metric e_i e_j) m))
@@ -105,9 +225,9 @@ USA.
 
 ;;; Given a metric and a basis, to compute the inverse metric
 
-(define (metric->inverse-coeffs metric basis)
+(define (metric->inverse-components metric basis)
   (define (the-coeffs m)
-    (let ((g_ij ((metric->coefs metric basis) m))
+    (let ((g_ij ((metric->components metric basis) m))
 	  (1form-basis (basis->1form-basis basis)))
       (let ((g^ij
 	     (s:inverse (typical-object 1form-basis)
@@ -116,24 +236,36 @@ USA.
 	 g^ij)))
   the-coeffs)    
 
-(define (((metric:invert metric basis) w1 w2) m)
-  (let ((vector-basis (basis->vector-basis basis))
-	(g^ij ((metric->inverse-coeffs metric basis) m)))
-    (* (* g^ij ((s:map/r w1 vector-basis) m))
-       ((s:map/r w2 vector-basis) m))))
+(define (metric:invert metric basis)
+  (define (the-inverse-metric w1 w2)
+    (lambda (m)
+      (let ((vector-basis (basis->vector-basis basis))
+	    (g^ij ((metric->inverse-components metric basis) m)))
+	(* (* g^ij ((s:map/r w1 vector-basis) m))
+	   ((s:map/r w2 vector-basis) m)))))
+  (declare-argument-types! the-inverse-metric
+			   (list 1form-field? 1form-field?))
+  the-inverse-metric)
 
 #|
+(install-coordinates R2-rect (up 'x 'y))
+(define R2-basis (coordinate-system->basis R2-rect))
+
+(define ((g-R2 g_00 g_01 g_11) u v)
+  (+ (* g_00 (dx u) (dx v))
+     (* g_01 (+ (* (dx u) (dy v)) (* (dy u) (dx v))))
+     (* g_11 (dy u) (dy v))))
+
 (pec (((metric:invert (g-R2 'a 'b 'c) R2-basis)
        (literal-1form-field 'omega R2-rect)
        (literal-1form-field 'theta R2-rect))
       ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
-(/ (+ (* (omega_1 (up x0 y0)) (theta_1 (up x0 y0)) a)
-      (* (+ (* -1 (omega_0 (up x0 y0)) (theta_1 (up x0 y0)))
-	    (* -1 (theta_0 (up x0 y0)) (omega_1 (up x0 y0))))
-	 b)
-      (* (theta_0 (up x0 y0)) (omega_0 (up x0 y0)) c))
-   (+ (* c a) (* -1 (expt b 2))))
+(/ (+ (* a (theta_1 (up x0 y0)) (omega_1 (up x0 y0)))
+      (* -1 b (theta_1 (up x0 y0)) (omega_0 (up x0 y0)))
+      (* -1 b (omega_1 (up x0 y0)) (theta_0 (up x0 y0)))
+      (* c (omega_0 (up x0 y0)) (theta_0 (up x0 y0))))
+   (+ (* a c) (* -1 (expt b 2))))
 |#
 
 ;;; Test of inversion
@@ -155,30 +287,48 @@ USA.
 |#
 |#
 
+;;; over a map
+
+(define (metric-over-map mu:N->M g-on-M)
+  (define (vector-field-over-map->vector-field V-over-mu n) 
+    ;; This helper has no clear meaning.
+    (procedure->vector-field
+     (lambda (f)
+       (lambda (m)
+	 ;;(assert (= m (mu:N->M n)))
+	 ((V-over-mu f) n)))
+     `(vector-field-over-map->vector-field
+       ,(diffop-name V-over-mu))))
+  (define (the-metric v1 v2)
+    (lambda (n)
+      ((g-on-M
+	(vector-field-over-map->vector-field v1 n)
+	(vector-field-over-map->vector-field v2 n))
+       (mu:N->M n))))
+  (declare-argument-types! the-metric
+			   (list vector-field? vector-field?))
+  the-metric)
+
 ;;; Raising and lowering indices...
 
-(define ((vector-field->1form-field metric) u)
+(define ((lower metric) u)
   (define (omega v)
     (metric v u))
   (procedure->1form-field omega
     `(lower ,(diffop-name u)
 	    ,(diffop-name metric))))
 
-(define lower vector-field->1form-field)
+(define vector-field->1form-field lower)
 
-
-(define (1form-field->vector-field metric basis)
-  (let ((gi (metric:invert metric basis)))
-    (let ((vector-basis (basis->vector-basis basis))
-	  (1form-basis (basis->1form-basis basis)))
-      (define (proc omega)
-	(s:sigma/r (lambda (e~i e_i)
-		     (* (gi omega e~i) e_i))
-		   1form-basis
-		   vector-basis))
-      proc)))
   
-(define raise 1form-field->vector-field)
+(define (raise metric basis)
+  (let ((gi (metric:invert metric basis)))
+    (lambda (omega)
+      (contract (lambda (e_i e~i)
+		  (* (gi omega e~i) e_i))
+		basis))))
+
+(define 1form-field->vector-field raise)
 
 ;;; Note: raise needs an extra argument -- the coordinate system -- why?
 
@@ -189,11 +339,10 @@ USA.
    (literal-vector-field 'w R2-rect))
   ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
-(+ (* (w^0 (up x0 y0)) (v^0 (up x0 y0)) a)
-   (* (+ (* (v^0 (up x0 y0)) (w^1 (up x0 y0)))
-	 (* (w^0 (up x0 y0)) (v^1 (up x0 y0))))
-      b)
-   (* (v^1 (up x0 y0)) (w^1 (up x0 y0)) c))
+(+ (* a (v^0 (up x0 y0)) (w^0 (up x0 y0)))
+   (* b (v^0 (up x0 y0)) (w^1 (up x0 y0)))
+   (* b (v^1 (up x0 y0)) (w^0 (up x0 y0)))
+   (* c (v^1 (up x0 y0)) (w^1 (up x0 y0))))
 |#
 
 (pec
@@ -212,7 +361,7 @@ USA.
 ;;; inverted for each manifold point.
 
 (define (sharpen metric basis m)
-  (let ((g^ij ((metric->inverse-coeffs metric basis) m))
+  (let ((g^ij ((metric->inverse-components metric basis) m))
 	(vector-basis (basis->vector-basis basis))
 	(1form-basis (basis->1form-basis basis)))
     (define (sharp 1form-field)
@@ -236,3 +385,24 @@ USA.
     (* (v^1 (up x0 y0)) (((partial 1) w) (up x0 y0))))
 |#
 |#
+
+;;; Useful metrics
+
+
+(define S2-metric
+  (let* ((chart
+	  (S2-spherical 'coordinate-functions))
+	 (theta (ref chart 0))
+	 (phi (ref chart 1))
+	 (1form-basis
+	  (S2-spherical 'coordinate-basis-1form-fields))
+	 (dtheta (ref 1form-basis 0))
+	 (dphi (ref 1form-basis 1)))
+
+    (define (the-metric v1 v2)
+      (+ (* (dtheta v1) (dtheta v2))
+	 (* (expt (sin theta) 2)
+	    (dphi v1) (dphi v2))))
+    (declare-argument-types! the-metric
+			     (list vector-field? vector-field?))
+    the-metric))

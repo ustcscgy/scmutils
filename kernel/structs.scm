@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -422,6 +423,11 @@ USA.
 
 |#
 
+(define (structure:expt t n)
+  (cond ((fix:= n 1) t)
+	((fix:> n 1) (g:* t (structure:expt t (fix:- n 1))))
+	(else (error "Cannot: " `(expt ,t ,n)))))
+
 
 (define (scalar*structure s v)
   (s:structure (s:same v)
@@ -491,6 +497,8 @@ USA.
 (assign-operation '*           structure*scalar        structure? scalar?)
 
 (assign-operation '/           structure/scalar        structure? scalar?)
+
+(assign-operation 'expt        structure:expt          structure? exact-integer?)
 
 
 #| ;;; Should be subsumed by deriv:pd in deriv.scm.
@@ -964,22 +972,91 @@ USA.
       (typical-object s)))
 
 
-;;; Given two structures their outer product makes a structure
+(define (s:transpose-outer struct)
+  (s:generate (s:length (s:ref struct 0))
+	      (s:same (s:ref struct 0))
+	      (lambda (i)
+		(s:generate (s:length struct)
+			    (s:same struct)
+			    (lambda (j)
+			      (s:ref (s:ref struct j)
+				     i))))))
 
-(define (outer-product s1 s2)
+
+;;; Given two structures their outer product makes a structure
+#|
+(define (s:outer-product s1 s2)
   (let lp ((s s2))
     (if (structure? s)
 	(s:generate (s:length s) (s:same s)
 		    (lambda (i) (lp (s:ref s i))))
 	(g:* s1 s))))
-
 #|
-(pe (* (outer-product (up 'a0 'a1)
-		      (down 'b0 'b1 'b2))
-       (up 'dv0 'dv1 'dv2)))
-(up (+ (* a0 b0 dv0) (* a0 b1 dv1) (* a0 b2 dv2))
-    (+ (* a1 b0 dv0) (* a1 b1 dv1) (* a1 b2 dv2)))
+(pe (s:outer-product (up 'a0 'a1)
+		   (down 'b0 'b1 'b2)))
+(down (up (* a0 b0) (* a1 b0))
+      (up (* a0 b1) (* a1 b1))
+      (up (* a0 b2) (* a1 b2)))
 |#
+|#
+
+(define (s:outer-product struct1 struct2)
+  (s:map/r (lambda (s1)
+	     (s:map/r (lambda (s2)
+			(g:* s1 s2))
+		      struct2))
+	   struct1))
+#|
+(pe (s:outer-product (up 'a0 'a1)
+		   (down 'b0 'b1 'b2)))
+(up (down (* a0 b0) (* a0 b1) (* a0 b2))
+    (down (* a1 b0) (* a1 b1) (* a1 b2)))
+
+;;; cf.
+
+(pe (m:outer-product (column-matrix 'a0 'a1)
+		     (row-matrix 'b0 'b1 'b2)))
+(matrix-by-rows (list (* a0 b0) (* a0 b1) (* a0 b2))
+		(list (* a1 b0) (* a1 b1) (* a1 b2)))
+|#
+
+
+;;; contract assumes multi-index cubical structures
+
+(define (s:contract struct index1 index2)
+  (let ((scripts
+	 (let lp ((s struct))
+	   (if (structure? s)
+	       (cons (cons (s:same s) (s:length s))
+		     (lp (s:ref s 0)))
+	       '()))))
+    (assert (every (lambda (x)
+		     (or (eq? (car x) 'up) (eq? (car x) 'down)))
+		   scripts))
+    (assert (not (eq? (car (list-ref scripts index1))
+		      (car (list-ref scripts index2)))))
+
+    (let lp ((scripts scripts) (indices '()) (index-number 0))
+      (if (not (null? scripts))
+	  (cond ((or (fix:= index-number index1)
+		     (fix:= index-number index2))
+		 (lp (cdr scripts)
+		     (append indices (list 'index))
+		     (fix:+ index-number 1)))
+		(else
+		 (s:generate (cdar scripts) (caar scripts)
+			     (lambda (i)
+			       (lp (cdr scripts)
+				   (append indices (list i))
+				   (fix:+ index-number 1))))))
+	  (g:sigma (lambda (i)
+		     (ref-internal struct
+				   (list-with-substituted-coord 
+				     (list-with-substituted-coord
+				      indices index1 i)
+				     index2 i)))
+		   0
+		   (fix:- (s:length struct) 1))))))
 
 ;;; beginning of ultra-flatten
 

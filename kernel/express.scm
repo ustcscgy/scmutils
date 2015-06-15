@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -105,12 +106,6 @@ USA.
 	 abstract-quantity)
 	(else
 	 (error "Bad abstract quantity"))))
-
-(define (identity-simplification expr)
-  (let ((t (type expr)))
-    (if (eq? t '*number*)
-	(make-numerical-literal (default-simplify expr))
-	expr)))
 
 ;;; In this system, expressions never contain vectors or matrices,
 ;;; they only contain constructions for them.  Thus we need to be able
@@ -161,7 +156,10 @@ USA.
 
 (define (expression expr)
   (define (exprlp expr)
-    (cond ((number? expr) expr)
+    (cond ((number? expr)
+	   (if (and (inexact? expr) heuristic-number-canonicalizer)
+	       (heuristic-number-canonicalizer expr)
+	       expr))
 	  ((symbol? expr) expr)	   
 	  ((null? expr) expr)
 	  ((differential? expr)
@@ -209,13 +207,17 @@ USA.
 	   (cond ((eq? (car expr) '???) expr)
 		 ((memq (car expr) abstract-type-tags)
 		  (exprlp (expression-of expr)))
-		 (else (map exprlp expr))))
+		 (else (safe-map exprlp expr))))
 	  ((abstract-function? expr)
 	   (exprlp (f:expression expr)))
 	  ((operator? expr)
 	   (exprlp (operator-name expr)))
 	  ((procedure? expr)
 	   (procedure-expression expr))
+	  ((undefined-value? expr)
+	   '*undefined-value*)
+	  ((boolean? expr)
+	   (if expr 'true 'false))
 	  (else (error "Bad expression" expr))))
   (exprlp expr))
 
@@ -234,22 +236,22 @@ USA.
 
 (define (procedure-name f)
   (let ((u2 (unsyntax (procedure-lambda f))))
-    (if (pair? u2)
-	(case (car u2)
-	  ((named-lambda) (caadr u2))
-	  ((lambda) `(??? ,@(cadr u2)))
-	  (else
-	   (error "Unknown procedure type" f)))
-	'???)))
+    (and (pair? u2)
+	 (cond ((eq? (car u2) 'named-lambda) (caadr u2))
+	       ((eq? (car u2) 'lambda) `(??? ,@(cadr u2)))
+	       (else
+		(error "Unknown procedure type" f))))))
 
 (define (procedure-expression f)
-  (or (object-name f
+  (or (eq-get f 'function-name)
+      (procedure-name f)
+      (object-name f
 		   user-generic-environment
 		   generic-environment
 		   rule-environment
 		   numerical-environment
 		   scmutils-base-environment)
-      (procedure-name f)))
+      '???))
 
 
 (define (generate-list-of-symbols base-symbol n)
@@ -325,7 +327,7 @@ USA.
 	((real? expr2) #f)
 	((symbol? expr1)
 	 (if (symbol? expr2)
-	     (symbol<? expr1 expr2)
+	     (variable<? expr1 expr2)
 	     #f))
 	((symbol? expr2) #f)
 	((pair? expr1)

@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -25,27 +26,26 @@ USA.
 
 ;;;; Scmutils top-level loader
 
+(set! load-debugging-info-on-demand? #t)
+
 (ge user-initial-environment)
 
-(add-subsystem-identification! "ScmUtils" '("Mechanics " " Spring 2010"))
+(add-subsystem-identification! "ScmUtils" '("Mechanics" "Summer 2011"))
 
-(define scmutils-base-environment
-  user-initial-environment)
+(define scmutils-base-environment user-initial-environment)
+
+(environment-define scmutils-base-environment
+		    '*environment*
+		    'scmutils-base-environment)
 
 (load "general/comutils" scmutils-base-environment)
 
 (start-canonicalizing-symbols!)
 
-;;; LOCAL-ASSIGNMENT should eventually be replaced with
-;;; ENVIRONMENT-DEFINE when that has stabilized.
 
-(local-assignment scmutils-base-environment
-		  '*environment*
-		  'scmutils-base-environment)
-
-(local-assignment scmutils-base-environment
-		  'derivative-symbol
-		  (string->symbol "D"))
+(environment-define scmutils-base-environment
+		    'derivative-symbol
+		    (string->symbol "D"))
 
 (define (in-scmutils-directory relative-path thunk)
   (with-working-directory-pathname
@@ -56,9 +56,6 @@ USA.
 (load-option 'hash-table)
 (load-option 'synchronous-subprocess)
 
-;;; This doesn't work because load must also get dll's into the microcode.
-;;;(load-option 'swat)
-
 (in-scmutils-directory "./general"
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
@@ -66,18 +63,29 @@ USA.
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 
-(environment-define system-global-environment
-		    'generic-environment
+;;; kernel/genenv.scm defines the generic environment
+(environment-define system-global-environment 'generic-environment
 		    (access generic-environment scmutils-base-environment))
+
+(environment-define system-global-environment 'user-generic-environment
+		    (extend-top-level-environment
+		     (access generic-environment scmutils-base-environment)))
+
+(environment-define user-generic-environment
+		    '*environment*
+		    'user-generic-environment)
 
 (in-scmutils-directory "./simplify"
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 
-(define symbolic-environment
-  (access symbolic-environment scmutils-base-environment))
-(define rule-environment
-  (access rule-environment scmutils-base-environment))
+(environment-define system-global-environment
+		    'symbolic-environment
+		    (access symbolic-environment scmutils-base-environment))
+
+(environment-define system-global-environment
+		    'rule-environment
+		    (access rule-environment scmutils-base-environment))
 
 (define symbolic-operators
   (hash-table/key-list symbolic-operator-table))
@@ -119,8 +127,16 @@ USA.
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 
-(environment-define system-global-environment 'user-generic-environment
-		    (extend-top-level-environment
-		     (access generic-environment scmutils-base-environment)))
+;;; Should be a place to put useful stuff like this.
+(define (Sigma a b proc)
+  (g:sigma proc a b))
 
+;;; To fix the problem that students cannot change find-path.
+
+(in-scmutils-directory "./mechanics"
+		       (lambda ()
+			 (load "find-path-patch"
+			       user-generic-environment)))
+
+(start-scmutils-print)
 (ge user-generic-environment)

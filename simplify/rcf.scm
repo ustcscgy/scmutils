@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -63,6 +64,7 @@ USA.
 	((pcf? q) (poly:arity q))
 	(else (error "Wrong type -- RCF:ARITY" q))))
 
+#|
 (define (make-rcf n d)
   (cond ((poly:zero? d)
 	 (error "Zero denominator -- MAKE-RCF" n d))
@@ -74,6 +76,25 @@ USA.
 	       (make-ratform n d)
 	       (make-ratform (poly:normalize-by n dn)
 			     (poly:normalize-by d dn)))))))
+|#
+
+(define (make-rcf n d)
+  (cond ((poly:zero? d)
+	 (error "Zero denominator -- MAKE-RCF" n d))
+	((or (poly:zero? n) (poly:one? d)) n)
+	(else
+	 (let ((b ((set->list numbers)
+		   ((union-sets numbers)
+		    (poly/base-coefficients n)
+		    (poly/base-coefficients d)))))
+	   (let ((c (* (reduce-left lcm base/one
+				    (map denominator
+					 (filter ratnum? b)))
+		       (sgn (poly:leading-base-coefficient d)))))
+	     (if (base/one? c)
+		 (make-ratform n d)
+		 (make-ratform (poly:* n c)
+			       (poly:* d c))))))))
 
 
 (define (rcf:rcf? object)
@@ -98,8 +119,8 @@ USA.
 
 
 ;;; The notation here is from Knuth (p. 291).
-;;; In various places we take the gcd of two numbers and then call
-;;; quotient to reduce those numbers.
+;;; In various places we take the gcd of two polynomials
+;;; and then use quotient to reduce those polynomials.
 
 (define (rcf:+ u/u* v/v*)
   (rcf:binary-operator u/u* v/v*
@@ -389,7 +410,7 @@ USA.
   (let ((evars
 	 (sort (list-difference (variables-in expr)
 				rcf:operators-known)
-	       (if (default-object? less?) alphaless? less?))))
+	       (if (default-object? less?) variable? less?))))
     (cont ((expression-walker
 	    (pair-up evars
 		     (poly:new-variables (length evars))

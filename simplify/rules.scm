@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,9 +36,17 @@ USA.
 ;;;  can confuse x=(x0+n*2pi)i with x0
 (define log-exp-simplify? true)
 
-;;; allows (sqrt (square x)) => x
-;;;  not good if x is negative.
+;;; If x is real then (sqrt (square x)) = (abs x)
+;;;   This is hard to work with, but we usually want to 
+;;;   allow (sqrt (square x)) => x, but this is
+;;;     not good if x is negative.
 (define sqrt-expt-simplify? true)
+
+;;; If x, y are real non-negative then
+;;; (* (sqrt x) (sqrt y)) = (sqrt (* x y))
+;;; but this is not true for negative factors.
+;;; We allow this interchange 
+(define sqrt-factor-simplify? true)
 
 ;;; allows (atan y x) => (atan (/ y d) (/ x d)) where d=(gcd x y)
 ;;; OK if d is a number (gcd is always positive) but may
@@ -71,6 +80,11 @@ USA.
   (assert (boolean? doit?) "argument must be a boolean.")
   (clear-memoizer-tables)
   (set! sqrt-expt-simplify? doit?))
+
+(define (sqrt-factor-simplify doit?)
+  (assert (boolean? doit?) "argument must be a boolean.")
+  (clear-memoizer-tables)
+  (set! sqrt-factor-simplify? doit?))
 
 (define (inverse-simplify doit?)
   (assert (boolean? doit?) "argument must be a boolean.")
@@ -210,14 +224,17 @@ USA.
    ( (expt (sqrt (? x)) (? n even-integer?))
      none
      (expt (: x) (: (quotient n 2))) )
+
    ( (sqrt (expt (? x) (? n even-integer?)))
      sqrt-expt-simplify?
      (expt (: x) (: (quotient n 2))) )
 
-   ( (expt (sqrt (? x)) (? n odd-integer?))
+   ;; Restrict for |n|>2
+   ( (sqrt (expt (? x) (? n odd-integer?)))
      none
      (* (sqrt (: x)) (expt (: x) (: (quotient (fix:- n 1) 2)))) )
-   ( (sqrt (expt (? x) (? n odd-integer?)))
+
+   ( (expt (sqrt (? x)) (? n odd-integer?))
      none
      (* (sqrt (: x)) (expt (: x) (: (quotient (fix:- n 1) 2)))) )
    
@@ -349,43 +366,43 @@ USA.
   (rule-system
 		     
    ( (sqrt (* (? x) (? y)))
-     none
+     sqrt-factor-simplify?
      (* (sqrt (: x)) (sqrt (: y))) )
 
    ( (sqrt (* (? x) (? y) (?? ys)))
-     none
+     sqrt-factor-simplify?
      (* (sqrt (: x)) (sqrt (* (: y) (:: ys)))) )
 
    ( (sqrt (/ (? x) (? y)))
-     none
+     sqrt-factor-simplify?
      (/ (sqrt (: x)) (sqrt (: y))) )
 
    ( (sqrt (/ (? x) (? y) (?? ys)))
-     none
+     sqrt-factor-simplify?
      (/ (sqrt (: x)) (sqrt (* (: y) (:: ys)))) )
    ))
 
 (define sqrt-contract
   (rule-system
    ( (* (?? a) (sqrt (? x)) (?? b) (sqrt (? y)) (?? c))
-     none
+     sqrt-factor-simplify?
      (* (:: a) (:: b) (:: c) (sqrt (* (: x) (: y)))) )
 
    ( (/ (sqrt (? x)) (sqrt (? y)))
-     none
+     sqrt-factor-simplify?
      (sqrt (/ (: x) (: y))) )
 
    ( (/ (* (?? a) (sqrt (? x)) (?? b)) (sqrt (? y)))
-     none
+     sqrt-factor-simplify?
      (* (:: a) (:: b) (sqrt (/ (: x) (: y)))) )
 
    ( (/ (sqrt (? x)) (* (?? a) (sqrt (? y)) (?? b)))
-     none
+     sqrt-factor-simplify?
      (/ (sqrt (/ (: x) (: y))) (* (:: a) (:: b))) )
 
    ( (/ (* (?? a) (sqrt (? x)) (?? b))
 	(* (?? c) (sqrt (? y)) (?? d)))
-     none
+     sqrt-factor-simplify?
      (/ (* (:: a) (:: b) (sqrt (/ (: x) (: y))))
 	(* (:: c) (:: d))) )
    
@@ -1016,6 +1033,7 @@ USA.
 
 ;;; assuming that expression comes in canonical it goes out canonical
 
+#|
 (define (simplify-until-stable rule-simplify canonicalize)
   (define (simp exp)
     (let ((newexp (rule-simplify exp)))
@@ -1023,6 +1041,33 @@ USA.
 	  exp
 	  (simp (canonicalize newexp)))))
   simp)
+
+
+(define (simplify-until-stable rule-simplify canonicalize)
+  (define (simp exp)
+    (let ((newexp (rule-simplify exp)))
+      (if (equal? exp newexp)
+	  exp
+	  (let ((cexp (canonicalize newexp)))
+	    (if (equal? exp cexp)
+		exp
+		(simp cexp))))))
+  simp)
+|#
+
+(define (simplify-until-stable rule-simplify canonicalize)
+  (define (simp exp)
+    (let ((newexp (rule-simplify exp)))
+      (if (equal? exp newexp)
+	  exp
+	  (let ((cexp (canonicalize newexp)))
+	    (cond ((equal? cexp exp) exp)
+		  ((exact-zero? (fpf:simplify `(- ,exp ,cexp))) cexp)
+		  (else (simp cexp)))))))
+  simp)
+
+
+;;; Once around.
 
 (define (simplify-and-canonicalize rule-simplify canonicalize)
   (define (simp exp)
@@ -1047,8 +1092,9 @@ USA.
 (define ->poisson-form
   (compose simplify-and-flatten
 	   angular-parity
-	   (simplify-until-stable contract-multiangle simplify-and-flatten)
-	   (simplify-until-stable contract-expt-trig simplify-and-flatten)
+	   (simplify-until-stable
+	    (compose contract-multiangle simplify-and-flatten contract-expt-trig)
+	    simplify-and-flatten)
 	   simplify-and-flatten
 	   trig->sincos))
 
@@ -1192,6 +1238,14 @@ USA.
 	    )
    exp))
 
+(define (clear-square-roots-of-perfect-squares expr)
+  (if sqrt-expt-simplify?
+      ((simplify-and-canonicalize (compose universal-reductions
+					   root-out-squares)
+				  simplify-and-flatten)
+       expr)
+      expr))
+
 (define (new-simplify exp)
   (define (sqrt? exp)
     (occurs-in? '(sqrt) exp))
@@ -1203,21 +1257,19 @@ USA.
     (occurs-in? '(partial) exp))
   ((compose (only-if sqrt?
 		     (compose
-		      (simplify-and-canonicalize (compose universal-reductions
-							  root-out-squares)
-						 simplify-and-flatten)
+		      clear-square-roots-of-perfect-squares
 		      (simplify-until-stable (compose universal-reductions
 						      sqrt-expand)
 					     simplify-and-flatten)
-		      (simplify-and-canonicalize (compose universal-reductions
-							  root-out-squares)
-						 simplify-and-flatten)
+		      clear-square-roots-of-perfect-squares
 		      (simplify-until-stable sqrt-contract
 					     simplify-and-flatten)))
 	    (only-if sincos?
 		     (compose (simplify-and-canonicalize
 			       (compose universal-reductions sincos->trig)
 			       simplify-and-flatten)
+			      (simplify-and-canonicalize angular-parity
+							 simplify-and-flatten)
 			      (simplify-until-stable sincos-random
 						     simplify-and-flatten)
 			      (simplify-and-canonicalize sin^2->cos^2
@@ -1240,14 +1292,15 @@ USA.
 					     simplify-and-flatten)	
 		      (simplify-until-stable (compose log-contract exp-contract)
 					     simplify-and-flatten)))
-
 	    (simplify-until-stable (compose universal-reductions
-					    (only-if sincos? angular-parity)
 					    (only-if logexp?
 						     (compose log-expand
 							      exp-expand))
 					    (only-if sqrt? sqrt-expand))
 				   simplify-and-flatten)
+	    (only-if sincos?
+		     (simplify-and-canonicalize angular-parity
+						simplify-and-flatten))
 	    (simplify-and-canonicalize trig->sincos simplify-and-flatten)
 	    (only-if partials?
 		     (simplify-and-canonicalize canonicalize-partials
@@ -1255,5 +1308,7 @@ USA.
 	    simplify-and-flatten
 	    )
    exp))
+
+
 
 

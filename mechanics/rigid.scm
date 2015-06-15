@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -106,13 +107,12 @@ USA.
 	(literal-function 'psi)))
    't))
 (matrix-by-rows
- (list
-  (+ (* ((D phi) t) (sin (theta t)) (sin (psi t)))
-     (* (cos (psi t)) ((D theta) t))))
- (list
-  (+ (* ((D phi) t) (sin (theta t)) (cos (psi t)))
-     (* -1 (sin (psi t)) ((D theta) t))))
- (list (+ (* (cos (theta t)) ((D phi) t)) ((D psi) t))))
+ (list (+ (* (sin (theta t)) (sin (psi t)) ((D phi) t))
+	  (* ((D theta) t) (cos (psi t)))))
+ (list (+ (* (sin (theta t)) (cos (psi t)) ((D phi) t))
+	  (* -1 ((D theta) t) (sin (psi t)))))
+ (list (+ (* (cos (theta t)) ((D phi) t))
+	  ((D psi) t))))
 |#
 
 #|
@@ -123,13 +123,12 @@ USA.
        (literal-function 'psi)))
   't))
 (matrix-by-rows
- (list
-  (+ (* ((D phi) t) (sin (theta t)) (sin (psi t)))
-     (* (cos (psi t)) ((D theta) t))))
- (list
-  (+ (* ((D phi) t) (sin (theta t)) (cos (psi t)))
-     (* -1 (sin (psi t)) ((D theta) t))))
- (list (+ (* (cos (theta t)) ((D phi) t)) ((D psi) t))))
+ (list (+ (* (sin (theta t)) (sin (psi t)) ((D phi) t))
+	  (* ((D theta) t) (cos (psi t)))))
+ (list (+ (* (sin (theta t)) (cos (psi t)) ((D phi) t))
+	  (* -1 ((D theta) t) (sin (psi t)))))
+ (list (+ (* (cos (theta t)) ((D phi) t))
+	  ((D psi) t))))
 
 (show-expression
  ((M->omega-body Euler->M)
@@ -138,7 +137,7 @@ USA.
       (up 'thetadot 'phidot 'psidot))))
 (matrix-by-rows
  (list (+ (* phidot (sin psi) (sin theta)) (* thetadot (cos psi))))
- (list (+ (* phidot (sin theta) (cos psi)) (* -1 thetadot (sin psi))))
+ (list (+ (* phidot (cos psi) (sin theta)) (* -1 thetadot (sin psi))))
  (list (+ (* phidot (cos theta)) psidot)))
 |#
 
@@ -190,10 +189,10 @@ USA.
    (((partial 2) (T-rigid-body 'A 'B 'C))
     an-Euler-state)
    1))
-(+ (* A phidot (expt (sin theta) 2) (expt (sin psi) 2))
+(+ (* A phidot (expt (sin psi) 2) (expt (sin theta) 2))
    (* B phidot (expt (cos psi) 2) (expt (sin theta) 2))
-   (* A thetadot (cos psi) (sin theta) (sin psi))
-   (* -1 B thetadot (cos psi) (sin theta) (sin psi))
+   (* A thetadot (cos psi) (sin psi) (sin theta))
+   (* -1 B thetadot (cos psi) (sin psi) (sin theta))
    (* C phidot (expt (cos theta) 2))
    (* C psidot (cos theta)))
 
@@ -250,9 +249,14 @@ USA.
      0.1
      100.0
      1.0e-12)))
+#|
+(up 99.99999999999864
+    (up .6319896958334494 1.3610271540875034 17.437900484737938)
+    (up -.12343716197181527 .09016109524808046 .07567921658605782))
+|#
 
-(graphics-close win)
 (graphics-clear win)
+(graphics-close win)
 |#
 
 #|

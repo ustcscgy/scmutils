@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -63,14 +64,14 @@ USA.
 
 (define-integrable base/expt expt)
 
-(define poly/zero base/zero)
+(define-integrable poly/zero base/zero)
 
-(define poly/one base/one)
+(define-integrable poly/one base/one)
 
-(define (poly/zero? p)
+(define-integrable (poly/zero? p)
   (and (base? p) (base/zero? p)))
 
-(define (poly/one? p)
+(define-integrable (poly/one? p)
   (and (base? p) (base/one? p)))
 
 (define (poly/make-identity arity)
@@ -334,8 +335,7 @@ USA.
 ;;; This exact quotient is only defined when the remainder is zero.  
 ;;; Thus for polynomials over the integers or for polynomials with
 ;;;    polynomial coefficients we must have only exact quotients in
-;;;    the coeff/div.
-;;;    Coeff/div must check that the remainder is zero.
+;;;    the coeff/div.  So must check that the remainder is zero.
 ;;;  For polynomials over the rationals, we may use rat:/.
 
 (define (poly/quotient u v)
@@ -344,6 +344,9 @@ USA.
 	      (if (poly/zero? r)
 		  q
 		  (error "Inexact division (POLY/QUOTIENT):" u v)))))
+
+(define (poly/not-divisible? n d)
+  (poly/div n d (lambda (p r) (not (poly/zero? r)))))
 
 ;;; Sometimes we want to exactly divide by a coefficient object.
 
@@ -407,96 +410,166 @@ USA.
 ;;; The content of a polynomial is the GCD of its coefficients.
 ;;;  The content of a polynomial has the arity of its coefficients. 
 
+
 (define (poly/content-maker poly/gcd)
-  (define (poly/content u)
+  (define (poly/content u win lose)
     (let ((coeffs (poly/coefficients u)))
       (if (null? coeffs)
-	  poly/zero
+	  (win poly/zero)
 	  (let lp ((c0 (car coeffs)) (cs (cdr coeffs)))
 	    (if (null? cs)
-		c0
-		(let ((g1 (poly/gcd c0 (car cs))))
-		  (if (poly/one? g1)
-		      g1
-		      (lp g1 (cdr cs)))))))))
+		(win c0)
+		(poly/gcd c0 (car cs)
+		  (lambda (g1)
+		    (if (poly/one? g1)
+			(win g1)
+			(lp g1 (cdr cs))))
+		  lose))))))
   poly/content)
 
 
+  
 ;;; The primitive-part of a polynomial is the polynomial with the
 ;;; content removed.
 
 (define (poly/primitive-part-maker poly/gcd)
   (let ((poly/content (poly/content-maker poly/gcd)))
-    (define (poly/primitive-part p)
+    (define (poly/primitive-part p win lose)
       (if (or (poly/zero? p) (poly/one? p))
-	  p
-	  (let ((c (poly/content p)))
-	    (cond ((poly/negative? p)
-		   (if (poly/one? c)
-		       (poly/negate p)
-		       (poly/normalize p (poly/negate c))))
-		  ((poly/one? c) p)
-		  (else
-		   (poly/normalize p c))))))
+	  (win p)
+	  (poly/content p
+	    (lambda (c)
+	      (win
+	       (cond ((poly/negative? p)
+		      (if (poly/one? c)
+			  (poly/negate p)
+			  (poly/normalize p (poly/negate c))))
+		     ((poly/one? c) p)
+		     (else
+		      (poly/normalize p c)))))
+	    lose)))
     poly/primitive-part))
+
+#|
+;;; Distillation method (Zippel Section 8.2) is often very bad.
+
+(define (poly/content-maker poly/gcd)
+  (define (poly/content u)
+    (let ((coeffs (poly/coefficients u)))
+      (if (null? coeffs)
+	  poly/zero
+	  (let lp ((coeffs coeffs))
+	    (let ((n (length coeffs)))
+	      (if (fix:= n 1)
+		  (car coeffs)
+		  (let ((n/2 (quotient n 2)))
+		    (let ((ps (poly/random-linear-combination
+			       (list-head coeffs n/2)))
+			  (qs (poly/random-linear-combination
+			       (list-tail coeffs n/2))))
+		      (let ((g (poly/gcd ps qs)))
+			(if (poly/one? g)
+			    g
+			    (lp
+			     (cons g
+				   (filter (lambda (c)
+					     (poly/not-divisible? c g))
+					   coeffs)))))))))))))
+  poly/content)
+
+(define poly/random-linear-combination
+  (let* ((number-of-primes 100)
+	 (prime-table
+	  (make-initialized-vector number-of-primes
+	    (lambda (i) (stream-ref prime-numbers-stream i)))))
+    (lambda (polys)
+      (fold-left poly/add (car polys)
+		 (map (lambda (p)
+			(poly/mul
+			 (vector-ref prime-table
+				     (random number-of-primes))
+			 p))
+		      (cdr polys))))))
+|#
 
 ;;; Euclidean GCD
 ;;;    This implementation differs from Knuth's Algorithm E in that it
 ;;;    is rotated to look more like Euclidean integer gcd.
 
-(define (poly/gcd-euclid u v)
+(define (poly/gcd/euclid u v win lose)
   (let ((poly/content
-	 (poly/content-maker poly/gcd-memoized))
+	 (poly/content-maker poly/gcd/euclid))
 	(poly/primitive-part
-	 (poly/primitive-part-maker poly/gcd-memoized))) 
-    (define (pgcd ppu ppv)
+	 (poly/primitive-part-maker poly/gcd/euclid))) 
+    (define (pgcd ppu ppv win lose)
       (if euclid-wallp? (pp (list ppu ppv)))
-      (cond ((poly/zero? ppv) ppu)
-	    ((fix:zero? (poly/degree ppv)) poly/one)
+      (cond ((poly/zero? ppv) (win ppu))
+	    ((fix:zero? (poly/degree ppv)) (win poly/one))
+	    ((allocated-time-expired?) (lose))
 	    (else
 	     (poly/pseudo-remainder ppu ppv
 	       (lambda (r delta)
-		 (pgcd ppv (poly/primitive-part r)))))))
-    (cond ((poly/zero? u) v)
-	  ((poly/zero? v) u)
-	  ((poly/one? u) u)
-	  ((poly/one? v) v)
+		 (poly/primitive-part r
+		   (lambda (ppr)
+		     (pgcd ppv ppr win lose))
+		   lose))))))
+    (cond ((poly/zero? u) (win v)) ((poly/zero? v) (win u))
+	  ((poly/one? u) (win u))  ((poly/one? v) (win v))
 	  ((base? u)
 	   (if (base? v)
-	       (base/gcd u v)
-	       (poly/gcd-memoized u (poly/content v))))
+	       (win (base/gcd u v))
+	       (poly/content v
+		 (lambda (vc)
+		   (poly/gcd/euclid u vc win lose))
+		 lose)))
 	  ((base? v)
-	   (poly/gcd-memoized (poly/content u) v))
+	   (poly/content u
+	     (lambda (uc)
+	       (poly/gcd/euclid uc v win lose))
+	     lose))
 	  (else
 	   (let ((arity (poly/check-same-arity u v))
-		 (uc (poly/content u))
-		 (vc (poly/content v)))
-	     (let ((ans
-		    (if (poly/one? uc)
-			(if (poly/one? vc)
-			    (pgcd u v)
-			    (pgcd u (poly/normalize v vc)))
-			(if (poly/one? vc)
-			    (pgcd (poly/normalize u uc) v)
-			    (let ((c (poly/gcd-memoized uc vc)))
-			      (if (poly/one? c)
-				  (pgcd (poly/normalize u uc)
-					(poly/normalize v vc))
-				  (poly/scale-1 arity
-				    (pgcd (poly/normalize u uc)
-					  (poly/normalize v vc))
-				    c)))))))
-	       (poly/abs ans)))))))
+		 (win (lambda (g) (win (poly/abs g)))))
+	     (poly/content u
+	       (lambda (uc)
+		 (poly/content v
+		   (lambda (vc)
+		     (if (poly/one? uc)
+			 (if (poly/one? vc)
+			     (pgcd u v win lose)
+			     (pgcd u (poly/normalize v vc) win lose))
+			 (if (poly/one? vc)
+			     (pgcd (poly/normalize u uc) v win lose)
+			     (poly/gcd/euclid uc vc
+			       (lambda (c)
+				 (if (poly/one? c)
+				     (pgcd (poly/normalize u uc)
+					   (poly/normalize v vc)
+					   win lose)
+				     (pgcd (poly/normalize u uc)
+					   (poly/normalize v vc)
+					   (lambda (g)
+					     (win (poly/scale-1 arity g c)))
+					   lose)))
+			       lose))))
+		   lose))
+	       lose))))))
 
 (define euclid-wallp? false)
+
+(define (poly/gcd-euclid u v)
+  (poly/gcd/euclid u v (lambda (g) g) (lambda () #f)))
 
-;;; Algorithm C... Collins's GCD algorithm.
+;;; Algorithm C... Collins's GCD algorithm.  
+;;;  I have not found this worthwhile--GJS.
+;;;  Thus, I have not updated it to use the 
+;;;  success and failure continuations needed.
 
 (define (poly/gcd-collins u v)
   (let ((poly/content
-	 (poly/content-maker poly/gcd-memoized))
+	 (poly/content-maker poly/gcd-collins))
 	(poly/primitive-part
-	 (poly/primitive-part-maker poly/gcd-memoized)))
+	 (poly/primitive-part-maker poly/gcd-collins)))
 
     (define (pgcd u v oc)
       (if collins-wallp? (pp (list u v)))
@@ -525,9 +598,9 @@ USA.
 	  ((base? u)
 	   (if (base? v)
 	       (base/gcd u v)
-	       (poly/gcd-memoized u (poly/content v))))
+	       (poly/gcd-collins u (poly/content v))))
 	  ((base? v)
-	   (poly/gcd-memoized (poly/content u) v))
+	   (poly/gcd-collins (poly/content u) v))
 	  (else
 	   (let ((arity (poly/check-same-arity u v))
 		 (uc (poly/content u))
@@ -539,7 +612,7 @@ USA.
 			    (ppgcd u (poly/normalize v vc)))
 			(if (poly/one? vc)
 			    (ppgcd (poly/normalize u uc) v)
-			    (let ((c (poly/gcd-memoized uc vc)))
+			    (let ((c (poly/gcd-collins uc vc)))
 			      (if (poly/one? c)
 				  (ppgcd (poly/normalize u uc)
 					 (poly/normalize v vc))
@@ -689,7 +762,7 @@ USA.
 	  (vector-ref prime-numbers-vector
 		      (random (min (* 2 i) n-random-primes))))))))
 
-(define poly/gcd-memoized (gcd-memoizer poly/gcd-euclid))
+;;; (define poly/gcd-memoized (gcd-memoizer poly/gcd-euclid))
 ;;; (define poly/gcd-memoized (gcd-memoizer poly/gcd-collins))
 
 ;;; The following returns the derivative of a polynomial with respect
@@ -1045,6 +1118,19 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
     (else
      (error "Bad type -- POLY/COEFFICIENTS" p))))
 
+;;; Returns a sorted numerical set of numbers (see sets.scm)
+(define (poly/base-coefficients p)
+  (let lp ((cs (poly/coefficients p)) (ans (empty-set numbers)))
+    (cond ((null? cs) ans)
+	  ((base? (car cs))
+	   (lp (cdr cs)
+	       ((adjoin-set numbers) (car cs) ans)))
+	  (else
+	   (lp (cdr cs)
+	       ((union-sets numbers)
+		(poly/base-coefficients (car cs))
+		ans))))))
+
 (define (poly/principal-reverse p)
   (let ((arity (poly/arity p)))
     (case (poly/type p)
@@ -1317,7 +1403,7 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 
 
 #|
-;;; Now set in pcf-fpf.scm to sparse stuff
+;;; Now set in pcf-fpf.scm to work with sparse stuff
 (define (poly:gcd x y) (poly/gcd-memoized x y))
 |#
 
@@ -1358,7 +1444,7 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
   (let ((evars
 	 (sort (list-difference (variables-in expr)
 				pcf:operators-known)
-		(if (default-object? less?) alphaless? less?))))
+		(if (default-object? less?) variable<? less?))))
     (cont ((expression-walker
 	    (pair-up evars
 		     (poly:new-variables (length evars))

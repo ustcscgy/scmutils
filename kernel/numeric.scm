@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -155,26 +156,29 @@ USA.
 (define (negate x) (- x))
 (define (invert x) (/ x))
 
+(define (cot x)
+  (/ 1 (tan x)))
+
 (define (sec x)
-  (/ 1.0 (cos x)))
+  (/ 1 (cos x)))
 
 (define (csc x)
-  (/ 1.0 (sin x)))
+  (/ 1 (sin x)))
 
 (define (sinh x)
-  (/ (- (exp x) (exp (- x))) 2.0))
+  (/ (- (exp x) (exp (- x))) 2))
 
 (define (cosh x)
-  (/ (+ (exp x) (exp (- x))) 2.0))
+  (/ (+ (exp x) (exp (- x))) 2))
 
 (define (tanh x)
   (/ (sinh x) (cosh x)))
 
 (define (sech x)
-  (/ 1.0 (cosh x)))
+  (/ 1 (cosh x)))
 
 (define (csch x)
-  (/ 1.0 (sinh x)))
+  (/ 1 (sinh x)))
 
 (define (factorial n)
   (define (f n)
@@ -414,16 +418,34 @@ USA.
 
 (define make-rational
   (access make-rational (->environment '(runtime number))))
-    
+
+#| Wrong    
 (define (gcd-rational p/q r/s)
   (make-rational (gcd (numerator p/q) (numerator r/s))
 		 (lcm (denominator p/q) (denominator r/s))))
-#|
-(define (gcd-for-rationals q1 q2)
-  (let ((n (gcd (numerator q1) (numerator q2)))
-	(d (gcd (denominator q1) (denominator q2))))
-    (make-rational n d)))
 |#
+
+(define (gcd-rational p/q r/s)
+  (gcd (numerator p/q) (numerator r/s)))
+
+
+;;; Euclid's algorithm for Exact Complex Numbers
+;;;   suggested by William Throwe, to allow simplification
+;;;   of rational functions with complex coefficients.
+
+(define (round-complex z)
+  (make-rectangular (round (real-part z))
+		    (round (imag-part z))))
+
+(define (gcd-complex a b)
+  (cond ((zero? a) b)
+        ((zero? b) a)
+        (else
+         (let ((q (round-complex (/ a b))))
+           (gcd-complex b (- a (* q b)))))))
+
+(define (exact-complex? x)
+  (and (number? x) (exact? x)))
 
 (define (scheme-number-gcd x y)
   (cond ((or (inexact? x) (inexact? y)) 1)
@@ -431,6 +453,8 @@ USA.
 	 (gcd x y))
 	((and (exact-rational? x) (exact-rational? y))
 	 (gcd-rational x y))
+	((and (exact-complex? x) (exact-complex? y))
+	 (gcd-complex x y))
 	(else 1)))
 
 
@@ -448,7 +472,13 @@ USA.
 
 
 (define (sgn x)
-  (if (negative? x) -1 1))
+  (if (real? x)
+      (if (negative? x) -1 +1)
+      ;; This is a kludge, needed so that rational 
+      ;; functions can be canonicalized, even if 
+      ;; coefficients are complex.
+      (if (negative? (real-part x)) -1 +1)))
+  
 
 
 ;;; From Hamming, gives roots of quadratic without bad roundoff.

@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -36,7 +37,27 @@ USA.
 			 (permutations (delete item lst))))
 		  lst))))
 
-
+(define (combinations lst p)
+  (cond ((= p 0) '(()))
+	((null? lst) '())
+	(else (append (map (lambda (rest)
+			     (cons (car lst) rest))
+			   (combinations (cdr lst) (- p 1)))
+		      (combinations (cdr lst) p)))))
+#|
+(pp (combinations '(a b c d e) 3))
+((a b c) 
+ (a b d)
+ (a b e)
+ (a c d)
+ (a c e)
+ (a d e)
+ (b c d)
+ (b c e)
+ (b d e)
+ (c d e))
+|#
+
 ;;; Returns the number of interchanges required to generate the
 ;;;  permuted list from the original list.
 
@@ -83,8 +104,7 @@ USA.
 		     (if (int:> (car l) first)
 			 increment
 			 (fix:+ increment 1)))))))))
-
-
+
 ;;; Given a permutation (represented as a list of numbers),
 ;;;  and a list to be permuted, construct the list so permuted.
 
@@ -93,7 +113,44 @@ USA.
 	 (list-ref lst p))
        permutation))
 
+;;; Given a short list and a comparison function, to sort the list by
+;;; the comparison, returning the original list, the sorted list, the
+;;; permutation procedure and the inverse permutation procedure
+;;; developed by the sort.
 
+(define (sort-and-permute ulist <? cont)
+  ;; cont = (lambda (ulist slist perm iperm) ...)
+  (let* ((n
+	  (length ulist))
+	 (lsource
+	  (map list ulist (iota n)))
+	 (ltarget
+	  (sort lsource
+		(lambda (x y) (<? (car x) (car y)))))
+	 (sorted (map car ltarget))
+	 (perm (map cadr ltarget))
+	 (iperm
+	  (make-initialized-list n
+	    (lambda (i) (list-index-of i perm)))))
+    (cont ulist
+	  sorted
+	  (lambda (l) (permute perm l))
+	  (lambda (l) (permute iperm l)))))
+    
+#|
+;;; For example
+
+(sort-and-permute '(0 2 0 0 1 2 0 0) <
+  (lambda (unsorted sorted permuter unpermuter)
+    (list unsorted sorted (permuter unsorted) (unpermuter sorted))))
+#|
+((0 2 0 0 1 2 0 0)
+ (0 0 0 0 0 1 2 2)
+ (0 0 0 0 0 1 2 2)
+ (0 2 0 0 1 2 0 0))
+|#
+|#
+
 ;;; Sometimes we want to permute some of the elements of a list, as follows:
 ;;; (subpermute '((1 . 4) (4 . 2) (2 . 3) (3 . 1)) '(a b c d e))
 ;;; ;Value 6: (a e d b c)
@@ -132,24 +189,3 @@ USA.
 	  +1
 	  -1)
       0))
-
-(define (combinations lst p)
-  (cond ((= p 0) '(()))
-	((null? lst) '())
-	(else (append (map (lambda (rest)
-			     (cons (car lst) rest))
-			   (combinations (cdr lst) (- p 1)))
-		      (combinations (cdr lst) p)))))
-#|
-(pp (combinations '(a b c d e) 3))
-((a b c) 
- (a b d)
- (a b e)
- (a c d)
- (a c e)
- (a d e)
- (b c d)
- (b c e)
- (b d e)
- (c d e))
-|#

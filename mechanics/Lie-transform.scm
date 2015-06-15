@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -168,6 +169,26 @@ p_0
 		 (coordinate-tuple 'r_0 'phi_0)
 		 (momentum-tuple 'p_r_0 'p_phi_0)))
     4)))
+#|
+;;; 30 Jan 2011: I changed the normalization of rational functions to
+;;; favor integer coefficients.  This is the new result.  It is
+;;; algebraically equivalent to the old result.
+(up r_0 phi_0)
+(up (/ (* dt p_r_0) m) (/ (* dt p_phi_0) (* m (expt r_0 2))))
+(up
+ (+ (/ (* -1 GM (expt dt 2)) (* 2 m (expt r_0 2)))
+    (/ (* (expt dt 2) (expt p_phi_0 2)) (* 2 (expt m 2) (expt r_0 3))))
+ (/ (* -1 (expt dt 2) p_r_0 p_phi_0) (* (expt m 2) (expt r_0 3))))
+(up
+ (+ (/ (* GM (expt dt 3) p_r_0) (* 3 (expt m 2) (expt r_0 3)))
+    (/ (* -1 (expt dt 3) (expt p_phi_0 2) p_r_0) (* 2 (expt m 3) (expt r_0 4))))
+ (+ (/ (* (expt dt 3) (expt p_r_0 2) p_phi_0) (* (expt m 3) (expt r_0 4)))
+    (/ (* GM (expt dt 3) p_phi_0) (* 3 (expt m 2) (expt r_0 5)))
+    (/ (* -1 (expt dt 3) (expt p_phi_0 3)) (* 3 (expt m 3) (expt r_0 6)))))
+;;; Binah 30 Jan 2011
+;process time: 1600 (1600 RUN + 0 GC); real time: 1607#| ... |#
+|#
+#|
 (up r_0 phi_0)
 (up (/ (* dt p_r_0) m) (/ (* dt p_phi_0) (* m (expt r_0 2))))
 (up
@@ -181,6 +202,7 @@ p_0
  (+ (/ (* (expt dt 3) p_phi_0 (expt p_r_0 2)) (* (expt m 3) (expt r_0 4)))
     (/ (* 1/3 GM (expt dt 3) p_phi_0) (* (expt m 2) (expt r_0 5)))
     (/ (* -1/3 (expt dt 3) (expt p_phi_0 3)) (* (expt m 3) (expt r_0 6)))))
+|#
 ;;; Binah: 9 December 2009
 ;;;  With simple-derivative-internal memoized
 ;;;   process time: 2830 (2830 RUN + 0 GC); real time: 2846

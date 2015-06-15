@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -221,86 +222,6 @@ USA.
   (or (not (null? (car table)))
       (not (null? (cadr table)))
       (not (null? (cddr table)))))
-
-;;; From CPH
-(define (clean-weak-list weak-list)
-  (let clean-head ((this weak-list))
-    (if (weak-pair? this)
-	(let ((next (weak-cdr this)))
-	  (if (weak-pair/car? this)
-	      (begin
-		(let clean-tail ((this next) (prev this))
-		  (if (weak-pair? this)
-		      (let ((next (weak-cdr this)))
-			(if (weak-pair/car? this)
-			    (clean-tail next this)
-			    (begin
-			      (weak-set-cdr! prev next)
-			      (clean-tail next prev))))))
-		this)
-	      (clean-head next)))
-	this)))
-
-(define (clean-weak-alist weak-alist)
-  (clean-alist weak-alist
-	       (lambda (p)
-		 (if (not (weak-pair? p))
-		     (error:bad-range-argument weak-alist #f))
-		 (weak-pair/car? p))))
-
-(define (clean-subtable-alist alist)
-  (clean-alist alist
-	       (lambda (p)
-		 (if (not (pair? p))
-		     (error:bad-range-argument alist #f))
-		 (clean-expression-table (cdr p)))))
-
-(define (clean-alist alist clean-association)
-  (let clean-head ((this alist))
-    (if (pair? this)
-	(let ((next (cdr this)))
-	  (if (clean-association (car this))
-	      (begin
-		(let clean-tail ((this next) (prev this))
-		  (if (pair? this)
-		      (let ((next (cdr this)))
-			(if (clean-association (car this))
-			    (clean-tail next this)
-			    (begin
-			      (set-cdr! prev next)
-			      (clean-tail next prev))))))
-		this)
-	      (clean-head next)))
-	this)))
-
-;;; Weak list utilities
-
-(define (get-weak-member obj weak-list)
-  (if (null? weak-list)
-      #f
-      (let ((a (weak-car weak-list)))
-	(if (equal? obj a)
-	    a
-	    (get-weak-member obj (weak-cdr weak-list))))))
-
-(define (weak-find obj weak-alist)
-  (if (null? weak-alist)
-      #f
-      (let ((pair (car weak-alist)))
-	(if pair
-	    (let ((a (weak-car pair)))
-	      (if a
-		  (if (equal? obj a)
-		      a
-		      (weak-find obj (cdr weak-alist)))
-		  (begin (set-car! weak-alist #f)
-			 #f)))
-	    (weak-find obj (cdr weak-alist))))))
-
-(define (weak-length weak-list)
-  (if (weak-pair? weak-list)
-      (fix:+ (weak-length (weak-cdr weak-list)) 1)
-      0))
 
 ;;; Install in system -- may only be done once!
 (add-gc-daemon! expression-canonicalizer-gc-daemon)

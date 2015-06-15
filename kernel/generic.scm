@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -98,6 +99,7 @@ USA.
 (define g:trace (make-generic-operator 1 'trace))
 
 
+
 ;;; Duplicate of text in OPERATOR.SCM, except that the explicit type
 ;;; tag is here rather than the variable operator-type-tag.  This is
 ;;; necessary because of a problem of load order.
@@ -180,14 +182,14 @@ USA.
 (define (g:/:bin x y)
   (cond ((and (number? x) (number? y)) (/ x y))
 	;; ((g:zero? x) (g:zero-like y))  ; Ancient bug!  No consequence.
-	((g:zero? x) x)
+	;; ((g:zero? x) x)
 	((g:one? y) x)
 	(else (generic:/ x y))))
 
 (define generic:expt (make-generic-operator 2 'expt))
 
 (define (g:expt x y)
-  (cond ((and (number? x) (number? y)) (expt x y))
+  (cond ((and (number? x) (number? y)) (n:expt x y))
 	;;((g:zero? x) x) ;No! consider 0^{-1}
 	((g:one? x) x)
 	((g:zero? y) (g:one-like x))

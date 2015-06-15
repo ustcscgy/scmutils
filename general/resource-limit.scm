@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,12 +24,14 @@ USA.
 
 |#
 
-((access with-directory-rewriting-rule
-	 (->environment '(RUNTIME COMPILER-INFO)))
- ;; This assumes that this file appears in a subdirectory of the
- ;; scmutils top-level directory.
- (let ((pathname (directory-pathname (current-load-pathname))))
-   (pathname-new-directory pathname
-			   (except-last-pair (pathname-directory pathname))))
- "/usr/local/scmutils/"
- (lambda () (load "load-real-test")))
+(define *time-upper-limit* #f)
+
+(define (allocated-time-expired?)
+  (and *time-upper-limit*
+       (> (runtime) *time-upper-limit*)))
+      
+(define (with-limited-time allocated-time thunk)
+  (fluid-let ((*time-upper-limit* (+ allocated-time (runtime))))
+    (thunk)))
+
+

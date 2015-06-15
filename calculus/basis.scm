@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -40,6 +41,10 @@ USA.
 	(coordinate-system 'dimension)
 	coordinate-system))
 
+(define (basis->coordinate-system x)
+  (assert (coordinate-basis? x) "Not a coordinate basis")
+  (list-ref x 4))
+
 
 ;;; general bases
 
@@ -54,19 +59,19 @@ USA.
     (list '*basis* vector-basis 1form-basis n)))
 
 (define (basis->vector-basis x)
-  (assert (basis? x))
+  (assert (basis? x) "Not a basis")
   (cadr x))
 
 (define (basis->1form-basis x)
-  (assert (basis? x))
+  (assert (basis? x) "Not a basis")
   (caddr x))
 
 (define (basis->dimension x)
-  (assert (basis? x))
+  (assert (basis? x) "Not a basis")
   (cadddr x))
 
 ;;; sigma (proc e_i w^i)
-(define (contract-2 proc basis)
+(define (contract proc basis)
   (let ((vector-basis (basis->vector-basis basis))
 	(1form-basis (basis->1form-basis basis)))
     (s:sigma/r proc

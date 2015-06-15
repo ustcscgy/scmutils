@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -34,7 +35,7 @@ USA.
 (define (canonicalize-numbers expr)
   (cond ((with-units? expr)
 	 (with-si-units->expression expr))
-	((pair? expr)
+	((list? expr)
 	 (cons (canonicalize-numbers (operator expr))
 	       (map canonicalize-numbers (operands expr))))
 	((and (number? expr) *heuristic-numbers*)
@@ -48,7 +49,7 @@ USA.
 		(let ((d (symb:denominator hexp)))
 		  (a-reduce symb:+
 			    (map (lambda (n)
-				   (default-simplify (symb:/ n d)))
+				   (g:simplify (symb:/ n d)))
 				 (operands (symb:numerator hexp))))))
 	       (else hexp)))
 	((and (compound-data-constructor? hexp) *fully-divide-out-terms*)
@@ -88,39 +89,57 @@ USA.
 
 (define (simplify exp)
   (flush-derivative
-   (flush-literal-function-constructors
-    (ham:simplify
-     ((if *factoring* poly:factor (lambda (expr) expr))
-      (default-simplify exp))))))
+       (flush-literal-function-constructors
+	(ham:simplify
+	 ((if *factoring* poly:factor (lambda (expr) expr))
+	  (g:simplify exp))))))
 
 (define *only-printing* #f)
-(define *last-expression-printed*)
+(define *last-expression-printed* (lambda () 'none-yet))
 
+(define (system-environments)
+  (list generic-environment rule-environment
+        numerical-environment scmutils-base-environment))
 
 (define (prepare-for-printing expr simplifier)
   (set! *last-expression-printed* 
-	(if (memq expr '(#t #f))
-	    expr
-	    (let ((nexpr
-		   (canonicalize-numbers (expression expr))))
-	      (simplifier nexpr))))
+	(cond ((unsimplifiable? expr)
+	       (lambda () expr))
+	      ((and (not (with-units? expr))
+		    (apply object-name expr (system-environments)))
+	       => (lambda (name) (lambda () name)))
+	      (else
+	       (let ((rexpr (simplifier expr)))
+		  (lambda () (arg-suppressor rexpr))))))
   *last-expression-printed*)
 
-
+(define (unsimplifiable? expr)
+  (or (memq expr '(#t #f))
+      (null? expr)
+      (number? expr)
+      (pathname? expr)
+      (undefined-value? expr)
+      (and (procedure? expr)
+	   (object-name expr system-global-environment))
+      ;What is this?
+      (and (pair? expr)     
+	   (eq? (car expr) '*operator*))))
 
 (define (show-expression expr #!optional simplifier)
   (if (default-object? simplifier) (set! simplifier simplify))
   (prepare-for-printing expr simplifier)
-  (cond (*only-printing*
-	 (pp *last-expression-printed*))
-	(else
-	 (internal-show-expression *last-expression-printed*))))
+  ;; (display "#;\n")
+  (pp (*last-expression-printed*))
+  (cond ((not *only-printing*)
+	 (internal-show-expression
+	  (*last-expression-printed*)))))
 
 (define (print-expression expr #!optional simplifier)
   (if (default-object? simplifier)
       (set! simplifier simplify))
   (prepare-for-printing expr simplifier)
-  (pp *last-expression-printed*))
+  ;; (display "#;\n")
+  (pp (*last-expression-printed*)))
 
 (define pe print-expression)
 (define se show-expression)
@@ -130,7 +149,7 @@ USA.
   (if (default-object? simplifier)
       (set! simplifier simplify))
   (prepare-for-printing expr simplifier)
-  ((pp-line-prefix "; ") *last-expression-printed*))
+  ((pp-line-prefix "; ") (*last-expression-printed*)))
 
 (define pep print-expression-prefix)
 
@@ -141,7 +160,7 @@ USA.
   (newline)
   (display "#| Result:")
   (newline)
-  (pp *last-expression-printed*)
+  (pp (*last-expression-printed*))
   (display "|#"))
 
 (define pec print-expression-comment)

@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -133,40 +134,44 @@ USA.
 	   (operator-merge-optionals op1 op2)))
 
 (define (o:o+f op f)
-  (make-op (lambda (g)
-	     (g:+ (op g)
-		  (g:compose (coerce-to-function f) g)))
-	   `(+ ,(operator-name op) ,f)
-	   (operator-subtype op)
-	   (operator-arity op)
-	   (operator-optionals op)))
+  (let ((h (coerce-to-function f)))
+    (make-op (lambda (g)
+	       (g:+ (op g)
+		    (g:compose h g)))
+	     `(+ ,(operator-name op) ,(procedure-expression h))
+	     (operator-subtype op)
+	     (operator-arity op)
+	     (operator-optionals op))))
 
 (define (o:f+o f op)
-  (make-op (lambda (g)
-	     (g:+ (g:compose (coerce-to-function f) g)
-		  (op g)))
-	   `(+ ,f ,(operator-name op))
-	   (operator-subtype op)
-	   (operator-arity op)
-	   (operator-optionals op)))
+  (let ((h (coerce-to-function f)))
+    (make-op (lambda (g)
+	       (g:+ (g:compose h g)
+		    (op g)))
+	     `(+ ,(procedure-expression h) ,(operator-name op))
+	     (operator-subtype op)
+	     (operator-arity op)
+	     (operator-optionals op))))
 
 (define (o:o-f op f)
-  (make-op (lambda (g)
-	     (g:- (op g)
-		  (g:compose (coerce-to-function f) g)))
-	   `(- ,(operator-name op) ,f)
-	   (operator-subtype op)
-	   (operator-arity op)
-	   (operator-optionals op)))
+  (let ((h (coerce-to-function f)))
+    (make-op (lambda (g)
+	       (g:- (op g)
+		    (g:compose h g)))
+	     `(- ,(operator-name op) ,(procedure-expression h))
+	     (operator-subtype op)
+	     (operator-arity op)
+	     (operator-optionals op))))
 
 (define (o:f-o f op)
-  (make-op (lambda (g)
-	     (g:- (g:compose (coerce-to-function f) g)
-		  (op g)))
-	   `(- ,f ,(operator-name op))
-	   (operator-subtype op)
-	   (operator-arity op)
-	   (operator-optionals op)))
+  (let ((h (coerce-to-function f)))
+    (make-op (lambda (g)
+	       (g:- (g:compose h g)
+		    (op g)))
+	     `(- ,(procedure-expression h) ,(operator-name op))
+	     (operator-subtype op)
+	     (operator-arity op)
+	     (operator-optionals op))))
 
 (define (o:negate op)
   (make-op (lambda fs
@@ -191,7 +196,9 @@ USA.
 (define (o:f*o f op)
   (make-op (lambda gs
 	     (g:* f (apply op gs)))
-	   `(* ,f ,(operator-name op))
+	   `(* ,(procedure-expression
+		 (coerce-to-function f))
+	       ,(operator-name op))
 	   (operator-subtype op)
 	   (operator-arity op)
 	   (operator-optionals op)))
@@ -199,7 +206,9 @@ USA.
 (define (o:o*f op f)
   (make-op (lambda gs
 	     (apply op (map (lambda (g) (g:* f g)) gs)))
-	   `(* ,(operator-name op) ,f)
+	   `(* ,(operator-name op)
+	       ,(procedure-expression
+		 (coerce-to-function f)))
 	   (operator-subtype op)
 	   (operator-arity op)
 	   (operator-optionals op)))

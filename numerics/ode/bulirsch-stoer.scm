@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -278,7 +279,8 @@ USA.
 		       (old-state-estimate state-estimate1)
 		       (new-state-estimate state-estimate2)
 		       (old-out gragg-output1)
-		       (new-out gragg-output2))
+		       (new-out gragg-output2)
+		       (fail #f))	;zero divide would have happened
 	    (if (fix:< m *max-tableau-depth*)
 		(let ((m1 (min m *max-tableau-width*))
 		      (d (vector-ref bulirsch-stoer-magic-vectors m)))
@@ -299,7 +301,8 @@ USA.
 				    (if (not (= den 0.0))
 					(let ((b (/ (- c dta) den)))
 					  (set! dtn (* c b))
-					  (set! c (* b1 b))))
+					  (set! c (* b1 b)))
+					(set! fail #t))
 				    (set! dta (vector-ref (vector-ref tableau i) k))
 				    (vector-set! (vector-ref tableau i) k dtn)
 				    (set! yb (+ yb dtn)))))
@@ -311,7 +314,8 @@ USA.
 		    ;; In Jack's C program the first two conditions
 		    ;; below are interchanged and the minimum number
 		    ;; of iterations is set to (fix:< m 4)
-		    (cond ((< verr 2.0)
+		    (cond ;;(fail) ;;not good to (outside (* 0.9 delta-t)) or to m-loop with m+1
+			  ((< verr 2.0)
 			   (continuation (vector-copy new-state-estimate)
 					 delta-t
 					 (* (* delta-t bulirsch-stoer-magic-multiplier)
@@ -320,13 +324,13 @@ USA.
 			  ((fix:< m 2)
 			   (m-loop (fix:1+ m) verr
 				   new-state-estimate old-state-estimate
-				   new-out old-out))
+				   new-out old-out #f))
 			  ((not (< verr old-verr))
 			   (outside (* 0.5 delta-t)))
 			  (else
 			   (m-loop (fix:1+ m) verr
 				   new-state-estimate old-state-estimate
-				   new-out old-out)))))
+				   new-out old-out #f)))))
 
 		(outside (* 0.5 delta-t)))))))))
 

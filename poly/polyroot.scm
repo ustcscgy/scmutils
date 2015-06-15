@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -45,15 +46,22 @@ USA.
 
 (define (horners-rule p x)
   (horners-rule-with-error p x list))
+
+(define (roots->poly roots)
+  (a-reduce poly:*
+	    (map (lambda (r) (poly:- identity-poly r))
+		 roots)))
 
 ;;; This finds the roots of a univariate polynomial.
 
 (define (poly->roots given-poly #!optional expand-multiplicities?)
   (if (default-object? expand-multiplicities?)
       (set! expand-multiplicities? #t))
-  (let ((all-real?
-	 (for-all? (poly/coefficients given-poly)
-	   (lambda (c) (zero? (imag-part c))))))
+  
+  (let* ((given-poly (ensure-real given-poly))
+	 (all-real?
+	  (for-all? (poly/coefficients given-poly)
+	    (lambda (c) (zero? (imag-part c))))))
     (define (search kernel-poly initial-roots)
       (let ((polish (root-polisher kernel-poly)))
 	(let find-loop ((deflated-poly kernel-poly) (roots initial-roots))
@@ -70,22 +78,15 @@ USA.
 				       (and (= mr1 mr2)
 					    (< (real-part (cdr r1))
 					       (real-part (cdr r2))))))))))
-		    (if expand-multiplicities?
-			(expand-multiplicities rs)
-			rs)))
-	      (let ( ;; possibly useless mythology about double polishing...
-		    #|(root
-		     (clean-up-root
-		      (polish
-		       ((root-polisher deflated-poly)
-			(rescale-poly-roots deflated-poly root-searcher)))))|#
-		    (root
+		    (if expand-multiplicities? (expand-multiplicities rs) rs)))
+	      (let ((root
 		     (clean-up-root
 		      (polish
 		       (rescale-poly-roots deflated-poly root-searcher)))))
 		(if (and all-real? (obviously-complex? root))
 		    (let ((cr (conjugate root)))
-		      (find-loop (deflate-poly deflated-poly (list root cr))
+		      (find-loop (ensure-real
+				  (deflate-poly deflated-poly (list root cr)))
 				 (cons root (cons cr roots))))
 		    (find-loop (deflate-poly deflated-poly (list root))
 			       (cons root roots))))))))
@@ -98,11 +99,21 @@ USA.
 	     (let ((zero-roots (make-list m 0.0)))
 	       (search (deflate-poly given-poly zero-roots)
 		       zero-roots)))))))
+
+(define (ensure-real poly)
+  (let lp ((poly poly))
+    (if (pair? poly)
+	(cons (lp (car poly)) (lp (cdr poly)))
+	(let ((c poly))
+	  (if (and (number? c) (inexact? c))
+	      (bring-to-real c)
+	      c)))))
 
-(define (roots->poly roots)
-  (a-reduce poly:*
-	    (map (lambda (r) (poly:- identity-poly r))
-		 roots)))
+(define (bring-to-real c)
+  (if (< (abs (imag-part c))
+	 (* imaginary-part-tolerance *machine-epsilon* (abs (real-part c))))
+      (real-part c)
+      c))
 
 (define (rescale-poly-roots poly searcher)
   (let ((Nn (poly:degree poly))
@@ -118,7 +129,6 @@ USA.
 		  (* (searcher (poly:* (poly:arg-scale poly (list c))
 				       (/ 1.0 (* A0 (expt c N0)))))
 		     c))))))))
-
 
 ;;; Heuristic test
 
@@ -147,8 +157,6 @@ USA.
 		      (* ri +i))
 		     (else
 		      (make-rectangular rr ri)))))))))
-
-
 
 ;;; Deflation
 
@@ -201,10 +209,7 @@ USA.
 (define (root-searcher p)
   (let ((improve (root-searcher-method p)))
     (define (try xn xn-1 vxn-1 dvxn-1 iter-count shrink-count)
-      (let* ((xn (if (< (abs (imag-part xn))
-			(* very-small-number (abs (real-part xn))))
-		     (real-part xn)
-		     xn))
+      (let* ((xn (bring-to-real xn))
 	     (vxn/err (horners-rule p xn))
 	     (dx (- xn xn-1)))
 	(let ((vxn (car vxn/err)) (dvxn (cadr vxn/err)) (err (cadddr vxn/err)))
@@ -224,16 +229,14 @@ USA.
 			;; Try a desparate root-searcher-jiggle
 			(try (+ xn-1
 				(complex-random
-				 (* iter-count
-				    (magnitude xn-1)
+				 (* iter-count (magnitude xn-1)
 				    root-searcher-jiggle)))
 			     xn-1 vxn-1 dvxn-1 (+ iter-count 1) 0))
 		       (else
 			(error "Cannot make progress" p xn vxn)
 			'foo)))
 		((< (magnitude dx)
-		    (* root-searcher-minimum-progress
-		       *machine-epsilon*
+		    (* root-searcher-minimum-progress *machine-epsilon*
 		       (magnitude xn)))
 		 (if root-wallp
 		     (write-line `(found-lazy-winner-at ,xn ,vxn ,err)))
@@ -249,11 +252,11 @@ USA.
 				    (< (abs (- q iq)) (* *kahan-threshold* q))
 				    (begin
 				      (if root-wallp
-					  (write-line
-					   `(trying-kahan-trick ,iq)))
+					  (write-line `(trying-kahan-trick ,iq)))
 				      (try (- xn (* f iq))
 					   xn vxn dvxn
 					   (fix:+ iter-count 1) 0))))))))
+
 		((< iter-count root-searcher-max-iter)
 		 (improve xn vxn/err
 			  (lambda (xn+1)
@@ -267,7 +270,6 @@ USA.
 		 (error "Search exceeded max iterations"
 			p xn vxn)
 		 'foo)))))
-
     (let ((vx0/err (horners-rule p root-searcher-x0)))
       (if root-wallp (write-line `(hunting-starting-at ,root-searcher-x0 ,p)))
       (let ((vx0 (car vx0/err)) (dvx0 (cadr vx0/err)) (err0 (cadddr vx0/err)))
@@ -336,8 +338,6 @@ USA.
 	  (succeed (- x (/ vp dvp))))))
   newton-improve)
 
-
-
 ;;; Laguerre's method
 ;;;   To find a root of P(x)
 ;;;     Start with a guess of X0 and iterate the following steps
@@ -366,7 +366,6 @@ USA.
 			      (/ n denom))))))))
     laguerre-improve))
 
-
 #|
 ;;; Kahan's secant method -- this is not in the right form.
 ;;;  But see the searcher.
@@ -387,15 +386,15 @@ USA.
 (define minimum-magnitude 1e-10)
 (define obviousity-factor 1e-3)
 
-(define very-small-number 1e-50)
+(define imaginary-part-tolerance 10.0)	;in machine-epsilons
 
-(define on-axis-tolerance 100.0)	;in machine-epsilons
+(define on-axis-tolerance 1000.0)	;in machine-epsilons
 (define rationalization-tolerance 100.0)
 
 (define max-scale 1.0e30)
 
 (define clustering #t)			;Turns on the clustering process
-(define cluster-tolerance 1.0e4)
+(define cluster-tolerance 1.0e2)
 
 (define minimum-denominator 1e-100)
 
@@ -407,10 +406,10 @@ USA.
 (define root-searcher-max-shrink 10)
 (define root-searcher-jiggle .1)
 (define root-searcher-shrink-factor 4)
-(define root-searcher-value-to-noise 1.0)
+(define root-searcher-value-to-noise 0.75)
 (define root-searcher-minimum-progress 1.0)
 
 (define root-polisher-method poly-newton-method)
-(define root-polisher-value-to-noise 1.0)
+(define root-polisher-value-to-noise 0.75)
 (define root-polisher-minimum-progress 1.0)
 

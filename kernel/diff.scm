@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -292,7 +293,7 @@ USA.
 	       (car (last-pair (differential-tags (car (last-pair dts)))))))
 	  (terms->differential-collapse
 	   (filter (lambda (term)
-		     (not (memq keytag (differential-tags term))))
+		     (not (memv keytag (differential-tags term))))
 		   dts))))
       x))
 
@@ -303,7 +304,7 @@ USA.
 	       (car (last-pair (differential-tags (car (last-pair dts)))))))
 	  (terms->differential-collapse
 	   (filter (lambda (term)
-		     (memq keytag (differential-tags term)))
+		     (memv keytag (differential-tags term)))
 		   dts))))
       :zero))
 
@@ -371,7 +372,7 @@ USA.
       (let ((dts (differential->terms x)))
 	(terms->differential-collapse
 	 (filter (lambda (term)
-		   (not (memq keytag (differential-tags term))))
+		   (not (memv keytag (differential-tags term))))
 		 dts)))
       x))
 
@@ -380,7 +381,7 @@ USA.
       (let ((dts (differential->terms x)))
 	(terms->differential-collapse
 	 (filter (lambda (term)
-		   (memq keytag (differential-tags term)))
+		   (memv keytag (differential-tags term)))
 		 dts)))
       :zero))
 
@@ -654,40 +655,47 @@ USA.
 ;;;                    \     Df       /
 ;;;                      x |----> Df(x)
 
-#|
-;;; This is the fundamental idea, but if I can improve performance
-;;; by a memoization hack.  See end of file.
 
 (define (simple-derivative-internal f x)
   (let ((dx (make-differential-tag)))
     (extract-dx-part dx (f (make-x+dx x dx)))))
-|#
 
 (define (make-x+dx x dx)
   (d:+ x
        (make-differential-quantity
 	(list (make-differential-term (list dx) :one))))) ;worry!!!
 
+
+;;; For debugging, sometimes we need a differential object.
+
+(define (differential-object x)
+  (let ((dx (make-differential-tag)))
+    (list (make-x+dx x dx) dx)))
+
+;;; This is not quite right... It is only good for testing R-->R stuff.
+;;; Now disabled, see DERIV.SCM.
+
+;(assign-operation 'derivative      diff:derivative       function?)
 
+#|
+;;; See the long story below: Alexey's Amazing Bug!
+
 (define (extract-dx-part dx obj)
   (define (extract obj)
     (if (differential? obj)
 	(terms->differential-collapse
-	 (let lp ((dterms (differential-term-list obj)))
-	   (if (null? dterms)
-	       '()
-	       (let ((dtags (differential-tags (car dterms))))
-		 (if (memq dx dtags)
-		     (cons (make-differential-term (delete dx dtags)
-			    (differential-coefficient (car dterms)))
-			   (lp (cdr dterms)))
-		     (lp (cdr dterms)))))))
+	 (append-map
+	  (lambda (term)
+	    (let ((tags (differential-tags term)))
+	      (if (memv dx tags)
+		  (list (make-differential-term (delv dx tags)
+			  (differential-coefficient term)))
+		  '())))
+	  (differential-term-list obj)))
 	:zero))
   (define (dist obj)
     (cond ((structure? obj)
 	   (s:map/r dist obj))
-	  ;;((vector? obj)
-	  ;; ((v:elementwise dist) obj))
 	  ((matrix? obj)
 	   ((m:elementwise dist) obj))
 	  ((function? obj)
@@ -700,132 +708,130 @@ USA.
 			(map-stream dist (series->stream obj))))
 	  (else (extract obj))))
   (dist obj))
-
-
-
-;;; This is not quite right... It is only good for testing R-->R stuff.
-;;; It will be removed when we have multivariate stuff working correctly
-;;;  It also belongs with operators?
-
-;;; Now disabled, see DERIV.SCM.
-
-;(assign-operation 'derivative      diff:derivative       function?)
-
-;;; Performance enhancement (memoizing derivative)
-;;; Helps, at 2x cost, but must be improved before on in distribution.
-
-;;; Table utilities
-
-(define (make-equal-table)
-  ((weak-hash-table/constructor equal-hash-mod equal? #t)))
-
-(define (equal-table/get table key default)
-  (hash-table/get table key default))
-
-(define (equal-table/put! table key value)
-  (hash-table/put! table key value))
-
-#|
-(define *max-table-size* 3)
-
-(define (make-equal-table)
-  (list 0))
-
-(define (equal-table/get table key default)
-  (let ((vcell (assoc key (cdr table))))
-    (if vcell (cdr vcell) default)))
-
-(define (equal-table/put! table key value)
-  (set-cdr! table
-	    (cons (cons key value)
-		  (cdr table)))
-  (if (fix:= (car table) *max-table-size*)
-      (except-last-pair! table)
-      (set-car! table
-		(fix:+ (car table) 1))))
 |#
 
-(define *memoizing-derivative* #f)
+#|
+;;; The following hairy code was introduced to fix the "Amazing Bug"
+;;; discovered by Alexey Radul from a suggestion by Barak Perlmutter
+;;; (June 2011)!  Here is the bug.
 
-(define simple-derivative-internal
-  (let ((*not-seen* (list '*not-seen*))
-	(ftable (make-eq-hash-table)))
-    (define (the-derivative f x)
-      (if *memoizing-derivative*
-	  (let ((f (1arg-real-function-canonicalizer f)))
-	    (define (compute-derivative)
-	      (let ((dx (make-differential-tag)))
-		(set! dmiss (+ dmiss 1))
-		(extract-dx-part dx (f (make-x+dx x dx)))))
-	    (let ((dtable (hash-table/get ftable f *not-seen*)))
-	      (set! dcount (+ dcount 1))
-	      (if (eq? dtable *not-seen*)
-		  (let ((dtable (make-equal-table))
-			(df/dx (compute-derivative)))
-		    (hash-table/put! ftable f dtable)
-		    (equal-table/put! dtable x df/dx)
-		    df/dx)
-		  (let ((df/dx (equal-table/get dtable x *not-seen*)))
-		    (if (eq? df/dx *not-seen*)
-			(let ((df/dx (compute-derivative)))
-			  (equal-table/put! dtable x df/dx)
-			  df/dx)
-			(begin
-			  (set! dhit (+ dhit 1))
-			  df/dx))))))
-	  (let ((dx (make-differential-tag)))
-	    (extract-dx-part dx (f (make-x+dx x dx))))))
-    the-derivative))
+(define (((f x) g) y)
+  (g (+ x y)))
+#| f |#
 
-(define dhit 0)
-(define dmiss 0)
-(define dcount 0)
+(define f-hat ((D f) 3))
+#| f-hat |#
 
-(define (reset-derivative-statistics)
-  (set! dhit 0)
-  (set! dmiss 0)
-  (set! dcount 0))
+(((f-hat exp) 5)
+#| 2980.9579870417283 |#
+
+((f-hat (f-hat exp)) 5)
+#| 0 |#			;WRONG!
+|#
+
+#|
+;;; BTW.
+;;; Alexey Radul, Jeff Siskind, and Oleksandr Manzyuk give different
+;;; names to the procedures.  They write:
+
+; derivative :: (R -> a) -> R -> a
+(define (derivative f)
+  (let ((epsilon (gensym)))
+    (lambda (x)
+      (tangent epsilon (f (make-bundle epsilon x 1))))))
+
+;;; They think of what I call a differential object as an element of
+;;; the tangent bundle and thus use "make-bundle" for my "make-x+dx".
+;;; Of course, it is a bound tangent vector (bound to the point x).
+;;; We generalize the functions (f) to operate on such bound vectors
+;;; and then extract the free tangent vector from the resulting bound
+;;; vector.  To extract the free vector they use the name "tangent"
+;;; where I use "extract-dx-part".
+|#
 
-;;; A function canonicalizer
+(define (extract-dx-part dx obj)
+  (define (extract obj)
+    (if (differential? obj)
+	(terms->differential-collapse
+	 (append-map
+	  (lambda (term)
+	    (let ((tags (differential-tags term)))
+	      (if (memv dx tags)
+		  (list
+		   (make-differential-term (delv dx tags)
+					   (differential-coefficient term)))
+		  '())))
+	  (differential-term-list obj)))
+	:zero))
+  (define (dist obj)
+    (cond ((structure? obj)
+	   (s:map/r dist obj))
+	  ((matrix? obj)
+	   ((m:elementwise dist) obj))
+	  ((function? obj)
+	   (hide-tag-in-procedure dx (compose dist obj)))
+	  ((operator? obj)
+	   (hide-tag-in-procedure dx
+	      (g:* (make-operator dist 'extract (operator-subtype obj))
+		   obj)))
+	  ((series? obj)
+	   (make-series (g:arity obj)
+			(map-stream dist (series->stream obj))))
+	  (else (extract obj))))
+  (dist obj))
 
-(define 1arg-real-function-canonicalizer
-  (let ((*not-seen* (list '*not-seen*))
-	(stable (make-eq-hash-table))
-	(ftable (make-equal-table)))
-    (let ((my-x (generate-uninterned-symbol 'x)))
-      (define (function-canonicalizer f)
-	(let ((seen (hash-table/get stable f *not-seen*)))
-	  (if (eq? seen *not-seen*)
-	      (let ((val (f my-x)))
-		(set! fmiss (+ fmiss 1))
-		(let ((cf (equal-table/get ftable val *not-seen*)))
-		  (if (eq? cf *not-seen*)
-		      (begin
-			(equal-table/put! ftable val f)
-			(hash-table/put! stable f (cons f val))
-			f)
-		      (begin
-			(set! falthit (+ falthit 1))
-			(hash-table/put! stable f (cons cf val))
-			cf))))
-	      (let ((cf (car seen)) (vf (cdr seen)))
-		(set! fhithit (+ fhithit 1))
-		cf))))
-      function-canonicalizer)))
+(define ((hide-tag-in-procedure external-tag procedure) x)
+  (let ((internal-tag (make-differential-tag)))
+    (hide-tag-in-object internal-tag
+      (((replace-differential-tag external-tag internal-tag) procedure) x))))
+     
+(define (hide-tag-in-object tag object)
+  (cond ((procedure? object)
+	 (hide-tag-in-procedure tag object))
+	(else object)))
+
+(define ((replace-differential-tag oldtag newtag) object)
+  (cond ((differential? object)
+	 (terms->differential
+	  (map (lambda (term)
+		 (if (memv oldtag (differential-tags term))
+		     (make-differential-term
+		      (insert-differential-tag newtag
+                       (remove-differential-tag oldtag
+                        (differential-tags term)))
+		      (differential-coefficient term))
+		     term))
+	       (differential-term-list object))))
+	((procedure? object)
+	 (let ((new
+		(compose (replace-differential-tag newtag oldtag)
+			 object
+			 (replace-differential-tag oldtag newtag))))
+	   (cond ((function? object)
+		  new)
+		 ((operator? object)
+		  (make-operator new 'composition (operator-subtype object)))
+		 (else
+		  (error "Unknown procedure type --REPLACE-DIFFERENTIAL-TAGS:"
+			 oldtag newtag object)))))
+	((structure? object)
+	 (s:map/r (replace-differential-tag oldtag newtag) object))
+	((matrix? object)
+	 ((m:elementwise (replace-differential-tag oldtag newtag)) object))
+	((series? object)
+	 (make-series (g:arity object)
+		      (map-stream (replace-differential-tag oldtag newtag)
+				  (series->stream object))))
+	(else object)))
 
-(define fmiss 0)
-(define falthit 0)
-(define fhithit 0)
+(define (remove-differential-tag tag tags)
+  (delv tag tags))
 
-(define (reset-function-statistics)
-  (set! fmiss 0)
-  (set! falthit 0)
-  (set! fhithit 0))
-
-(define (reset-derivative-memo-statistics)
-  (reset-function-statistics)
-  (reset-derivative-statistics))
-
-(define (show-derivative-memo-statistics)
-  (pp `(((fmiss ,fmiss) (falthit ,falthit) (fhithit ,fhithit))
-	((dmiss ,dmiss) (dhit ,dhit) (dcount ,dcount)))))
+(define (insert-differential-tag tag tags)
+  (cond ((null? tags) (list tag))
+	((<dt tag (car tags)) (cons tag tags))
+	((=dt tag (car tags))
+	 (error "INSERT-DIFFERENTIAL-TAGS:" tag tags))
+	(else
+	 (cons (car tags)
+	       (insert-differential-tag tag (cdr tags))))))

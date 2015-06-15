@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,11 +24,11 @@ USA.
 
 |#
 
-;;;; This is the top level of sparse polynomial gcd stuff
+;;;; This is the top level of polynomial gcd stuff.
 
 (declare (usual-integrations))
 				 
-(define (poly:gcd-sparse u v)
+(define (poly:gcd-dispatch u v)
   (cond ((poly:zero? u) v)
 	((poly:zero? v) u)
 	((poly:one? u) u)
@@ -39,44 +40,52 @@ USA.
 	((base? v)
 	 (base/gcd (sparse-base-content (poly->sparse u)) v))
 	(else
-	 (let ((arity (gcd-check-same-arity u v))
-	       (tt (gcd-target-type u)))
-	   (if (fix:< arity *euclid-breakpoint-arity*)
-	       (cond ((explicit-pcf? u)
-		      (cond ((explicit-pcf? v)
-			     (poly/gcd-memoized u v))
-			    ((explicit-fpf? v)
-			     (poly/gcd-memoized u (fpf->pcf v)))
-			    (else (error "What do I do here?"))))
-		     ((explicit-fpf? u)
-		      (cond ((explicit-pcf? v)
-			     (pcf->fpf (poly/gcd-memoized (fpf->pcf u) v)))
-			    ((explicit-fpf? v)
-			     (pcf->fpf
-			      (poly/gcd-memoized (fpf->pcf u)
-						 (fpf->pcf v))))
-			    (else (error "What do I do here?")))))
-	       (let ((su (poly->sparse u))
-		     (sv (poly->sparse v)))
-		 (if (or (there-exists? su
-			   (lambda (term)
-			     (let ((c (sparse-coefficient term)))
-			       (or (not (real? c)) (inexact? c)))))
-			 (there-exists? sv
-			   (lambda (term)
-			     (let ((c (sparse-coefficient term)))
-			       (or (not (real? c)) (inexact? c))))))
-		     poly:one
-		     (sparse->poly (sparse-gcd su sv) tt))))))))
+	 (let ((arity (gcd-check-same-arity u v)))
+	   (or (with-limited-time 1.0 ;seconds
+		 (lambda () (poly/gcd-sparse u v)))
+	       (with-limited-time 1.0
+		 (lambda () (poly/gcd-classical u v)))
+	       (with-limited-time 100.0
+		 (lambda () (poly/gcd-sparse u v)))
+	       (and (fix:< arity *euclid-breakpoint-arity*)
+		    (with-limited-time 100.0
+		      (lambda () (poly/gcd-classical u v))))
+	       (poly/gcd-sparse u v)
+	       (if *gcd-cut-losses*
+		   (or (with-limited-time *gcd-cut-losses*
+			 (lambda () (poly/gcd-classical u v)))
+		       poly/one)
+		   (poly/gcd-classical u v)))))))
+
+(define *gcd-cut-losses* #f)
+;;;(define *gcd-cut-losses* 1000.0)
+
+(define (poly/gcd-classical u v)
+  (cond ((explicit-pcf? u)
+	 (cond ((explicit-pcf? v)
+		(poly/gcd-euclid u v))
+	       ((explicit-fpf? v)
+		(poly/gcd-euclid u (fpf->pcf v)))
+	       (else (error "What do I do here?"))))
+	((explicit-fpf? u)
+	 (cond ((explicit-pcf? v)
+		(pcf->fpf
+		 (poly/gcd-euclid (fpf->pcf u) v)))
+	       ((explicit-fpf? v)
+		(pcf->fpf
+		 (poly/gcd-euclid (fpf->pcf u)
+				  (fpf->pcf v))))
+	       (else (error "What do I do here?"))))))
+
 
 (define *euclid-breakpoint-arity* 3)
 
-(define poly:gcd poly:gcd-sparse)
+(define poly:gcd poly:gcd-dispatch)
 
 (define (gcd-check-same-arity u v)
   (let ((au (poly:arity u)))
     (if (not (fix:= au (poly:arity v)))
-	(error "Unequal arities -- poly:gcd-sparse" u v))
+	(error "Unequal arities -- poly:gcd" u v))
     au))
     
 (define (gcd-target-type u)

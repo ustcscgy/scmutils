@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -25,14 +26,6 @@ USA.
 
 ;;; Riemann curvature "tensor" is pretty easy
 
-;;; Hawking and Ellis page 34.
-
-
-(define ((torsion nabla) X Y)
-  (+ ((nabla X) Y)
-     (* -1 ((nabla Y) X))
-     (* -1 (commutator X Y))))
-
 ;;; Hawking and Ellis equation 2.18, page 35.
 
 (define ((Riemann-curvature nabla) u v)
@@ -41,12 +34,57 @@ USA.
 
 ;;; The traditional Riemann tensor R^i_jkl:
 
-(define ((Riemann nabla) w x u v)
-  (assert (and (form-field? w)
-	       (vector-field? u)
-	       (vector-field? v)
-	       (vector-field? x)))
-  (w (((Riemann-curvature nabla) u v) x)))
+(define (Riemann nabla)
+  (define (the-Riemann-tensor w x u v)
+    (w (((Riemann-curvature nabla) u v) x)))
+  (declare-argument-types! the-Riemann-tensor
+			   (list 1form-field?
+				 vector-field?
+				 vector-field?
+				 vector-field?))
+  the-Riemann-tensor)
+
+
+;;; Hawking and Ellis page 34.
+
+(define ((torsion-vector nabla) X Y)
+  (+ ((nabla X) Y)
+     (* -1 ((nabla Y) X))
+     (* -1 (commutator X Y))))
+
+;;; The torsion tensor T^i_jk
+
+(define (torsion nabla)
+  (define (the-torsion w x y)
+    (w ((torsion-vector nabla) x y)))
+  (declare-argument-types! the-torsion
+			   (list 1form-field?
+				 vector-field?
+				 vector-field?))
+  the-torsion)
+
+
+;;; Components of the curvature tensor R^i_{jkl}
+
+(define (curvature-components nabla coord-sys)
+  (let ((d/dxs (coordinate-system->vector-basis coord-sys))
+	(dxs (coordinate-system->1form-basis coord-sys))
+	(m ((point coord-sys) (up 'x 'y 'z))))
+    ((s:map 
+      (lambda (dx)
+	(s:map 
+	 (lambda (d/dx)
+	   (s:map
+	    (lambda (d/dy)
+	      (s:map 
+	       (lambda (d/dz)
+		 (dx (((Riemann-curvature nabla) d/dy d/dz)
+		      d/dx)))
+	       d/dxs))
+	    d/dxs))
+	 d/dxs))
+      dxs)
+     m)))
 
 #|
 ;;; General torsion is not too complicated to compute 
@@ -87,51 +125,21 @@ USA.
 (define w (literal-vector-field 'w R2-rect))
 (define f (literal-manifold-function 'f R2-rect))
 
-(pec ((((torsion (covariant-derivative CF)) v w) f)
+	      
+(clear-arguments)
+(suppress-arguments '((up x0 y0)))
+
+(pec ((((torsion-vector (covariant-derivative CF)) v w) f)
       R2-rect-point))
-
 #| Result:
-(+
- (* -1
-    (w^1 (up x0 y0))
-    (G^0_01 (up x0 y0))
-    (v^0 (up x0 y0))
-    (((partial 0) f) (up x0 y0)))
- (* (w^1 (up x0 y0))
-    (G^0_10 (up x0 y0))
-    (v^0 (up x0 y0))
-    (((partial 0) f) (up x0 y0)))
-
- (* (G^0_01 (up x0 y0))
-    (w^0 (up x0 y0))
-    (v^1 (up x0 y0))
-    (((partial 0) f) (up x0 y0)))
- (* -1
-    (G^0_10 (up x0 y0))
-    (w^0 (up x0 y0))
-    (v^1 (up x0 y0))
-    (((partial 0) f) (up x0 y0)))
-
-
- (* -1
-    (w^1 (up x0 y0))
-    (v^0 (up x0 y0))
-    (G^1_01 (up x0 y0))
-    (((partial 1) f) (up x0 y0)))
- (* (w^1 (up x0 y0))
-    (v^0 (up x0 y0))
-    (G^1_10 (up x0 y0))
-    (((partial 1) f) (up x0 y0)))
-
- (* (w^0 (up x0 y0))
-    (v^1 (up x0 y0))
-    (G^1_01 (up x0 y0))
-    (((partial 1) f) (up x0 y0)))
- (* -1
-    (w^0 (up x0 y0))
-    (v^1 (up x0 y0))
-    (G^1_10 (up x0 y0))
-    (((partial 1) f) (up x0 y0))))
+(+ (* -1 G^1_01 v^0 ((partial 1) f) w^1)
+   (* G^1_01 w^0 ((partial 1) f) v^1)
+   (* -1 G^0_01 v^0 ((partial 0) f) w^1)
+   (* G^0_01 w^0 ((partial 0) f) v^1)
+   (* G^1_10 v^0 ((partial 1) f) w^1)
+   (* -1 G^1_10 w^0 ((partial 1) f) v^1)
+   (* G^0_10 v^0 ((partial 0) f) w^1)
+   (* -1 G^0_10 w^0 ((partial 0) f) v^1))
 |#
 
 ;;; Unfortunately, this says only that the 
@@ -193,15 +201,15 @@ USA.
    (lambda (x)
      (for-each
       (lambda (y)
-	(pec ((((torsion nabla) x y)
+	(pec ((((torsion-vector nabla) x y)
 	       a-function)
 	      a-point)))
       (list  d/dtheta d/dphi)))
    (list  d/dtheta d/dphi)))
-
 #| result:
 0					;four of these
 |#
+
 (let ((nabla
        (covariant-derivative
 	(Christoffel->Cartan G-S2-1))))
@@ -211,7 +219,6 @@ USA.
 #| Result:
 1
 |#
-
 |#
 
 #|
@@ -243,7 +250,7 @@ USA.
    (lambda (x)
      (for-each
       (lambda (y)
-	(pec ((((torsion nabla) x y)
+	(pec ((((torsion-vector nabla) x y)
 	       a-function)
 	      a-point)))
       (list  d/dtheta d/dphi)))
@@ -796,7 +803,6 @@ shouldn't this be zero?
 	     (((covariant-derivative-over-map Cartan mu:N->M) d/dt) w))
 	    ((the-real-line '->point) 'tau)))
 	 (basis->1form-basis basis-over-mu))))
-
 #| Result:
 (up
  (+ (* -1 (w^1 tau) ((D mu^phi) tau) (cos (mu^theta tau)) (sin (mu^theta tau)))

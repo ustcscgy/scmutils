@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -40,7 +41,9 @@ USA.
 (define (procedure->vector-field vfp #!optional name)
   (if (default-object? name)
       (set! name 'unnamed-vector-field))
-  (make-operator vfp name 'vector-field))
+  (let ((the-field (make-operator vfp name 'vector-field)))
+    (declare-argument-types! the-field (list function?))
+    the-field))
 
 
 ;;; A vector field is specified by a function that gives components,

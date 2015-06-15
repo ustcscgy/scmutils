@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -32,16 +33,40 @@ USA.
   (assert (Cartan? Cartan))
   (define (nabla X)
     (define (nabla_X V)
-      (cond ((function? V) (X V))
-	    ((vector-field? V)
+      (cond ((vector-field? V)
 	     (((covariant-derivative-vector Cartan) X) V))
 	    ((form-field? V)
 	     (((covariant-derivative-form Cartan) X) V))
+	    ((has-argument-types? V)
+	     (((covariant-derivative-argument-types Cartan) X) V))
+	    ((function? V)
+	     (((covariant-derivative-function Cartan) X) V))
 	    (else
 	     (error "Bad input -- covariant-derivative"))))
     (make-operator nabla_X `(nabla ,(diffop-name X))))
   nabla)
 
+(define ((((covariant-derivative-function Cartan) X) f) . args)
+  (let ((types
+	 (map (lambda (arg)
+		(cond ((vector-field? arg) vector-field?)
+		      ((1form-field? arg) 1form-field?)
+		      ((manifold-point? arg) manifold-point?)
+		      (else #f)))
+	      args)))
+    (cond ((and (fix:= (length types) 1)
+		(eq? (car types) manifold-point?))
+	   (declare-argument-types! f types)
+	   ((X f) (car args)))
+	  ((any (lambda (type)
+		  (not (or (eq? type vector-field?)
+			   (eq? type 1form-field?))))
+		types)
+	   (error "Bad function or arguments to covariant derivative"))
+	  (else
+	   (declare-argument-types! f types)
+	   (apply (((covariant-derivative-argument-types Cartan) X) f)
+		  args)))))
 
 (define (covariant-derivative-vector Cartan)
   (let ((basis (Cartan->basis Cartan))
@@ -49,16 +74,17 @@ USA.
     (let ((vector-basis (basis->vector-basis basis))
           (1form-basis (basis->1form-basis basis)))
       (lambda (V)
-	(lambda (U)
-	  (let ((u-components (1form-basis U)))
-	    (let ((deriv-components
-		   (+ (V u-components)
-		      (* (Cartan-forms V) u-components))))
-	      (define (the-derivative f)
-		(* (vector-basis f) deriv-components))
-	      (procedure->vector-field the-derivative
-	       `((nabla ,(diffop-name V)) ,(diffop-name U))))))))))
-	  
+	(let ((CV (Cartan-forms V)))
+	  (lambda (U)
+	    (let ((u-components (1form-basis U)))
+	      (let ((deriv-components
+		     (+ (V u-components)
+			(* CV u-components))))
+		(define (the-derivative f)
+		  (* (vector-basis f) deriv-components))
+		(procedure->vector-field the-derivative
+		  `((nabla ,(diffop-name V))
+		    ,(diffop-name U)))))))))))	  
 
 (define (((covariant-derivative-form Cartan) V) tau)
   (let ((k (get-rank tau))
@@ -74,6 +100,130 @@ USA.
 		 0 (- k 1))))
      k
      `((nabla ,(diffop-name V)) ,(diffop-name tau)))))
+
+(define (covariant-derivative-argument-types Cartan)
+  (let* ((basis (Cartan->basis Cartan))
+	 (vector-basis (basis->vector-basis basis))
+	 (1form-basis (basis->1form-basis basis))
+	 (Cartan-forms (Cartan->forms Cartan)))
+    (lambda (V)
+      (let ((CV (Cartan-forms V)))
+	(lambda (T)
+	  (let ((arg-types (argument-types T)))
+	    (define (the-derivative . args)
+	      (assert (fix:= (length args) (length arg-types)))
+	      (let ((VT
+		     (let lp ((types arg-types) (args args) (targs '()) (factors '()))
+		       (if (null? types)
+			   (g:* (V (apply T (reverse targs)))
+				(g:*:n factors))
+			   (contract
+			    (lambda (e w)
+			      (cond ((eq? (car types) vector-field?)
+				     (assert (vector-field? (car args)))
+				     (lp (cdr types)
+					 (cdr args)
+					 (cons e targs)
+					 (cons (w (car args)) factors)))
+				    ((eq? (car types) 1form-field?)
+				     (assert (1form-field? (car args)))
+				     (lp (cdr types)
+					 (cdr args)
+					 (cons w targs)
+					 (cons ((car args) e) factors)))
+				    (else (error "Bad arg types"))))
+			    basis))))
+		    (corrections
+		     (g:+:n
+		      (map (lambda (type i)
+			     (cond ((eq? type 1form-field?) ;positive
+				    (g:*
+				      (g:* (s:map/r (lambda (e)
+						      ((list-ref args i) e))
+						    vector-basis)
+					   CV)
+				     (s:map/r
+				      (lambda (w)
+					(apply T (list-with-substituted-coord args i w)))
+				      1form-basis)))
+				   ((eq? type vector-field?) ;negative
+				    (g:negate
+				     (g:*
+				      (s:map/r
+				       (lambda (e)
+					 (apply T (list-with-substituted-coord args i e)))
+				       vector-basis)
+				      (g:* CV
+					  (s:map/r (lambda (w)
+						     (w (list-ref args i)))
+						   1form-basis)))))))
+			   arg-types (iota (length arg-types))))))
+		(g:+ VT corrections)))
+	    (declare-argument-types! the-derivative arg-types)
+	    the-derivative))))))
+
+#|
+;;; Structured objects, such as tensors, take vector fields and 1form
+;;; fields as arguments.
+
+;;; 1form fields can act as (0,1) tensor fields if arguments are declared:
+
+(let ((omega (literal-1form-field 'omega R4-rect)))
+  (declare-argument-types! omega (list vector-field?))
+  (let ((m (typical-point R4-rect))
+	(X (literal-vector-field 'X R4-rect))
+	(Tomega (indexed->typed
+		 (typed->indexed omega
+				 (coordinate-system->basis R4-rect))
+		 (coordinate-system->basis R4-rect)))
+	(V (literal-vector-field 'V R4-rect))
+	(C (literal-Cartan 'G R4-rect)))
+    (- (((((covariant-derivative C) X) omega) V) m)
+       (((((covariant-derivative C) X) Tomega) V) m))))
+#| 0 |#
+
+
+;;; So to test the operation on a vector field we must construct a
+;;; (1,0) tensor field that behaves like a vector field, but acts on
+;;; 1form fields rather than manifold functions.
+
+(let ((basis (coordinate-system->basis R4-rect))
+      (V (literal-vector-field 'V R4-rect)))
+  (let ((TV (lambda (1form) (1form V))))
+    (declare-argument-types! TV (list 1form-field?))
+    (let ((m (typical-point R4-rect))
+	  (X (literal-vector-field 'X R4-rect))
+	  (omega (literal-1form-field 'omega R4-rect))
+	  (C (literal-Cartan 'G R4-rect)))
+      (- ((omega V) m) ((TV omega) m)))))
+#| 0 |#
+;;; So TV is the tensor field that acts as the vector field V.
+
+(let ((basis (coordinate-system->basis R4-rect))
+      (V (literal-vector-field 'V R4-rect)))
+  (let ((TV (lambda (1form) (1form V))))
+    (declare-argument-types! TV (list 1form-field?))
+    (let ((m (typical-point R4-rect))
+	  (X (literal-vector-field 'X R4-rect))
+	  (omega (literal-1form-field 'omega R4-rect))
+	  (C (literal-Cartan 'G R4-rect)))
+      (- ((omega (((covariant-derivative C) X) V)) m)
+	 (((((covariant-derivative C) X) TV) omega) m)))))
+#| 0 |#
+
+(let* ((g S2-metric)
+       (G (metric->Christoffel-2 g (coordinate-system->basis S2-spherical)))
+       (C (Christoffel->Cartan G))
+       (V (literal-vector-field 'V S2-spherical))
+       (X (literal-vector-field 'X S2-spherical))
+       (Y (literal-vector-field 'Y S2-spherical))
+       (m ((point S2-spherical) (up 'theta 'phi))))
+  (declare-argument-types! g (list vector-field? vector-field?))
+  (((((covariant-derivative C) V) g) X Y) m))
+#|
+0
+|#
+|#
 
 ;;; also nabla V (X), where nabla V is covariant differential
 ;;; nabla V(X)
@@ -117,7 +267,17 @@ USA.
 		  (+ (* J (u J-inv))
 		     (* J (* (forms u) J-inv)))))))
 	  (make-Cartan omega-prime-forms basis-prime))))))
-		  
+
+(define (symmetrize-Christoffel G)
+  (let ((s (Christoffel->symbols G)))
+    (make-Christoffel
+     (* 1/2 (+ s (s:transpose-outer s)))
+     (Christoffel->basis G))))
+
+(define (symmetrize-Cartan Cartan)
+  (Christoffel->Cartan
+   (symmetrize-Christoffel
+    (Cartan->Christoffel Cartan))))
 
 (define (make-Cartan forms basis)
   (list '*Cartan* forms basis))
@@ -175,8 +335,7 @@ USA.
 (clear-arguments)
 (suppress-arguments '((up x0 y0)))
 
-(pec (G R2-rect-point)
-    (compose arg-suppressor simplify))
+(pec (G R2-rect-point))
 #| Result:
 (down (down (up G^0_00 G^1_00) (up G^0_10 G^1_10))
       (down (up G^0_01 G^1_01) (up G^0_11 G^1_11)))
@@ -189,23 +348,15 @@ USA.
 (pec (((Cartan->forms CF) (literal-vector-field 'X R2-rect))
       R2-rect-point))
 #| Result:
-(down
- (up
-  (+ (* (G^0_00 (up x0 y0)) (X^0 (up x0 y0)))
-     (* (G^0_01 (up x0 y0)) (X^1 (up x0 y0))))
-  (+ (* (G^1_00 (up x0 y0)) (X^0 (up x0 y0)))
-     (* (G^1_01 (up x0 y0)) (X^1 (up x0 y0)))))
- (up
-  (+ (* (G^0_10 (up x0 y0)) (X^0 (up x0 y0)))
-     (* (G^0_11 (up x0 y0)) (X^1 (up x0 y0))))
-  (+ (* (G^1_10 (up x0 y0)) (X^0 (up x0 y0)))
-     (* (G^1_11 (up x0 y0)) (X^1 (up x0 y0))))))
+(down (up (+ (* G^0_01 X^1) (* G^0_00 X^0))
+	  (+ (* G^1_01 X^1) (* G^1_00 X^0)))
+      (up (+ (* G^0_11 X^1) (* G^0_10 X^0))
+	  (+ (* G^1_11 X^1) (* G^1_10 X^0))))
 |#
 
 (pec ((Christoffel->symbols
        (Cartan->Christoffel (Christoffel->Cartan CG)))
-      R2-rect-point)
-    (compose arg-suppressor simplify))
+      R2-rect-point))
 #| Result:
 (down (down (up G^0_00 G^1_00) (up G^0_10 G^1_10))
       (down (up G^0_01 G^1_01) (up G^0_11 G^1_11)))
@@ -270,7 +421,7 @@ USA.
      v)
     w)
    f)
-  R2-rect-point))
+  (typical-point R2-rect)))
 #| Result:
 0
 |#
@@ -293,8 +444,7 @@ USA.
 
 (pec (((((covariant-derivative CF) X) V)
        (literal-manifold-function 'F R2-rect))
-      R2-rect-point)
-    (compose arg-suppressor simplify))
+      R2-rect-point))
 #| Result:
 (+ (* G^0_00 V^0 ((partial 0) F) X^0)
    (* G^1_00 V^0 ((partial 1) F) X^0)
@@ -360,8 +510,9 @@ USA.
    f)
   m2))
 #| Result:
-(((partial 1) f) (up x0 y0))
+((partial 1) f)
 |#
+;;; Note: arg-suppressor is in force from above.
 
 (pec
  (((((covariant-derivative polar-Cartan) 
@@ -370,7 +521,7 @@ USA.
    f)
   m2))
 #| Result:
-(((partial 1) f) (up x0 y0))
+((partial 1) f)
 |#
 |#
 
@@ -506,16 +657,13 @@ USA.
        w))
      ((the-real-line '->point) 'tau)))
   (basis->1form-basis basis-over-gamma)))
-
 #| Result:
 (up
- (+ (* -1 (w1 tau) ((D beta) tau) (cos (alpha tau)) (sin (alpha tau)))
+ (+ (* -1 (sin (alpha tau)) ((D beta) tau) (w1 tau) (cos (alpha tau)))
     ((D w0) tau))
- (/
-  (+ (* (w1 tau) (cos (alpha tau)) ((D alpha) tau))
-     (* ((D beta) tau) (cos (alpha tau)) (w0 tau))
-     (* (sin (alpha tau)) ((D w1) tau)))
-  (sin (alpha tau))))
+ (+ (/ (* (w0 tau) ((D beta) tau) (cos (alpha tau))) (sin (alpha tau)))
+    (/ (* (w1 tau) ((D alpha) tau) (cos (alpha tau))) (sin (alpha tau)))
+    ((D w1) tau)))
 |#
 
 ;;; Geodesic equation
@@ -537,7 +685,6 @@ USA.
  (+ (/ (* 2 ((D beta) t) (cos (alpha t)) ((D alpha) t)) (sin (alpha t)))
     (((expt D 2) beta) t)))
 |#
-
 |#
 
 #|
@@ -599,15 +746,15 @@ USA.
   (basis->1form-basis basis-over-gamma)))
 #| Result:
 (up
- (+ (* ((D beta) t) (u0 t) (G^0_01 (up (alpha t) (beta t))))
-    (* ((D beta) t) (u1 t) (G^0_11 (up (alpha t) (beta t))))
-    (* ((D alpha) t) (u0 t) (G^0_00 (up (alpha t) (beta t))))
+ (+ (* ((D alpha) t) (u0 t) (G^0_00 (up (alpha t) (beta t))))
     (* ((D alpha) t) (u1 t) (G^0_10 (up (alpha t) (beta t))))
+    (* ((D beta) t) (u0 t) (G^0_01 (up (alpha t) (beta t))))
+    (* ((D beta) t) (u1 t) (G^0_11 (up (alpha t) (beta t))))
     ((D u0) t))
- (+ (* ((D beta) t) (u0 t) (G^1_01 (up (alpha t) (beta t))))
-    (* ((D beta) t) (u1 t) (G^1_11 (up (alpha t) (beta t))))
-    (* ((D alpha) t) (u0 t) (G^1_00 (up (alpha t) (beta t))))
+ (+ (* ((D alpha) t) (u0 t) (G^1_00 (up (alpha t) (beta t))))
     (* ((D alpha) t) (u1 t) (G^1_10 (up (alpha t) (beta t))))
+    (* ((D beta) t) (u0 t) (G^1_01 (up (alpha t) (beta t))))
+    (* ((D beta) t) (u1 t) (G^1_11 (up (alpha t) (beta t))))
     ((D u1) t)))
 |#
 
@@ -620,18 +767,17 @@ USA.
        ((differential gamma:N->M) d/dt)))
      ((the-real-line '->point) 't)))
   (basis->1form-basis basis-over-gamma)))
-
 #| Result:
 (up
- (+ (* (expt ((D beta) t) 2) (G^0_11 (up (alpha t) (beta t))))
-    (* ((D beta) t) ((D alpha) t) (G^0_01 (up (alpha t) (beta t))))
-    (* ((D beta) t) ((D alpha) t) (G^0_10 (up (alpha t) (beta t))))
-    (* (expt ((D alpha) t) 2) (G^0_00 (up (alpha t) (beta t))))
+ (+ (* (expt ((D alpha) t) 2) (G^0_00 (up (alpha t) (beta t))))
+    (* ((D alpha) t) ((D beta) t) (G^0_01 (up (alpha t) (beta t))))
+    (* ((D alpha) t) ((D beta) t) (G^0_10 (up (alpha t) (beta t))))
+    (* (expt ((D beta) t) 2) (G^0_11 (up (alpha t) (beta t))))
     (((expt D 2) alpha) t))
- (+ (* (expt ((D beta) t) 2) (G^1_11 (up (alpha t) (beta t))))
-    (* ((D beta) t) ((D alpha) t) (G^1_01 (up (alpha t) (beta t))))
-    (* ((D beta) t) ((D alpha) t) (G^1_10 (up (alpha t) (beta t))))
-    (* (expt ((D alpha) t) 2) (G^1_00 (up (alpha t) (beta t))))
+ (+ (* (expt ((D alpha) t) 2) (G^1_00 (up (alpha t) (beta t))))
+    (* ((D alpha) t) ((D beta) t) (G^1_01 (up (alpha t) (beta t))))
+    (* ((D alpha) t) ((D beta) t) (G^1_10 (up (alpha t) (beta t))))
+    (* (expt ((D beta) t) 2) (G^1_11 (up (alpha t) (beta t))))
     (((expt D 2) beta) t)))
 |#
 
@@ -1025,4 +1171,116 @@ USA.
 	 (+ (((wedge omega (D_x tau)) Y Z) m_0)
 	    (((wedge (D_x omega) tau) Y Z) m_0)))))
 0
+|#
+
+(define (((geodesic-equation source-coordsys target-coordsys
+			     Cartan-on-target)
+	  gamma)
+	 source-m)
+  (assert (= (dimension source-coordsys) 1))
+  (let ((e (coordinate-system->vector-basis source-coordsys)))
+    (((((covariant-derivative-over-map Cartan-on-target gamma)
+	e)
+       ((differential gamma) e))
+      (chart target-coordsys))
+     source-m)))
+
+#|
+(((geodesic-equation the-real-line R2-rect (literal-Cartan 'G R2-rect))
+  (literal-manifold-map 'gamma the-real-line R2-rect))
+ ((point the-real-line) 't))
+#|
+(up
+ (+ (* (expt ((D gamma0) t) 2) (G_00^0 (up (gamma0 t) (gamma1 t))))
+    (* ((D gamma0) t) ((D gamma1) t) (G_10^0 (up (gamma0 t) (gamma1 t))))
+    (* ((D gamma0) t) ((D gamma1) t) (G_01^0 (up (gamma0 t) (gamma1 t))))
+    (* (expt ((D gamma1) t) 2) (G_11^0 (up (gamma0 t) (gamma1 t))))
+    (((expt D 2) gamma0) t))
+ (+ (* (expt ((D gamma0) t) 2) (G_00^1 (up (gamma0 t) (gamma1 t))))
+    (* ((D gamma0) t) ((D gamma1) t) (G_10^1 (up (gamma0 t) (gamma1 t))))
+    (* ((D gamma0) t) ((D gamma1) t) (G_01^1 (up (gamma0 t) (gamma1 t))))
+    (* (expt ((D gamma1) t) 2) (G_11^1 (up (gamma0 t) (gamma1 t))))
+    (((expt D 2) gamma1) t)))
+|#
+
+
+(let ((C (literal-Cartan 'G R2-rect)))
+  (- (((geodesic-equation the-real-line R2-rect C)
+       (literal-manifold-map 'gamma the-real-line R2-rect))
+      ((point the-real-line) 't))
+     (((geodesic-equation the-real-line R2-rect (symmetrize-Cartan C))
+       (literal-manifold-map 'gamma the-real-line R2-rect))
+      ((point the-real-line) 't))))
+#|
+(up 0 0)
+|#
+|#
+
+(define ((((parallel-transport-equation
+	    source-coordsys target-coordsys Cartan-on-target)
+	   gamma)
+	  vector-over-gamma)
+	 source-m)
+  (assert (= (dimension source-coordsys) 1))
+  (let ((e (coordinate-system->vector-basis source-coordsys)))
+    (((((covariant-derivative-over-map Cartan-on-target gamma)
+	e)				;d/dt
+       vector-over-gamma)
+      (chart target-coordsys))
+     source-m)))
+
+#|
+(define M (make-manifold S^2 2 3))
+(define S2-spherical
+  (coordinate-system-at 'spherical 'north-pole M))
+(define-coordinates (up theta phi) S2-spherical)
+(define S2-basis
+  (coordinate-system->basis S2-spherical))
+
+(define G-S2-1
+  (make-Christoffel
+   (let ((zero  (lambda (point) 0))) 
+     (down (down (up zero zero)
+		 (up zero (/ 1 (tan theta))))
+	   (down (up zero (/ 1 (tan theta)))
+		 (up (- (* (sin theta)
+			   (cos theta)))
+		     zero))))
+   S2-basis))
+
+(define gamma
+  (compose (point S2-spherical)
+	   (up (literal-function 'alpha)
+	       (literal-function 'beta))
+	   (chart the-real-line)))
+
+
+(define basis-over-gamma
+  (basis->basis-over-map gamma S2-basis))
+
+
+(define u
+  (basis-components->vector-field
+   (up (compose (literal-function 'u^0)
+                (chart the-real-line))
+       (compose (literal-function 'u^1)
+                (chart the-real-line)))
+   (basis->vector-basis basis-over-gamma)))
+
+(define sphere-Cartan
+  (Christoffel->Cartan G-S2-1))
+
+((((parallel-transport-equation
+    the-real-line S2-spherical sphere-Cartan)
+   gamma)
+  u)
+ ((point the-real-line) 't))
+
+#|
+(up
+ (+ (* -1 (sin (alpha t)) ((D beta) t) (u^1 t) (cos (alpha t))) ((D u^0) t))
+ (+ (/ (* (u^0 t) ((D beta) t) (cos (alpha t))) (sin (alpha t)))
+    (/ (* (u^1 t) ((D alpha) t) (cos (alpha t))) (sin (alpha t)))
+    ((D u^1) t)))
+|#
 |#

@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -153,58 +154,6 @@ USA.
 			     (list max-table-size info reset f))
 		  *memoizers*))
       memo-f)))
-
-;;; Weak-alist searches.  These scan a weak alist for an object,
-;;; returning the associated value if found.  They also clean up the
-;;; alist by clobbering out value cells that have lost their key.
-;;; These also work for strong alists, but strong alists are not
-;;; modified.
-
-(define (weak-finder same?)
-  (define (the-finder obj weak-alist)
-    (if (null? weak-alist)
-	#f
-	(let ((pair (car weak-alist)))
-	  (cond ((weak-pair? pair)
-		 (let ((a (weak-car pair)))
-		   (if a		; assumes no key is #f
-		       (if (same? obj a)
-			   (weak-cdr pair)
-			   (the-finder obj (cdr weak-alist)))
-		       (begin (set-car! weak-alist #f)
-			      #f))))
-		((pair? pair)
-		 (let ((a (car pair)))
-		   (if (same? obj a)
-		       (cdr pair)
-		       (the-finder obj (cdr weak-alist)))))
-		(else
-		 (the-finder obj (cdr weak-alist)))))))
-  the-finder)
-
-
-(define weak-find-equal? (weak-finder equal?))
-
-
-(define weak-find-eqv? (weak-finder eqv?))
-
-
-(define weak-find-eq? (weak-finder eq?))
-
-
-;;; The following clips out dead linkages that have been clobbered by
-;;; a weak finder (above).  It also limits the size of the alist to
-;;; the maximum size specified, by chopping off the tail.  max-size
-;;; must be a positive integer larger than 1.
-
-(define (purge-list list max-size)
-  (let ((ans (delq! #f list)))
-    (let loop ((ans ans) (i 1))
-      (if (pair? ans)
-	  (if (fix:= i max-size)
-	      (set-cdr! ans '())
-	      (loop (cdr ans) (fix:+ i 1)))))
-    ans))
 
 ;;; Equality of arguments in argument lists or weak argument lists.
 

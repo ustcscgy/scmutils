@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,7 +28,6 @@ USA.
 ;;; extended to work on any kind of eq? data structure.
 
 (declare (usual-integrations))
-;;;(load-option 'hash-table)
 
 ;;; Property lists are a way of creating data that looks like a record
 ;;; structure without commiting to the fields that will be used until
@@ -49,7 +49,7 @@ USA.
 	  (hash-table/put! eq-properties node
 			   (cons (cons property value)
 				 plist)))))
-  'done)
+  node)
 
 (define (eq-get node property)
   (let ((plist (hash-table/get eq-properties node '())))
@@ -58,25 +58,42 @@ USA.
 	  (cdr vcell)
 	  #f))))
 
-(define (eq-rem! node property)
-  (let ((plist (hash-table/get eq-properties node '())))
-    (let ((vcell (assq property plist)))
-      (if vcell
-	  (hash-table/put! eq-properties node (delq! vcell plist)))))
-  'done)
-
+(define (eq-rem! node . properties)
+  (for-each
+   (lambda (property)
+     (let ((plist
+	    (hash-table/get eq-properties node '())))
+       (let ((vcell (assq property plist)))
+	 (if vcell
+	     (hash-table/put! eq-properties node
+			      (delq! vcell plist))))))
+   properties)
+  node)
 
 (define (eq-adjoin! node property new)
   (eq-put! node property
-	   (eq-set/adjoin new
-			  (or (eq-get node property) '())))
-  'done)
-
-
+	   (lset-adjoin eq?
+			(or (eq-get node property) '())
+			new))
+  node)
+
 (define (eq-plist node)
   (let ((plist (hash-table/get eq-properties node #f)))
     (if plist (cons node plist) #f)))
-
+
+(define (eq-clone! source target)
+  (hash-table/put! eq-properties target
+    (hash-table/get eq-properties source '()))
+  target)
+
+(define (eq-label! node . plist)
+  (let loop ((plist plist))
+    (cond ((null? plist) node)
+	  ((null? (cdr plist)) (error "Malformed plist"))
+	  (else
+	   (eq-put! node (car plist) (cadr plist))
+	   (loop (cddr plist))))))
+
 ;;; Path names are built with properties.
 
 (define (eq-path path)

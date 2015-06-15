@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -97,7 +98,27 @@ USA.
 (define n:* *)
 (define n:/ /)
 
+#|
+(define (n:expt b e)			; (n:expt -1 1/3) => -1
+  (if (and (ratnum? e)
+	   (negative? b)
+	   (odd? (denominator e)))
+      (- (expt (- b) e))
+      (expt b e)))
+
+Quoth Taylor Campbell:
+
+   What makes -1 the obvious answer?  It's not a primitive root of -1,
+   and it's not the first one counterclockwise from the positive real
+   axis...
+
+Indeed, (expt -1 (/ 1. 3)) will not be close to above!
+|#
+
+;;;   (expt -1 1/3)
+;;;    => .5000000000000001+.8660254037844386i
 (define n:expt expt)
+
 (define n:gcd gcd)
 
 (define n:make-rectangular make-rectangular)
@@ -118,6 +139,7 @@ USA.
 (define n:cube cube)
 
 (define n:sigma sigma)
+
 
 ;;; Here we assign the primitive numerical generic operators.
 
@@ -198,6 +220,15 @@ USA.
 	(make-numsymb-expression operator operands))
       (lambda operands 
 	(make-numsymb-expression operator (reverse operands)))))
+
+#|
+;;; From mathutil.scm
+(define g:tan (make-numerical-combination 'tan))
+(define g:cot (compose g:invert g:tan))
+(define g:sec (make-numerical-combination 'sec))
+(define g:csc (make-numerical-combination 'csc))
+|#
+
 
 (define (an:zero-like n) :zero)
 (define (an:one-like n) :one)
@@ -318,7 +349,7 @@ USA.
 	#f)))
 
 (define (an:one? x)
-  (exact-one? (default-simplify x)))
+  (exact-one? (g:simplify x)))
 
 ;;; Sigh.
 ;;; (assign-operation '=          an:=            abstract-number? abstract-number?)

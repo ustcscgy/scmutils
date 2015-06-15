@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -450,7 +451,8 @@ USA.
 	((number? e)
 	 (cond ((zero? e) :one)
 	       ((one? e) b)
-	       ((and (integer? e) (even? e) (sqrt? b))
+	       ((and (integer? e) sqrt-expt-simplify?
+		     (even? e) (sqrt? b))
 		(symb:expt (car (operands b)) (quotient e 2)))
 	       ((and (expt? b)
 		     (number? (cadr (operands b)))
@@ -554,34 +556,48 @@ USA.
 		 (< (abs x) absolute-integer-tolerance)
 		 (< (abs (/ (- x z) z)) relative-integer-tolerance))))))
 
-(define (symb:zero-mod-pi? x) (almost-integer? (/ x n:pi)))
+(define (n:zero-mod-pi? x) (almost-integer? (/ x n:pi)))
+(define (symb:zero-mod-pi? x) (memq x '(:-pi :pi :+pi :-2pi :2pi)))
 
-(define (symb:pi/2-mod-2pi? x) (almost-integer? (/ (- x n:pi/2) n:2pi)))
+(define (n:pi/2-mod-2pi? x) (almost-integer? (/ (- x n:pi/2) n:2pi)))
+(define (symb:pi/2-mod-2pi? x) (memq x '(:pi/2 :+pi/2)))
 
-(define (symb:-pi/2-mod-2pi? x) (almost-integer? (/ (+ x n:pi/2) n:2pi)))
+(define (n:-pi/2-mod-2pi? x) (almost-integer? (/ (+ x n:pi/2) n:2pi)))
+(define (symb:-pi/2-mod-2pi? x) (memq x '(:-pi/2)))
 
-(define (symb:pi/2-mod-pi? x) (almost-integer? (/ (- x n:pi/2) n:pi)))
+(define (n:pi/2-mod-pi? x) (almost-integer? (/ (- x n:pi/2) n:pi)))
+(define (symb:pi/2-mod-pi? x) (memq x '(:-pi/2 :pi/2 :+pi/2)))
 
-(define (symb:zero-mod-2pi? x) (almost-integer? (/ x n:2pi)))
+(define (n:zero-mod-2pi? x) (almost-integer? (/ x n:2pi)))
+(define (symb:zero-mod-2pi? x) (memq x '(:-2pi :2pi :+2pi)))
 
-(define (symb:pi-mod-2pi? x) (almost-integer? (/ (- x n:pi) n:2pi)))
+(define (n:pi-mod-2pi? x) (almost-integer? (/ (- x n:pi) n:2pi)))
+(define (symb:pi-mod-2pi? x) (memq x '(:-pi :pi :+pi)))
 
-(define (symb:pi/4-mod-pi? x) (almost-integer? (/ (- x n:pi/4) n:pi)))
+(define (n:pi/4-mod-pi? x) (almost-integer? (/ (- x n:pi/4) n:pi)))
+(define (symb:pi/4-mod-pi? x) (memq x '(:pi/4 :+pi/4)))
 
-(define (symb:-pi/4-mod-pi? x) (almost-integer? (/ (+ x n:pi/4) :pi)))
+(define (n:-pi/4-mod-pi? x) (almost-integer? (/ (+ x n:pi/4) :pi)))
+(define (symb:-pi/4-mod-pi? x) (memq x '(:-pi/4)))
 
 (define (sin? exp)
   (and (pair? exp) (eq? (car exp) 'sin)))
 
 (define (symb:sin x)
-  (if (number? x)
-      (if (exact? x)
-	  (if (zero? x) 0 `(sin ,x))
-	  (cond ((symb:zero-mod-pi? x) 0.)
-		((symb:pi/2-mod-2pi? x) +1.)
-		((symb:-pi/2-mod-2pi? x) -1.)
-		(else (sin x))))
-      `(sin ,x)))
+  (cond ((number? x)
+      	 (if (exact? x)
+	     (if (zero? x) 0 `(sin ,x))
+	     (cond ((n:zero-mod-pi? x) 0.)
+		   ((n:pi/2-mod-2pi? x) +1.)
+		   ((n:-pi/2-mod-2pi? x) -1.)
+		   (else (sin x)))))
+	((symbol? x)
+	 (cond ((symb:zero-mod-pi? x) 0)
+	       ((symb:pi/2-mod-2pi? x) +1)
+	       ((symb:-pi/2-mod-2pi? x) -1)
+	       (else `(sin ,x))))
+	(else `(sin ,x))))
+
 (addto-symbolic-operator-table 'sin symb:sin)
 
 
@@ -589,30 +605,44 @@ USA.
   (and (pair? exp) (eq? (car exp) 'cos)))
 
 (define (symb:cos x)
-  (if (number? x)
-      (if (exact? x)
-	  (if (zero? x) 1 `(cos ,x))
-	  (cond ((symb:pi/2-mod-pi? x) 0.)
-		((symb:zero-mod-2pi? x) +1.)
-		((symb:pi-mod-2pi? x) -1.)
-		(else (cos x))))
-      `(cos ,x)))
+  (cond ((number? x)
+	 (if (exact? x)
+	     (if (zero? x) 1 `(cos ,x))
+	     (cond ((n:pi/2-mod-pi? x) 0.)
+		   ((n:zero-mod-2pi? x) +1.)
+		   ((n:pi-mod-2pi? x) -1.)
+		   (else (cos x)))))
+	((symbol? x)
+	 (cond ((symb:pi/2-mod-pi? x) 0)
+	       ((symb:zero-mod-2pi? x) +1)
+	       ((symb:pi-mod-2pi? x) -1)
+	       (else `(cos ,x))))
+	(else `(cos ,x))))
+
 (addto-symbolic-operator-table 'cos symb:cos)
 
 (define (tan? exp)
   (and (pair? exp) (eq? (car exp) 'tan)))
 
 (define (symb:tan x)
-  (if (number? x)
-      (if (exact? x)
-	  (if (zero? x) 0 `(tan ,x))
-	  (cond ((symb:zero-mod-pi? x) 0.)
-		((symb:pi/4-mod-pi? x) 1.)
-		((symb:-pi/4-mod-pi? x) -1.)
-		((symb:pi/2-mod-pi? x)
-		 (error "Undefined -- TAN" x))
-		 (else (tan x))))
-      `(tan ,x)))
+  (cond ((number? x)
+	 (if (exact? x)
+	     (if (zero? x) 0 `(tan ,x))
+	     (cond ((n:zero-mod-pi? x) 0.)
+		   ((n:pi/4-mod-pi? x) 1.)
+		   ((n:-pi/4-mod-pi? x) -1.)
+		   ((n:pi/2-mod-pi? x)
+		    (error "Undefined -- TAN" x))
+		   (else (tan x)))))
+	((symbol? x)
+	 (cond ((symb:zero-mod-pi? x) 0)
+	       ((symb:pi/4-mod-pi? x) 1)
+	       ((symb:-pi/4-mod-pi? x) -1)
+	       ((symb:pi/2-mod-pi? x)
+		(error "Undefined -- TAN" x))
+	       (else `(tan ,x))))
+	(else `(tan ,x))))
+
 (addto-symbolic-operator-table 'tan symb:tan)
 
 

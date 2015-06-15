@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -86,9 +87,14 @@ USA.
   (ref state 3))
     
 (define time state->t)
+
 (define coordinate state->q)
 (define velocity state->qdot)
 (define acceleration state->qddot)
+
+(define coordinates state->q)
+(define velocities state->qdot)
+(define accelerations state->qddot)
 
 (define Q     state->q)
 (define Qdot  state->qdot)
@@ -501,6 +507,9 @@ USA.
 	state))))
 |#
 
+#|
+;;; Note: the inverse may have a determinant of zero.
+
 (define ((Lagrangian->acceleration L #!optional dissipation-function) state)
   (if (default-object? dissipation-function)
       (let ((P ((partial 2) L))
@@ -522,6 +531,34 @@ USA.
 	       (+ ((partial 0) P) 
 		  (* ((partial 1) P) velocity)))
 	    state)))))
+|#
+
+(define ((Lagrangian->acceleration L #!optional dissipation-function) state)
+  (if (default-object? dissipation-function)
+      (let ((P ((partial 2) L))
+	    (F ((partial 1) L)))
+	(let ((minv
+	       (s:inverse (velocity state)
+			  (((partial 2) P) state)
+			  (velocity state))))
+	  (* minv
+	     ((- F
+		 (+ ((partial 0) P) 
+		    (* ((partial 1) P) velocity)))
+	      state))))
+      (let ((P ((partial 2) L))
+	    (F ((partial 1) L))
+	    (Diss ((partial 2) dissipation-function)))
+	(let ((minv
+	       (s:inverse (velocity state)
+			  (((partial 2) P) state)
+			  (velocity state))))
+
+	  (* minv
+	     ((- (- F Diss)
+		 (+ ((partial 0) P) 
+		    (* ((partial 1) P) velocity)))
+	      state))))))
 
 (define Lagrange-explicit Lagrangian->acceleration)
 

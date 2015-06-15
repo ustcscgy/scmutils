@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,74 +24,59 @@ USA.
 
 |#
 
-;;;; Split up a polynomial into factors of various multiplicities.
-;;;    Nicely worked out by Mira Wilczek, June 2002.
+;;;; Split a polynomial into factors of various multiplicities.
+;;;    Original code by Mira Wilczek, June 2002.
+;;;    Redone by GJS, January 2011.
 
-(declare (usual-integrations))
-
-;;; The result is a list of factors.  The first element of the list 
-;;; the constant factor, and each successive factor is to be raised 
-;;; to the (zero-based) index of that element of the list.
+(define (gcd-Dp p)
+  ;; Compute the gcd of the all the partial derivatives of p
+  (let ((n (poly:arity p)))
+    (if (fix:= n 0)
+	poly:one
+	(let lp ((i 1) (ans (poly:partial-derivative p (list 0))))
+	  (if (or (fix:= i n) (poly:one? ans))
+	      ans
+	      (lp (fix:+ i 1)
+		  (poly:gcd (poly:partial-derivative p (list i))
+			    ans)))))))
+    
 
 (define (split-polynomial p)
   (define (answer tracker const)
-    (if (number? (car (last-pair tracker)))
-	(cons (car (last-pair tracker))
-	      (append (cdr (except-last-pair tracker)) (list 1)))
-	(cons const (cdr tracker))))
-  (let lp ((m poly:zero) (h p) (Q poly:one)
-	   (tracker '()) (old-s p) (old-m 1) )
+    (if (number? (car tracker))
+	(cons (car tracker)
+	      (cdr (reverse! (cons poly:one (cdr tracker)))))
+	(cons const (cdr (reverse! tracker)))))
+  (let lp ((m poly:zero) (h p) (tracker '()) (old-s p) (old-m poly:one) )
     (if (poly:one? m)
 	(answer tracker h)
-	(let* ((dvis
-		(map (lambda (i)
-		       (poly:partial-derivative h (list i)))
-		     (iota (poly:arity h))))
-	       (gG (reduce poly:gcd poly:zero dvis))
-	       (gg  (if (poly:zero? gG) poly:one gG))
-	       (new-s (poly:quotient h (poly:gcd h gg)      ))
+	(let* ((gg  (gcd-Dp h))
+	       (new-s (poly:quotient h (poly:gcd h gg)))
 	       (new-m (poly:gcd gg new-s))
-	       (h (poly:quotient h (poly:* new-m new-s))) 
-
-	       ;; now h has all factpors to the 1 or 2 power
-	       ;; completely removed, others now to the power-2.
-
 	       (facts (poly:quotient old-s new-s))
-
-	       ;; facts gets all the ones that were completely
+	       ;; facts gets all the factors that were completely
 	       ;; removed last step, i.e. all those that were to
-	       ;; the 1 or 2 power.  the first loop through will
+	       ;; the 1 or 2 power.  The first loop through will
 	       ;; get a totally wrong facts, but its gcd with the
 	       ;; initial old-m=1 will be 1, so it won't result in
 	       ;; incorrect doublefacts or singlefacts.
 
 	       (doublefacts (poly:gcd facts old-m))
-
-	       ;; doublefacts gets all the ones which were to the power 
-	       ;; x>1, x<=2, (ergo x=2), in the last step.
+	       ;; doublefacts gets all the factors which were to 
+	       ;; the power x>1, x<=2, (ergo x=2), in the last step.
 
 	       (singlefacts (poly:quotient new-s new-m))
-
 	       ;; takes out p = all factors only to the 1st power.
-
-	       ;; want to check here whether singlefacts is a
-	       ;; constant, if so put in "1" instead and (* h
-	       ;; singlefacts)
-
-	       ;; changed mind, am going to kluge in answer procedure,
-
-	       (new-tracker
-		(append tracker (list doublefacts singlefacts)))
-
-	       ;; tracker of the form
-	       ;;   h(vi) = (* (exponent (list-ref tracker k) k))
-
-	       (old-s new-s)
-	       (old-m new-m)
-	       (m new-m)
-	       (tracker new-tracker)
 	       )
-	  (lp m h Q tracker old-s old-m)))))
+	  (lp new-m
+	      ;; the followinghas all factors to the 1 or 2 power
+	      ;; completely removed, others now to the power-2.
+	      (poly:quotient h (poly:* new-m new-s))
+	      ;; tracker of the form
+	      ;;   h(vi) = (* (exponent (list-ref tracker k) k))
+	      (cons singlefacts (cons doublefacts tracker))
+	      new-s
+	      new-m)))))
 
 ;;; Reconstruction
 
@@ -112,24 +98,25 @@ USA.
   (pcf:expression-> (expression P)
 		     (lambda (p v)
 		       (map (lambda (factor)
-			      (default-simplify (pcf:->expression factor v)))
+			      (g:simplify (pcf:->expression factor v)))
 			    (split-polynomial p)))))
 
 #| ;;; Simple test cases.
-(split-polynomial->expression
- (* (square (- 'x 'y)) (cube (+ 'x 'y))))
+(pp (split-polynomial->expression
+     (* (square (- 'x 'y)) (cube (+ 'x 'y)))))
 ;Value: (* (expt (+ x (* -1 y)) 2) (expt (+ x y) 3))
 
-(factor-polynomial-expression (* (square (- 'x 'y)) (cube (+ 'x 'y))))
+(pp (factor-polynomial-expression
+     (* (square (- 'x 'y)) (cube (+ 'x 'y)))))
 ;Value: (1 1 (+ x (* -1 y)) (+ x y))
 
-(factor-polynomial-expression (square (- 'x 'y)))
+(pp (factor-polynomial-expression (square (- 'x 'y))))
 ;Value: (1 1 (+ x (* -1 y)) 1)
 
-(factor-polynomial-expression (* 3 (cube 'z) (+ (square 'x) 'y)))
+(pp (factor-polynomial-expression (* 3 (cube 'z) (+ (square 'x) 'y))))
 ;Value: (3 (+ (expt x 2) y) 1 z)
 
-(factor-polynomial-expression (* 3 (square 'z) (+ (square 'x) 'y)))
+(pp (factor-polynomial-expression (* 3 (square 'z) (+ (square 'x) 'y))))
 ;Value: (3 (+ (expt x 2) y) z 1)
 |#
 
@@ -159,7 +146,8 @@ USA.
 		 pcf:expression->
 		 pcf:operators-known))
 
-(define poly:factor (default-simplifier poly:factor-analyzer))
+(define poly:factor
+  (default-simplifier poly:factor-analyzer))
 
 
 #|
@@ -205,21 +193,28 @@ USA.
 	expr))
   (define (process-sqrt expr)
     (let ((fact-exp (poly:factor (car (operands expr)))))
-      (if (product? fact-exp)
-	  (let lp ((factors (operands fact-exp)) (odds 1) (evens 1))
-	    (cond ((null? factors)
-		   (symb:* (symb:sqrt odds) evens))
-		  ((expt? (car factors))
-		   (let ((b (car (operands (car factors)))) (e (cadr (operands (car factors)))))
-		     (lp (cdr factors)
-			 (if (odd? e) (symb:* odds b) odds)
-			 (let ((power (quotient e 2)))
-			   (cond ((fix:> power 1) (symb:* evens (symb:expt b power)))
-				 ((fix:= power 1) (symb:* evens b))
-				 (else evens))))))
-		  (else
-		   (lp (cdr factors) (symb:* (car factors) odds) evens))))
-	  (symb:sqrt fact-exp))))
+      (let lp ((factors (if (product? fact-exp)
+			    (operands fact-exp)
+			    (list fact-exp)))
+	       (odds 1)
+	       (evens 1))
+	(cond ((null? factors)
+	       (symb:* (symb:sqrt odds) evens))
+	      ((expt? (car factors))
+	       (let ((b (car (operands (car factors))))
+		     (e (cadr (operands (car factors)))))
+		 (lp (cdr factors)
+		     (if (odd? e) (symb:* odds b) odds)
+		     (let ((power (quotient e 2)))
+		       (cond ((fix:> power 1)
+			      (symb:* evens (symb:expt b power)))
+			     ((fix:= power 1)
+			      (symb:* evens b))
+			     (else evens))))))
+	      (else
+	       (lp (cdr factors)
+		   (symb:* (car factors) odds)
+		   evens))))))
   (walk expression))
 
 #|

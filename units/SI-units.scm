@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -114,45 +115,51 @@ USA.
 
 ;;;; SI multipliers
 
-(define-multiplier 'exa "E" 1e18)
+(define-multiplier 'exa "E" 18)
 
-(define-multiplier 'peta "P" 1e15)
+(define-multiplier 'peta "P" 15)
 
-(define-multiplier 'tera "T" 1e12)
+(define-multiplier 'tera "T" 12)
 
-(define-multiplier 'giga "G" 1e9)
+(define-multiplier 'giga "G" 9)
 
-(define-multiplier 'mega "M" 1e6)
+(define-multiplier 'mega "M" 6)
 
-(define-multiplier 'kilo "k" 1e3)
+(define-multiplier 'kilo "k" 3)
 
-(define-multiplier 'hecto "h" 1e2)
+(define-multiplier 'hecto "h" 2)
 
-(define-multiplier 'deka "da" 1e1)
+(define-multiplier 'deka "da" 1)
 
-(define-multiplier 'deci "d" 1e-1)
+(define-multiplier 'deci "d" -1)
 
-(define-multiplier 'centi "c" 1e-2)
+(define-multiplier 'centi "c" -2)
 
-(define-multiplier 'milli "m" 1e-3)
+(define-multiplier 'milli "m" -3)
 
-(define-multiplier 'micro "\mu" 1e-6)
+(define-multiplier 'micro "\mu" -6)
 
-(define-multiplier 'nano "n" 1e-9)
+(define-multiplier 'nano "n" -9)
 
-(define-multiplier 'pico "p" 1e-12)
+(define-multiplier 'pico "p" -12)
 
-(define-multiplier 'femto "f" 1e-15)
+(define-multiplier 'femto "f" -15)
 
-(define-multiplier 'atto "a" 1e-18)
+(define-multiplier 'atto "a" -18)
 
 ;;; Other units in terms of SI system
 
 (define-additional-unit SI 'degree
   "$^\\circ$" "1/360 circle" angular (/ :2pi 360))
 
+(define-additional-unit SI 'gram
+  "gm" "CGS mass" kilogram 1/1000)
+
 (define-additional-unit SI 'inch
   "in" "English length" meter (* 2.54 centi))
+
+(define-additional-unit SI 'centimeter
+  "cm" "CGS length" meter 1/100)
 
 (define-additional-unit SI 'pound
   "lb" "English force" newton 4.4482)

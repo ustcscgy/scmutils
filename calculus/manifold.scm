@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -47,6 +48,17 @@ USA.
 	      (embedding 'manifold))))
       (set-coordinate-reps! m '())
       m)))
+
+;;; A Kludge.
+(define (get-coordinate-rep point)
+  ;(assert (eq? ((point->manifold point) 'name) manifold-name))
+  (let ((rep
+	 (find (lambda (rep)
+		 ;(eq? ((car rep) 'name) chart-name)
+		 #t)
+	       (coordinate-reps point))))
+    (assert rep)
+    (cadr rep)))
 
 ;;; The following was a good idea, except for the problem that
 ;;; derivatives generate an enormous number of "distinct" points due
@@ -147,6 +159,8 @@ USA.
 	     (lambda (sspec m)
 	       (set! distinguished-points
 		     (cons (list sspec m) distinguished-points))))
+	    ((patch-names)
+	     (map car patches))
 	    (else
 	     (error "Unknown message: manifold generator" m))))
 	the-manifold))
@@ -190,6 +204,8 @@ USA.
 		   ((cdr coordinate-system-entry) the-patch)
 		   (error "Unknown coordinate-system"
 			  coordinate-system-name patch-name)))))
+	  ((coordinate-system-names)
+	   (map car coordinate-systems))
 	  (else (manifold m)		; pass the buck.
 		;; (error "unknown message: patch" m)
 		)))
@@ -361,6 +377,9 @@ USA.
    coordinate-system-name the-coordinate-system-generator)
   coordinate-system-name)
 
+(define (dimension coordinate-system)
+  (coordinate-system 'dimension))
+
 (define (chart coordinate-system)
   (coordinate-system '->coords))
 
@@ -374,6 +393,13 @@ USA.
 (define (typical-coords coordinate-system)
   (s:map/r generate-uninterned-symbol
 	   (coordinate-system 'coordinate-prototype)))
+
+(define (corresponding-velocities coords)
+  (s:map/r (lambda (x)
+	     (string->uninterned-symbol
+	      (string-append "v:"
+			     (symbol->string x))))
+	   coords))
 
 ;;; This adds names to the generic environment for the coordinate
 ;;; functions, the coordinate-basis vector fields and 1form fields.
@@ -500,6 +526,60 @@ USA.
 	(else (error "Bad message: coordinate-transformer" m))))
     me))
 
+(attach-coordinate-system 'spherical/cylindrical 'origin R^n
+  (lambda (manifold)
+    (define (me m)
+      (case m
+	((check-coordinates)
+	 (lambda (coords)
+	   (and (up? coords)
+		(fix:= (s:dimension coords) (manifold 'dimension))
+		(not (fix:< (s:dimension coords) 3))
+		(or (not (number? (ref coords 0)))
+		    (not (< (ref coords 0) 0))))))
+	((coords->point)
+	 (lambda (coords)
+	   (if ((me 'check-coordinates) coords)
+	       (let ((r (ref coords 0)) 
+		     (theta (ref coords 1)) 
+		     (phi (ref coords 2)))
+		 (make-manifold-point
+		  (s:generate (s:dimension coords) 'up
+			      (lambda (i)
+				(cond ((= i 0) (* r (sin theta) (cos phi)))
+				      ((= i 1) (* r (sin theta) (sin phi)))
+				      ((= i 2) (* r (cos theta)))
+				      (else (ref coords i)))))
+		  manifold
+		  me
+		  coords))
+	       (error "Bad coordinates: spherical/cylindrical" coords))))
+	((check-point)
+	 (lambda (point)
+	   (my-manifold-point? point manifold)))
+	((point->coords)
+	 (lambda (point)
+	   (assert ((me 'check-point) point) "Bad point: spherical/cylindrial")
+	   (get-coordinates point me
+	     (lambda ()
+	       (let ((prep (manifold-point-representation point)))
+		 (if (and (up? prep)
+			  (fix:= (s:dimension prep)
+				 (manifold 'embedding-dimension)))
+		     (let ((x (ref prep 0)) 
+			   (y (ref prep 1))
+			   (z (ref prep 2)))
+		       (let ((r (sqrt (+ (square x) (square y) (square z)))))
+			 (s:generate (s:dimension prep) 'up
+				     (lambda (i)
+				       (cond ((= i 0) r)
+					     ((= i 1) (acos (/ z r)))
+					     ((= i 2) (atan y x))
+					     (else (ref prep i)))))))
+		     (error "Bad point: spherical/cylindrial" point)))))))
+	(else (error "Bad message: coordinate-transformer" m))))
+    me))
+
 ;;; For R4 only
 (attach-coordinate-system 'spacetime-spherical 'origin R^n
   (lambda (manifold)
@@ -559,6 +639,8 @@ USA.
 (define R3 (make-manifold R^n 3))
 (define R3-rect (coordinate-system-at 'rectangular 'origin R3))
 (define R3-cyl (coordinate-system-at 'polar/cylindrical 'origin R3))
+(define R3-spherical
+  (coordinate-system-at 'spherical/cylindrical 'origin R3))
 
 (define R4 (make-manifold R^n 4))
 (define R4-rect (coordinate-system-at 'rectangular 'origin R4))
@@ -746,7 +828,6 @@ USA.
 (define S2-tilted
   (coordinate-system-at 'spherical 'tilted S2))
 
-
 #|
 (define m
   ((S2-spherical '->point) (up 'theta 'phi)))
@@ -762,8 +843,12 @@ USA.
   (let ((n (coordinate-system 'dimension)))
     (let ((function-signature
 	   (if (fix:= n 1) (-> Real Real) (-> (UP* Real n) Real))))
-      (compose (literal-function name function-signature)
-	       (coordinate-system '->coords)))))
+      (let ((function
+	     (compose (literal-function name function-signature)
+		      (coordinate-system '->coords))))
+	(eq-put! function 'function-name name)
+	(eq-put! function 'coordinate-system coordinate-system)
+	function))))
 
 (define (zero-coordinate-function c) 0)
 
@@ -778,6 +863,10 @@ USA.
 (define (one-manifold-function m)
   (assert (manifold-point? m))
   1)
+
+(define ((constant-manifold-function c) m)
+  (assert (manifold-point? m))
+  c)
 
 #|
 ;;; A scalar field can be defined by combining coordinate functions:

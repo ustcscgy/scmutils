@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,6 +27,7 @@ USA.
 ;;; A metric induces a torsion-free connection			       
 	       
 (define (metric->Christoffel-1 metric basis)
+  (assert (coordinate-basis? basis))
   (let ((vector-basis (basis->vector-basis basis)))
     (make-Christoffel
      (s:map/r (lambda (e_k)
@@ -166,6 +168,7 @@ USA.
 |#
 
 (define (metric->Christoffel-2 metric basis)
+  (assert (coordinate-basis? basis))
   (let ((gi (metric:invert metric basis)))
     (let ((vector-basis (basis->vector-basis basis))
 	  (1form-basis (basis->1form-basis basis)))
@@ -173,7 +176,7 @@ USA.
        (s:map/r (lambda (e_k)
 		  (s:map/r (lambda (e_j)
 			     (s:map/r (lambda (w_i)
-					(contract-2
+					(contract
 					 (lambda (e_m w_m)
 					   (* (gi w_i w_m)
 					      (* 1/2
@@ -199,56 +202,53 @@ USA.
 |#
 |#
 
-;;; Symbolic metrics are often useful for testing.
+(define (literal-Christoffel-names name scripts n)
+  (define (Gijk i j k)
+    (define (tex s)
+      (cond ((eq? s 'up) "^")
+	    ((eq? s 'down) "_")
+	    (else (error "Bad scripts"))))
+    (string->symbol
+     (string-append (symbol->string name)
+		    (tex (car scripts))
+		    (number->string i)
+		    (number->string j)
+		    (tex (caddr scripts))
+		    (number->string k))))
+  (assert (eq? (car scripts) (cadr scripts)))
+  (s:generate n (car scripts)
+    (lambda (i)
+      (s:generate n (cadr scripts)
+	(lambda (j)
+	  (s:generate n (caddr scripts)
+	    (lambda (k)
+	      (Gijk i j k))))))))
 
-(define (make-metric coordinate-system)
-  (define (gij i j)
-    (if (<= i j)
-	(literal-manifold-function
-	 (string->symbol
-	  (string-append "g"
-			 "_"
-			 (number->string i)
-			 (number->string j)))
-	 coordinate-system)
-	(gij j i)))
-  gij)
-				    
-(define (literal-metric coordinate-system)
-  ;; Flat coordinate systems here only.
-  (let ((basis (coordinate-system->basis coordinate-system)))
-    (let ((1form-basis (basis->1form-basis basis))
-	  (gij (make-metric coordinate-system)))
-      (let ((n (s:dimension 1form-basis)))
-	(let ((gcoeffs
-	       (s:generate n 'down
-			   (lambda (i)
-			     (s:generate n 'down
-					 (lambda (j)
-					   (gij i j)))))))
-	  (lambda (v1 v2)
-	    (* (* gcoeffs (1form-basis v1))
-	       (1form-basis v2))))))))
+(define (literal-Christoffel-1 name coordsys)
+  (let ((n (dimension coordsys)))
+    (make-Christoffel
+     (s:map/r (lambda (name)
+		(literal-manifold-function name coordsys))
+	      (literal-Christoffel-names name '(down down down) n))
+     (coordinate-system->basis coordsys))))
+
+(define (literal-Christoffel-2 name coordsys)
+  (let ((n (dimension coordsys)))
+    (make-Christoffel
+     (s:map/r (lambda (name)
+		(literal-manifold-function name coordsys))
+	      (literal-Christoffel-names name '(down down up) n))
+     (coordinate-system->basis coordsys))))
+
+(define (literal-Cartan name coordsys)
+  (Christoffel->Cartan (literal-Christoffel-2 name coordsys)))
+
 #|
-(install-coordinates R3-rect (up 'x 'y 'z))
+(define Cartan (literal-Cartan 'G R2-rect))
+#| Cartan |#
 
-(set! *factoring* #f)
-
-(pec (((literal-metric R3-rect)
-       (literal-vector-field 'u R3-rect)
-       (literal-vector-field 'v R3-rect))
-      ((R3-rect '->point) (up 'x0 'y0 'z0))))
-#| Result:
-(+ (* (v^0 (up x0 y0 z0)) (u^0 (up x0 y0 z0)) (g_00 (up x0 y0 z0)))
-   (* (v^0 (up x0 y0 z0)) (g_01 (up x0 y0 z0)) (u^1 (up x0 y0 z0)))
-   (* (v^0 (up x0 y0 z0)) (g_02 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
-   (* (u^0 (up x0 y0 z0)) (v^1 (up x0 y0 z0)) (g_01 (up x0 y0 z0)))
-   (* (u^0 (up x0 y0 z0)) (v^2 (up x0 y0 z0)) (g_02 (up x0 y0 z0)))
-   (* (v^1 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_11 (up x0 y0 z0)))
-   (* (v^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
-   (* (v^2 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)))
-   (* (v^2 (up x0 y0 z0)) (u^2 (up x0 y0 z0)) (g_22 (up x0 y0 z0))))
-|#
+(define CF (Cartan->forms Cartan))
+#| CF |#
 |#
 
 #|
@@ -396,7 +396,7 @@ USA.
 ;;; c_ijk = g_kl c_ij^l = g_kl e^l([e_i, e_j])
 
 (define (structure-constant e_i e_j e_k basis metric)
-  (contract-2 
+  (contract
    (lambda (e_l w_l)
      (* (metric e_k e_l)
 	(w_l (commutator e_i e_j))))
@@ -435,7 +435,7 @@ USA.
 	 (lambda (e_j)
 	   (s:map/r
 	    (lambda (w_i)
-	      (contract-2
+	      (contract
 	       (lambda (e_m w_m)
 		 (* (inverse-metric w_i w_m)
 		    (* 1/2 (+ (- (+ (e_k (metric e_m e_j))

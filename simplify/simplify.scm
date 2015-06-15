@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -53,11 +54,7 @@ USA.
 (define *inhibit-expt-simplify* #t)
 
 (define (make-analyzer ->expression expression-> known-operators)
-  (let ((auxiliary-variable-table
-	 ((weak-hash-table/constructor equal-hash-mod equal? #t)))
-	(reverse-table (make-eq-hash-table))
-	(uorder '())
-	(priority '()))
+  (let ((auxiliary-variable-table) (reverse-table) (uorder) (priority))
 
     ;; Default simplifier
     (define (simplify expr)
@@ -101,7 +98,7 @@ USA.
     ;; Implementation -----------------------
 
     (define (analyze expr)
-      (let ((vars (sort (variables-in expr) alphaless?)))
+      (let ((vars (sort (variables-in expr) variable<?)))
 	(set! uorder
 	      (append (map add-symbol! priority)
 		      vars)))
@@ -177,7 +174,9 @@ USA.
 		     (else true)))
 	      ((memq var2 uorder) false)
 	      (else
-	       (alphaless? var1 var2)))))
+	       (variable<? var1 var2)))))
+
+    (new-analysis)
 
     (vector simplify
 	    simplify-expression
@@ -202,19 +201,35 @@ USA.
 (define fpf:analyzer
   (make-analyzer fpf:->expression fpf:expression-> fpf:operators-known))
 
-(define fpf:simplify (expression-simplifier fpf:analyzer))
-
+;;(define fpf:simplify (default-simplifier fpf:analyzer))
+;;(define fpf:simplify (expression-simplifier fpf:analyzer))
+(define fpf:simplify
+  (hash-memoize-1arg
+   (compose canonical-copy
+	    (expression-simplifier fpf:analyzer))))
 
 (define pcf:analyzer
   (make-analyzer pcf:->expression pcf:expression-> pcf:operators-known))
 
+;;(define pcf:simplify (default-simplifier pcf:analyzer))
 (define pcf:simplify (expression-simplifier pcf:analyzer))
-
+#|
+(define pcf:simplify
+  (hash-memoize-1arg
+   (compose canonical-copy
+	    (expression-simplifier pcf:analyzer))))
+|#
 
 (define rcf:analyzer
   (make-analyzer rcf:->expression rcf:expression-> rcf:operators-known))
 
-(define rcf:simplify (expression-simplifier rcf:analyzer))
+;;(define rcf:simplify (default-simplifier rcf:analyzer))
+;;(define rcf:simplify (expression-simplifier rcf:analyzer))
+(define rcf:simplify
+  (hash-memoize-1arg
+   (compose canonical-copy
+	    (expression-simplifier rcf:analyzer))))
+
 #|
 ((initializer rcf:analyzer))
 

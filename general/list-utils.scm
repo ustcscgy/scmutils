@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -28,6 +29,35 @@ USA.
 (declare (usual-integrations))
 
 
+;;; The following is like symbol<? except that shorter symbols are 
+;;; by default less than longer ones.
+
+(define (variable<? x y)
+  (guarantee-symbol x 'VARIABLE<?)
+  (guarantee-symbol y 'VARIABLE<?)
+  (let ((sx (system-pair-car x))
+	(sy (system-pair-car y)))
+    (let ((lx (string-length sx))
+	  (ly (string-length sy)))
+      (if (fix:< lx ly)
+	  #t
+	  (let loop ((i 0))
+	    (cond ((fix:= i ly)
+		   (fix:< lx ly))
+		  ((fix:= (vector-8b-ref sx i)
+			  (vector-8b-ref sy i))
+		   (loop (fix:+ i 1)))
+		  (else
+		   (fix:< (vector-8b-ref sx i)
+			  (vector-8b-ref sy i)))))))))
+
+;;; Ok to pass it an improper list
+(define (safe-map f pairs)
+  (cond ((null? pairs) '())
+	((pair? pairs)
+	 (cons (f (car pairs))
+	       (safe-map f (cdr pairs))))
+	(else (f pairs))))
 
 (define (count-elements p? l)
   (let loop ((count 0) (l l))

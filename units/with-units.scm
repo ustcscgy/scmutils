@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -212,21 +213,21 @@ USA.
 
 (assign-operation '=          u:=            with-units? with-units?)
 
-(assign-operation '+   u:+     with-units?             (negation differential?))
-(assign-operation '+   u:+     (negation differential?)  with-units?)
+(assign-operation '+   u:+     with-units?             not-differential-or-compound?)
+(assign-operation '+   u:+     not-differential-or-compound?  with-units?)
 
-(assign-operation '-   u:-     with-units?             (negation differential?))
-(assign-operation '-   u:-     (negation differential?)  with-units?)
+(assign-operation '-   u:-     with-units?             not-differential-or-compound?)
+(assign-operation '-   u:-     not-differential-or-compound?  with-units?)
 
-(assign-operation '*   u:*     with-units?             (negation differential?))
-(assign-operation '*   u:*     (negation differential?)  with-units?)
+(assign-operation '*   u:*     with-units?             not-differential-or-compound?)
+(assign-operation '*   u:*     not-differential-or-compound?  with-units?)
 
-(assign-operation '/   u:/     with-units?             (negation differential?))
-(assign-operation '/   u:/     (negation differential?)  with-units?)
+(assign-operation '/   u:/     with-units?             not-differential-or-compound?)
+(assign-operation '/   u:/     not-differential-or-compound?  with-units?)
 
 ;(assign-operation 'dot-product  u:dot-product  with-units? with-units?)
 
-(assign-operation 'expt       u:expt         with-units?  (negation differential?))
+(assign-operation 'expt       u:expt         with-units?  not-differential-or-compound?)
 
 ;(assign-operation 'gcd        u:gcd          with-units? with-units?)
 

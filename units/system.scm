@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -97,7 +98,7 @@ USA.
   (set! content
 	(make-unit (unit-system-name system)
 		   (unit-exponents content)
-		   (* scale-factor (unit-scale content))))
+		   (* (expression scale-factor) (unit-scale content))))
   (let ((unit-spec (list unit-name tex description content)))
     (define-derived-unit! system unit-spec)
     (environment-define scmutils-base-environment unit-name content)
@@ -121,7 +122,7 @@ USA.
   (set! content
 	(make-unit (unit-system-name system)
 		   (unit-exponents content)
-		   (* scale-factor (unit-scale content))))
+		   (* (expression scale-factor) (unit-scale content))))
   (let ((unit-spec (list unit-name tex description content)))
     (define-additional-unit! system unit-spec)
     (environment-define scmutils-base-environment unit-name content)
@@ -133,11 +134,17 @@ USA.
 		    (list unit-spec))))
 
 
+(define *multiplier-names* '())
 
-(define (define-multiplier name tex-string value)
+(define (define-multiplier name tex-string log-value)
   (if (environment-bound? scmutils-base-environment name)
       (write-line `(clobbering ,name)))
-  (environment-define scmutils-base-environment name value))
+  (set! *multiplier-names*
+	(cons (list name tex-string log-value)
+	      *multiplier-names*))
+  (environment-define scmutils-base-environment
+		      name
+		      (expt 10 log-value)))
 
 (define *constants* '())
 
@@ -148,7 +155,7 @@ USA.
   (let ((constant (literal-number name)))
     (cond ((with-units? value)
 	   (assert (equal? (u:units value) units))))
-    (set! value (default-simplify (u:value value)))
+    (set! value (g:simplify (u:value value)))
     (add-property! constant 'name name)
     (add-property! constant 'numerical-value value)
     (add-property! constant 'units units)
@@ -220,7 +227,7 @@ USA.
 	 (let ((value (g:* (unit-scale (u:units num)) (u:value num)))
 	       (vect (unit-exponents (u:units num))))
 	   (list *unit-constructor*
-		 value
+		 (expression value)
 		 (exponent-vector->unit-expression system vect))))
 	((units? num)
 	 (list *unit-constructor*
@@ -234,6 +241,23 @@ USA.
       (find-unit vect (derived-units system))
       (unit-expresson (vector->list vect)
 		      (map car (base-units system)))))
+
+#|
+;;; Work in progress
+
+(define (foosh x)
+  (let* ((logscale (round->exact (log10 x)))
+	 (scale (expt 10 logscale))
+	 )
+    (list (/ x scale) scale)
+  ))
+
+(foosh 3/1000)
+#|
+(3 1/1000)
+|#
+|#
+
 
 (define (find-unit vect ulist)
   (let ((v

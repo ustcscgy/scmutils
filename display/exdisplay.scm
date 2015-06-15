@@ -2,7 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
+    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
+    Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -169,11 +170,6 @@ USA.
      (lambda ()
        (set-thread-timer-interval! old)))))
 |#
-
-(define (cpp x)
-  (pp x
-      (current-output-port)
-      true)) ;; as code
 
 
 (define (2d-display-box box)
@@ -457,6 +453,7 @@ USA.
 ;;; n-char symbol             190        product set off with dots in Tex
 ;;; 
 ;;; subscripted               140
+;;; superscripted             140
 ;;; derivative                140
 ;;; 2nd derviv                140
 ;;; partial deriv             140
@@ -631,6 +628,35 @@ USA.
      (glue-horiz (list base "^{" expt "}")))))
 
 
+(define (2d:unparse-superscript uptable args)
+  (let ((top (insure-bp uptable 140 (car args)))
+	(script (insure-bp uptable 140 (cadr args))))
+    (make-box-with-bp
+     140
+     (glue-horiz
+      (list top
+	    (shift-top-to (+ (box-voffset top) (box-nlines top))
+			  script))))))
+
+
+(define (tex:unparse-superscript uptable args)
+  (let ((top (insure-bp uptable 140 (car args)))
+	(scripts
+	 (map (lambda (ss)
+		(insure-bp uptable 140 ss))
+	      (cdr args))))
+    (make-box-with-bp
+     140
+     (glue-horiz
+      (append (list top)
+	      (list "^{")
+	      (let lp ((scripts scripts))
+		(if (null? (cdr scripts))
+		    (list (car scripts))
+		    (append (list (car scripts))
+			    (list ", ")
+			    (lp (cdr scripts)))))
+	      (list "}"))))))
 
 (define (2d:unparse-subscript uptable args)
   (let ((top (insure-bp uptable 140 (car args)))
@@ -886,6 +912,7 @@ USA.
     (nth-derivative ,2d:unparse-nth-derivative)
     (partial-derivative ,2d:unparse-partial-derivative)
     (subscript ,2d:unparse-subscript)
+    (superscript ,2d:unparse-superscript)
     (vector ,2d:unparse-vector)
     (row ,2d:unparse-matrix)
     (column ,2d:unparse-matrix)
@@ -920,6 +947,7 @@ USA.
     (nth-derivative ,tex:unparse-nth-derivative)
     (partial-derivative ,tex:unparse-partial-derivative)
     (subscript ,tex:unparse-subscript)
+    (superscript ,tex:unparse-superscript)
     (vector ,tex:unparse-vector)
     (column ,tex:unparse-up)
     (row ,tex:unparse-down)
@@ -1047,13 +1075,12 @@ USA.
     (if s
 	(cadr s)
 	(let ((string (symbol->string symbol)))
-	  (split-at-underscore
+	  (split-at-underscore-or-caret
 	   string
-	   (lambda (before after)
-	     (if (not before)		;no underscore in symbol
+	   (lambda (before at after)
+	     (if (not before)		;no underscore or caret in symbol
 		 (unparse-string string symbol-substs uptable)
-		 (unparse `(subscript ,(string->symbol before)
-				      ,(string->symbol after))
+		 (unparse `(,at ,(string->symbol before) ,(string->symbol after))
 			  symbol-substs
 			  uptable))))))))
 
@@ -1086,12 +1113,25 @@ USA.
 	    (else
 	     (make-box-with-bp 190 string)))))
 
-(define (split-at-underscore string cont)
+#|
+(define (split-at-underscore-or-caret string cont)
   ;;cont = (lambda (before after) ...)
   (let ((index (string-find-next-char string #\_)))
     (if (not index)
 	(cont #f #f)
 	(cont (string-head string index)
+	      (string-tail string (+ index 1))))))
+|#
+
+(define (split-at-underscore-or-caret string cont)
+  ;;cont = (lambda (before at after) ...)
+  (let ((index (string-find-next-char-in-set string (char-set #\^ #\_))))
+    (if (not index)
+	(cont #f #f #f)
+	(cont (string-head string index)
+	      (if (char=? (string-ref string index) #\^)
+		  'superscript
+		  'subscript)
 	      (string-tail string (+ index 1))))))
 
 
@@ -1193,7 +1233,6 @@ USA.
 (set! internal-show-expression
   (lambda (exp)
     (set! last-tex-string-generated (expression->tex-string exp))
-    (cpp exp)
     (let ((name (graphics-type-name (graphics-type #f))))
       (if (and (eq? name 'X) enable-tex-display)
 	  (begin (display-in-screen-window last-tex-string-generated)
