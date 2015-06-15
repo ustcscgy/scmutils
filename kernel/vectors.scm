@@ -72,6 +72,14 @@ USA.
   (v:generate (vector-length v)
 	      (lambda (i)
 		(g:zero-like (vector-ref v i)))))
+
+(define (literal-vector name dimension)
+  (v:generate dimension
+	      (lambda (i)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"^"
+				(number->string i))))))
 
 (define (v:make-basis-unit n i)	; #(0 0 ... 1 ... 0) n long, 1 in ith position
   (v:generate n (lambda (j) (if (fix:= j i) :one :zero))))
@@ -267,8 +275,13 @@ USA.
 
 (assign-operation '/           vector/scalar       vector? scalar?)
 
-(assign-operation 'dot-product v:dot-product       vector? vector?)
+;;; subsumed by s:dot-product
+;;; (assign-operation 'dot-product v:dot-product   vector? vector?)
+
 (assign-operation 'cross-product v:cross-product   vector? vector?)
+
+(assign-operation 'dimension v:dimension  vector?)
+
 
 #| ;;; Should be subsumed by deriv:pd in deriv.scm.
 (assign-operation 'partial-derivative
@@ -282,7 +295,7 @@ USA.
 
 ;;; Abstract vectors generalize vector quantities.
 
-(define (literal-vector symbol)
+(define (abstract-vector symbol)
   (make-literal vector-type-tag symbol))
 
 (define (av:arity v)
@@ -290,7 +303,7 @@ USA.
   (get-property v 'arity *at-least-zero*))
 
 (define (av:zero-like v)
-  (let ((z (literal-vector (list 'zero-like v))))
+  (let ((z (abstract-vector (list 'zero-like v))))
     (add-property! z 'zero #t)
     z))
 

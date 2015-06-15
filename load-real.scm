@@ -30,7 +30,7 @@ USA.
 
 (ge user-initial-environment)
 
-(add-subsystem-identification! "ScmUtils" '("Mechanics" "Summer 2013"))
+(add-subsystem-identification! "ScmUtils" '("Mechanics" "Fall 2013"))
 
 (define scmutils-base-environment user-initial-environment)
 

@@ -52,24 +52,44 @@ USA.
 
 (define (evolve parametric-sysder . parameters)
   (lambda (initial-state monitor dt-monitor tfinal #!optional eps dt)
-    (if (default-object? dt) (set! dt dt-monitor))
-    (if (default-object? eps) (set! eps *default-advancer-tolerance*))
-    (let* ((direction (sign (- tfinal (s:ref initial-state 0))))
+    (let* (;; First float all numeric arguments.
+	   (dt-monitor (->flonum dt-monitor))
+	   (dt (if (default-object? dt)
+		   dt-monitor
+		   (->flonum dt)))
+	   (eps (cond ((default-object? eps)
+		       *default-advancer-tolerance*)
+		      ((number? eps) 
+		       (->flonum eps))
+		      (else eps)))	; may be a custom procedure
+	   (tfinal (->flonum tfinal))
+	   (parameters (map ->flonum parameters))
+	   (initial-state (s:map/r ->flonum initial-state))
+
+	   (direction (sign (- tfinal (s:ref initial-state 0))))
            (dt-monitor (* direction (abs dt-monitor)))
            (dt (* direction (abs dt)))
            (free-run
             (apply free-run-state-advancer parametric-sysder parameters)))
+      (define (zero-in state next-state ttarget)
+	(let ((current-time (s:ref state 0))
+	      (next-time (s:ref next-state 0)))
+	  (if (<= (abs (- ttarget current-time)) (abs (- ttarget next-time)))
+	      (go-to state ttarget (- ttarget current-time) monitor)
+	      (go-to next-state ttarget (- ttarget next-time) monitor))))
       (define (go-to state target-time dt continue)
         (let lp ((state state) (dt dt))
           (if (close-enuf? target-time (s:ref state 0) *time-tolerance*)
               (continue state)
               (let ((time-to-target (- target-time (s:ref state 0))))
                 (free-run state
-			  (* (sign time-to-target)
-                             (min (abs time-to-target) (abs dt)))
-                          eps
-                          (lambda (new-state dt-obtained dt-suggested)
-                            (lp new-state dt-suggested)))))))
+		   (* (sign time-to-target)
+                      (min (abs time-to-target) (abs dt)))
+                   eps
+                   (lambda (new-state dt-obtained dt-suggested)
+                     (lp new-state dt-suggested)))))))
+      (define (between? t0 t1 t2)
+	(<= (* direction t0) (* direction t1) (* direction t2)))
       (monitor initial-state)
       (free-run initial-state dt eps
 	 (lambda (new-state dt-obtained dt-suggested)
@@ -80,24 +100,19 @@ USA.
 	     (let ((current-time (s:ref state 0))
 		   (next-time (s:ref next-state 0))
 		   (dt-suggested (* direction (abs dt-suggested))))
-	       (if (<= (* direction current-time)
-		       (* direction tfinal)
-		       (* direction next-time))
-		   (go-to state tfinal (- tfinal current-time) (lambda (s) (monitor s) s))
-		   (if (<= (* direction current-time)
-			   (* direction tmonitor)
-			   (* direction next-time))
-		       (begin
-			 (if (<= (abs (- tmonitor current-time))
-				 (abs (- tmonitor next-time)))
-			     (go-to state tmonitor (- tmonitor current-time) monitor)
-			     (go-to next-state tmonitor (- tmonitor next-time) monitor))
-			 (loop state next-state dt-suggested (+ tmonitor dt-monitor)))
+	       (define (do-monitor)
+		 (zero-in state next-state tmonitor)
+		 (loop state next-state dt-suggested (+ tmonitor dt-monitor)))
+	       (if (between? current-time tfinal next-time)
+		   (if (between? current-time tmonitor tfinal)
+		       (do-monitor)
+		       (go-to state tfinal (- tfinal current-time)
+                              (lambda (s) (monitor s) s)))
+		   (if (between? current-time tmonitor next-time) 
+		       (do-monitor)
 		       (free-run next-state dt-suggested eps
 			  (lambda (new-state dt-obtained dt-suggested)
-			    (loop next-state new-state dt-suggested tmonitor))))))))))))
-
-
+                            (loop next-state new-state dt-suggested tmonitor))))))))))))
 
 (define *time-tolerance* 1e-13)
 (define *default-advancer-tolerance* 1e-12)
@@ -163,26 +178,34 @@ USA.
 |#
 
 (define (state-advancer sysder . params)
-  (let ((free-run (apply free-run-state-advancer sysder params)))
+  (let* ((params (map ->flonum params))
+	 (free-run (apply free-run-state-advancer sysder params)))
     (lambda (initial-state dt-required #!optional eps continue)
-      (define (go-to state target-time dt continue)
-        (let lp ((state state) (dt dt))
-          (if (close-enuf? target-time (s:ref state 0) *time-tolerance*)
-              (continue state dt-required dt)
-              (let ((time-to-target (- target-time (s:ref state 0))))
-                (free-run state
-			  (* (sign time-to-target)
-                             (min (abs time-to-target) (abs dt)))
-                          eps
-                          (lambda (new-state dt-obtained dt-suggested)
-                            (lp new-state dt-suggested)))))))
-      (if (default-object? continue)
-	  (set! continue
-		(lambda (new-state dt-obtained dt-suggested) new-state)))
-      (if (default-object? eps) (set! eps 1.0e-10))
-      (let ((tinitial (s:ref initial-state 0))
-            (tfinal (+ (s:ref initial-state 0) dt-required)))
-        (go-to initial-state tfinal (- tfinal tinitial) continue)))))
+      (let ((initial-state (s:map/r ->flonum initial-state))
+	    (dt-required (->flonum dt-required))
+	    (eps (cond ((default-object? eps)
+			*default-advancer-tolerance*)
+		       ((number? eps) 
+			(->flonum eps))
+		       (else eps)))
+	    (continue
+	     (if (default-object? continue)
+		 (lambda (new-state dt-obtained dt-suggested) new-state)
+		 continue)))
+	(define (go-to state target-time dt continue)
+	  (let lp ((state state) (dt dt))
+	    (if (close-enuf? target-time (s:ref state 0) *time-tolerance*)
+		(continue state dt-required dt)
+		(let ((time-to-target (- target-time (s:ref state 0))))
+		  (free-run state
+			    (* (sign time-to-target)
+			       (min (abs time-to-target) (abs dt)))
+			    eps
+			    (lambda (new-state dt-obtained dt-suggested)
+			      (lp new-state dt-suggested)))))))
+	(let ((tinitial (s:ref initial-state 0))
+	      (tfinal (+ (s:ref initial-state 0) dt-required)))
+	  (go-to initial-state tfinal (- tfinal tinitial) continue))))))
 
 (define (advance-beyond parametric-sysder . parameters)
   (let ((advancer (apply free-run-state-advancer parametric-sysder parameters)))

@@ -27,33 +27,18 @@ USA.
 ;;; Makes a canonical point transformation from a 
 ;;;  time-invariant coordinate transformation T(q)
 
-(define (F->CH F)
-  (define (CH H-state)
-    (let ((t (time H-state))
-	  (pprime (momentum H-state))
-	  (q (F H-state)))
-      (up t
-	  q
-	  (* pprime
-	     (s:inverse (compatible-shape q)
-			(((partial 1) F) H-state)
-			(compatible-shape pprime))))))
-  CH)
+(define ((F->CH F) H-state)
+  (up (time H-state)
+      (F H-state)
+      (solve-linear-right (momentum H-state)
+                          (((partial 1) F) H-state))))
 
 (define F->CT F->CH)
 
-(define (F->K F)
-  (define (K s)
-    (let ((pprime (momentum s))
-	  (q (F s)))
-      (- (* (* pprime
-	       (s:inverse (compatible-shape q)
-			  (((partial 1) F) s)
-			  (compatible-shape pprime)))
-	    (((partial 0) F) s)))))
-  K)
-	   
-
+(define ((F->K F) H-state)
+  (- (* (solve-linear-right (momentum H-state)
+                            (((partial 1) F) H-state))
+        (((partial 0) F) H-state))))
 
 #|
 ;;; For display in book -- assumes flat coordinates

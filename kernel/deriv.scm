@@ -180,31 +180,6 @@ USA.
 			  (g:apply f (up-structure->list s))))
 		     (list->up-structure args)))))))))
 
-#|
-(define (deriv:derivative f)
-  (compose s:canonicalize (deriv:multivariate-derivative f)))
-
-(let ((k (literal-number 'k)) (m (literal-number 'm)))
-  (pp
-   (expression
-    ((deriv:derivative
-      (lambda (t q p)
-	(+ (/ (* p (m:transpose p))
-	      (* 2 m))
-	   (* 1/2 k (* (m:transpose q) q))
-	   (sin t))))
-     (literal-number 't)
-     (up (literal-number 'x)
-	 (literal-number 'y))
-     (down (literal-number 'px)
-	   (literal-number 'py))))))
-(down (cos t)
-      (down (* (* 1/2 k) (+ x x))
-	    (* (* 1/2 k) (+ y y)))
-      (up (* (/ 1 (* 2 m)) (+ px px))
-	  (* (/ 1 (* 2 m)) (+ py py))))
-|#
-
 (assign-operation 'partial-derivative
 		  deriv:multivariate-derivative
 		  (disjunction function? structure?)

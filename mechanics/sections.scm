@@ -32,49 +32,87 @@ USA.
 ;;;   Middle button continues a trajectory.
 ;;;   Right button interrogates coordinates.
 
-(define (explore-map window poincare-map #!optional n)
-  (define (iterate-map i x y)
-    (if (fix:> i 0) 
-	(poincare-map 
-	 x y
-	 (lambda (nx ny)
-	   (plot-point window x y)
-	   (iterate-map (fix:- i 1) nx ny))
-	 (lambda ()
-	   (display "Illegal point: ")
-	   (write-line (list  x y))
-	   (button-loop x y)))
-	(button-loop x y)))
-  (define (button-loop ox oy)
-    (pointer-coordinates 
-     window 
-     (lambda (x y button)
-       (case button
-	 ((0)
-	  (display "Started: ")
-	  (write-line (list x y))
-	  (iterate-map n x y))
-	 ((1) 
-	  (display "Continued: ")
-	  (write-line (list ox oy))
-	  (iterate-map n ox oy))
-	 ((2)
-	  (display "Hit: ")
-	  (write-line (list x y))
-	  (button-loop ox oy))))))
-  (if (default-object? n) (set! n 1000))
-  (newline)
-  (display "Left button starts a trajectory.")
-  (newline)
-  (display "Middle button continues a trajectory.")
-  (newline)
-  (display "Right button interrogates coordinates.")
-  (newline)
-  (button-loop 9. 9.))
+(define (explore-map window poincare-map #!optional mode-or-n)
+  (let* ((default-n 1000)
+	 (collector
+	  (cond ((default-object? mode-or-n)
+		 (default-collector (default-monitor window)
+				    poincare-map
+				    default-n))
+		((number? mode-or-n)
+		 (default-collector (default-monitor window)
+				    poincare-map
+				    mode-or-n))
+		(else poincare-map))))
+    (define (button-loop ox oy)
+      (pointer-coordinates window
+	(lambda (x y button)
+          (case button
+            ((0)
+             (display "Started: ")
+             (write-line (list x y))
+             (collector x y button-loop map-failed))
+            ((1)
+             (if (eq? ox 'ignore)
+                 (button-loop 'ignore oy)
+                 (begin (display "Continued: ")
+                        (write-line (list ox oy))
+                        (collector ox oy button-loop map-failed))))
+            ((2)
+             (display "Hit: ")
+             (write-line (list x y))
+             (button-loop ox oy))))))
+    (define (map-failed)
+      (display "Illegal point \n")
+      (button-loop 'ignore 'ignore))
+    (newline)
+    (display "Left button starts a trajectory.")
+    (newline)
+    (display "Middle button continues a trajectory.")
+    (newline)
+    (display "Right button interrogates coordinates.")
+    (newline)
+    (button-loop 'ignore 'ignore)))
+
+(define ((default-collector monitor pmap n) x y done fail)
+  (let lp ((n n) (x x) (y y))
+    (monitor x y)
+    (if (fix:> n 0)
+        (pmap x y
+              (lambda (nx ny)
+                (lp (fix:- n 1) nx ny))
+              fail)
+        (done x y))))
+
+(define ((default-monitor win) x y)
+  (plot-point win x y))
 
 (define (pointer-coordinates window continue)
   (beep)
   (get-pointer-coordinates window continue))
+
+#| ;;; Test for standard map
+(define win (frame 0.0 2pi 0.0 2pi))
+(explore-map win (standard-map 1.0))
+(explore-map win (standard-map 1.0) 5000)
+(graphics-clear win)
+(graphics-close win)
+|#
+
+#|
+;;; This is used to zero in on crossings in autonomous systems, 
+;;;  such as Henon-Heiles.
+
+(define (refine-crossing sec-eps advance state)
+  (let lp ((state state))
+    (let ((x (g:ref state 1 0))
+          (xd (g:ref state 2 0)))
+      (let ((zstate (advance state (- (/ x xd)))))
+	(if (< (abs (g:ref zstate 1 0))
+	       sec-eps)
+	    zstate
+	    (lp zstate))))))
+|#
   
 ;;; For iterating maps of the shape used by explore-map.
 
@@ -87,7 +125,6 @@ USA.
 	     (lambda (nx ny)
 	       (loop nx ny (fix:- i 1)))
 	     fail))))
-
 
 (define (display-map window poincare-map x y n)
   (plot-point window x y)
@@ -116,12 +153,6 @@ USA.
 
 (define (flo:pv x)
   (flo:- x (flo:* 2pi (flo:floor (flo:/ x 2pi)))))
-
-#|
-(define win (frame 0.0 2pi 0.0 2pi))
-(explore-map win (standard-map 1.0) 1000)
-(graphics-close win)
-|#
 
 #| 
 (define ((T-pend m l g ys) local)

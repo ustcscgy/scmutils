@@ -170,6 +170,7 @@ USA.
   (define (internal v)
     (assert (vector-field? v))
     (lambda (m) ((v f) m)))
+  (assert (function? f))
   (procedure->1form-field
    (lambda (v) (s:map/r internal v))
    `(d ,(diffop-name f))))
@@ -241,7 +242,8 @@ USA.
 (pec ((1form-field->components dtheta R3-rect) (up 'x0 'y0 'z0)))
 #| Result:
 (down (/ (* -1 y0) (+ (expt x0 2) (expt y0 2)))
-      (/ x0 (+ (expt x0 2) (expt y0 2))) 0)
+      (/ x0 (+ (expt x0 2) (expt y0 2)))
+      0)
 |#
 
 (pec (((+ (* 'w_0 dr) (* 'w_1 dtheta)) (+ (* 'V^0 d/dx) (* 'V^1 d/dy))) mp))

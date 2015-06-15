@@ -93,13 +93,13 @@ USA.
 	  )
 	 (guts
 	  (lambda (coords)
-	    (s:flip (compatible-shape typical-coords)
-		    (s:inverse
-		     (compatible-shape typical-coords)
-		     (s:map (lambda (fn) (fn coords))
-			    vector-basis-coefficient-functions)
-		     typical-coords)
-		    typical-coords)))
+	    (s:transpose (compatible-shape typical-coords)
+			 (s:inverse
+			  (compatible-shape typical-coords)
+			  (s:map (lambda (fn) (fn coords))
+				 vector-basis-coefficient-functions)
+			  typical-coords)
+			 typical-coords)))
 	 (1form-basis-coefficient-functions #| guts |#
 	  (c:generate (coordinate-system 'dimension)
 		      'up

@@ -96,12 +96,7 @@ USA.
 
 (define (allocate-grays window)
   (let ((w-cm (graphics-operation window 'get-colormap))
-	(visual-info
-	 ((make-primitive-procedure 'x-get-visual-info 10)
-	  ((access x-graphics-device/xw
-		   (->environment '(runtime x-graphics)))
-	   window)
-	  #f #f #f #f #f #f #f #f #f)))
+	(visual-info (graphics-operation win 'visual-info)))
     (let ((find-info
 	   (let ((length (vector-length visual-info)))
 	     (if (= length 0)

@@ -28,7 +28,7 @@ USA.
 
 (load "../units/constants" generic-environment)
 
-(load "rotation.scm" generic-environment)
+(load "rotation" generic-environment)
 
 
 ;;; Chapter 1

@@ -764,16 +764,100 @@ The general strategy is:
 ;;; given a structure of residuals that should be zero.
 
 
-(define (simple-solve struct unknowns)
-  (define (make-equations struct)
-    (let ((l (s:fringe struct)))
-      (map (lambda (e n)
-	     (make-equation e (list (symbol 'eq: n))))
-	   l
-	   (iota (length l)))))
-  (cons '*solution*
-	(solve-incremental (make-equations struct)
-			   unknowns)))
+(define (simple-solve struct unknowns #!optional knowns show-eqns?)
+  (define (make-equations resids)
+    (map (lambda (e n)
+	   (make-equation e (list (symbol 'eq: n))))
+	 resids
+	 (iota (length resids))))
+  (define (make-substitutions news olds expression)
+    (assert (= (length news) (length olds)))
+    (let lp ((n news) (o olds) (expression expression))
+      (cond ((null? n) expression)
+	    ((equal? (car n) (car o))
+	     (lp (cdr n) (cdr o) expression))
+	    (else
+	     (lp (cdr n)
+		 (cdr o)
+		 (substitute (car n) (car o) expression))))))
+  (let* ((knowns (if (default-object? knowns) '() knowns))
+	 (internal-unknowns
+	  (map (lambda (unk)
+		 (if (symbol? unk)
+		     unk
+		     (generate-uninterned-symbol 'x)))
+	       unknowns))
+	 (internal-knowns
+	  (map (lambda (kn)
+		 (if (symbol? kn)
+		     kn
+		     (generate-uninterned-symbol 'k)))
+	       knowns))
+	 (eqns
+	  (flush-tautologies
+	   (make-equations
+	     (map (lambda (resid)
+		    (make-substitutions internal-knowns knowns
+		      (make-substitutions internal-unknowns unknowns
+					  (simplify resid))))
+		  (s:fringe struct)))))
+	 (solns
+	  (make-substitutions knowns internal-knowns
+	    (make-substitutions unknowns internal-unknowns 
+	      (solve-incremental eqns internal-unknowns)))))
+    (if (not (or (default-object? show-eqns?)
+		 (not show-eqns?)))
+	(pp eqns))
+    #| ;;; Check solver for wrong solutions.
+    (pp (simplify
+	 (make-substitutions (map substitution-expression (substitutions solns))
+			     (map substitution-variable (substitutions solns))
+			     (map simplify (s:fringe struct)))))
+    |#
+    (cons '*solution* solns)))
+
+#|
+(simple-solve
+ (up '(+ (* 3 x)     y  -7)
+     '(+ (* 3 x) (- y)  -5))
+ '(x y))
+#|
+(*solution* ()
+	    ()
+	    (((= y 1) (eq:1 eq:0))
+	     ((= x 2) (eq:1 eq:0)))
+	    ()) 
+|#
 
+(simple-solve
+ (up '(+ (* 3 (f x))     (g y)  -7)
+     '(+ (* 3 (f x)) (- (g y))  -5))
+ '((f x) (g y))
+ '()
+ #t)
+(((+ -5 (* 3 G439) (* -1 G440)) (eq:0) (G440 G439))
+ ((+ -7 (* 3 G439) G440) (eq:1) (G440 G439)))
+#|
+(*solution* ()
+	    ()
+	    (((= (g y) 1) (eq:1 eq:0))
+	     ((= (f x) 2) (eq:1 eq:0)))
+	    ()) 
+|#
 
-
+(simple-solve
+ (up '(+ (* 3 (f x))     (g y)  (H q))
+     '(+ (* 3 (f x)) (- (g y))  -5))
+ '((f x) (g y))
+ '((H q))
+ #t)
+(((+ -5 (* 3 x57) (* -1 x58)) (eq:0) (x58 x57))
+ ((+ k59 (* 3 x57) x58) (eq:1) (x58 x57 k59)))
+#|
+(*solution* ()
+	    ()
+	    (((= (g y) (+ -5/2 (* -1/2 (H q)))) (eq:1 eq:0))
+	     ((= (f x) (+ 5/6 (* -1/6 (H q)))) (eq:1 eq:0)))
+	    ())
+|#
+|#

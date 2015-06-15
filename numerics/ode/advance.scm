@@ -76,7 +76,8 @@ USA.
     ;;     where next = (lambda () ...))
     (let lp ((state start-state)
 	     (current-increment 0.0)
-	     (h (min-step-size goal-increment h-suggested max-h)))
+	     (h (min-step-size goal-increment h-suggested max-h))
+             (h-suggested h-suggested))
       (if advance-wallp?
 	  (pp `(advance: ,current-increment ,state ,h)))
       (if (close-enuf? goal-increment current-increment
@@ -91,7 +92,8 @@ USA.
                         ndt
                         (min-step-size (- goal-increment ndt)
                                        h-suggested
-                                       max-h))))))))))
+                                       max-h)
+                        h-suggested)))))))))
   advance)
 
 

@@ -196,6 +196,10 @@ Indeed, (expt -1 (/ 1. 3)) will not be close to above!
 (assign-operation '*          n:*            number? number?)
 (assign-operation '/          n:/            number? number?)
 
+(assign-operation 'solve-linear
+		  (lambda (x y) (n:/ y x))
+		  number? number?)
+
 (assign-operation 'expt       n:expt         number? number?)
 (assign-operation 'gcd        n:gcd          number? number?)
 
@@ -289,6 +293,16 @@ Indeed, (expt -1 (/ 1. 3)) will not be close to above!
 (assign-operation '/   (make-numerical-combination '/)     abstract-number? abstract-number?)
 (assign-operation '/   (make-numerical-combination '/)     number?          abstract-number?)
 (assign-operation '/   (make-numerical-combination '/)     abstract-number? number?)
+
+(assign-operation 'solve-linear
+		  (make-numerical-combination '/ 'r)
+		  abstract-number? abstract-number?)
+(assign-operation 'solve-linear
+		  (make-numerical-combination '/ 'r)
+		  number? abstract-number?)
+(assign-operation 'solve-linear
+		  (make-numerical-combination '/ 'r)
+		  abstract-number? number?)
 
 (assign-operation 'expt (make-numerical-combination 'expt) abstract-number? abstract-number?)
 (assign-operation 'expt (make-numerical-combination 'expt) number?          abstract-number?)

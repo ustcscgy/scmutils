@@ -49,6 +49,17 @@ USA.
    (cond ((> x 0) 1)
 	((< x 0) -1)
 	(else 0)))
+
+
+(define (defer-application f)
+  (lambda (x)
+    (if (procedure? x)
+	(defer-application (compose f x))
+	(f x))))
+#|
+((((defer-application (lambda (x) (* 3 x))) (lambda (x) (+ x 2))) (lambda (x) (/ x 2))) 3)
+#| 21/2 |#
+|#
 
 (define make-pairwise-test
   (lambda (pred)

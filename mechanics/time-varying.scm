@@ -44,13 +44,14 @@ USA.
 	(J-func
 	 ((D (compose H C)) s)))))
 
+#|
 (define ((canonical-K? C K) s)
   (let ((s* (compatible-shape s)))
     (- (T-func s*)
        (+ (* ((D C) s) (J-func ((D K) s)))
 	  (((partial 0) C) s)))))
 
-#|
+
 (define ((canonical-K? C K) s)
   (let ((DCs ((D C) s))
 	(s* (compatible-shape s)))
@@ -79,9 +80,9 @@ USA.
       (* n (- (* x py) (* y px))))))
 
 (define a-state 
-  (->H-state 't 
-	     (coordinate-tuple 'x 'y 'z)
-	     (momentum-tuple 'p_x 'p_y 'p_z)))
+  (up 't 
+      (coordinate-tuple 'x 'y 'z)
+      (momentum-tuple 'p_x 'p_y 'p_z)))
 
 
 (pe ((canonical-K? (C-rotating 'n) (K 'n)) a-state))

@@ -1142,7 +1142,7 @@ USA.
 			     Cartan-on-target)
 	  gamma)
 	 source-m)
-  (assert (= (dimension source-coordsys) 1))
+  (assert (= (coordinate-system-dimension source-coordsys) 1))
   (let ((e (coordinate-system->vector-basis source-coordsys)))
     (((((covariant-derivative Cartan-on-target gamma)
 	e)
@@ -1186,7 +1186,7 @@ USA.
 	   gamma)
 	  vector-over-gamma)
 	 source-m)
-  (assert (= (dimension source-coordsys) 1))
+  (assert (= (coordinate-system-dimension source-coordsys) 1))
   (let ((e (coordinate-system->vector-basis source-coordsys)))
     (((((covariant-derivative Cartan-on-target gamma)
 	e)				;d/dt

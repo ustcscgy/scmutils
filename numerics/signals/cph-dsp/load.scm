@@ -25,7 +25,7 @@ USA.
 |#
 
 (load "mathutil" user-initial-environment)
-(load "flovec" user-initial-environment)
+;;(load "flovec" user-initial-environment)
 
 (load "fft" user-initial-environment)
 ;;(load "filter" user-initial-environment)

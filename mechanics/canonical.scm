@@ -36,43 +36,32 @@ USA.
 (simplify
  ((compositional-canonical? (F->CT p->r)
 			    (H-central 'm (literal-function 'V)))
-  (->H-state 't
-	     (coordinate-tuple 'r 'phi)
-	     (momentum-tuple 'p_r 'p_phi))))
+  (up 't
+      (coordinate-tuple 'r 'phi)
+      (momentum-tuple 'p_r 'p_phi))))
 ;Value: (up 0 (up 0 0) (down 0 0))
 |#
 
 
-(define (J-func DH)
-  (assert (compatible-H-state? DH))
-  (->H-state 0
-	     (ref DH 2)
-	     (- (ref DH 1))))
+(define (J-func DHs)
+  (assert (compatible-H-state? DHs))
+  (up 0 (ref DHs 2) (- (ref DHs 1))))
 
-(define (T-func DH)
-  (assert (compatible-H-state? DH))
-  (->H-state 1 
-	     (zero-like (ref DH 2))
-	     (zero-like (ref DH 1))))
+(define (T-func s)
+  (up 1
+      (zero-like (coordinates s))
+      (zero-like (momenta s))))
 
-(define (J*-func s)
-  (assert (H-state? s))
-  (down 0
-	(ref s 2)
-	(- (ref s 1))))
+(define (canonical-H? C H)
+  (- (compose (D-phase-space H) C)
+     (* (D C) 
+	(D-phase-space (compose H C)))))
 
+(define (canonical-K? C K)
+  (- (compose T-func C)
+     (* (D C) 
+	(+ T-func (D-phase-space K)))))
 
-#|
-(print-expression
- ((D J-func)
-  (compatible-shape
-   (up 't
-       (coordinate-tuple 'x 'y)
-       (momentum-tuple 'p_x 'p_y)))))
-(up (up 0 (up 0 0) (down 0 0))
-    (up (up 0 (up 0 0) (down -1 0)) (up 0 (up 0 0) (down 0 -1)))
-    (down (up 0 (up 1 0) (down 0 0)) (up 0 (up 0 1) (down 0 0))))    
-|#
 
 (define (linear-function->multiplier F argument)
   ((D F) argument))
@@ -92,9 +81,9 @@ USA.
 #|
 (print-expression
  ((time-independent-canonical? (F->CT p->r))
-  (->H-state 't
-	     (coordinate-tuple 'r 'phi)
-	     (momentum-tuple 'p_r 'p_phi))))
+  (up 't
+      (coordinate-tuple 'r 'phi)
+      (momentum-tuple 'p_r 'p_phi))))
 (up 0 (up 0 0) (down 0 0))
 
 
@@ -106,11 +95,11 @@ USA.
 	(p (momentum Istate)))
     (let ((x (* p (sin theta)))
 	  (p_x (* p (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (print-expression
  ((time-independent-canonical? a-non-canonical-transform)
-  (->H-state 't 'theta 'p)))
+  (up 't 'theta 'p)))
 (up 0 (+ (* -1 p x8102) x8102) (+ (* p x8101) (* -1 x8101)))
 |#
 
@@ -124,7 +113,7 @@ USA.
         (I (momentum Istate)))
     (let ((x (* (sqrt (/ (* 2 I) alpha)) (sin theta)))
 	  (p_x (* (sqrt (* 2 alpha I)) (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (define ((polar-canonical-inverse alpha) s)
   (let ((t (time s))
@@ -135,18 +124,18 @@ USA.
 		2)))
       (let ((theta (atan (/ x (sqrt (/ (* 2 I) alpha)))
 			 (/ p (sqrt (* 2 I alpha))))))
-	(->H-state t theta I)))))
+	(up t theta I)))))
 
 #|
 (pe
  ((compose (polar-canonical-inverse 'alpha)
 	   (polar-canonical 'alpha))
-  (->H-state 't 'x 'p)))
+  (up 't 'x 'p)))
 (up t x p)
 
 (print-expression
  ((time-independent-canonical? (polar-canonical 'alpha))
-  (->H-state 't 'a 'I)))
+  (up 't 'a 'I)))
 (up 0 0 0)
 |#
 
@@ -155,14 +144,14 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (coordinate-tuple (ref q 0) (- (ref p 1)))
-	       (momentum-tuple   (ref p 0) (ref q 1)))))
+    (up t
+        (coordinate-tuple (ref q 0) (- (ref p 1)))
+        (momentum-tuple   (ref p 0) (ref q 1)))))
 
 (define a-state
-  (->H-state 't 
-	     (coordinate-tuple 'x 'y)
-	     (momentum-tuple 'p_x 'p_y)))
+  (up 't 
+      (coordinate-tuple 'x 'y)
+      (momentum-tuple 'p_x 'p_y)))
 
 (print-expression
  ((time-independent-canonical? Cmix)
@@ -173,9 +162,9 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (flip-outer-index p)
-	       (- (flip-outer-index q)))))
+    (up t
+        (flip-outer-index p)
+        (- (flip-outer-index q)))))
 
 (print-expression
  ((time-independent-canonical? Cmix2)
@@ -197,23 +186,23 @@ USA.
 	  (x1 (ref x 1))
 	  (p0 (ref p 0))
 	  (p1 (ref p 1)))
-      (->H-state (time state)
-		 (coordinate-tuple
-		  (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
-		  (- x1 x0))
-		 (momentum-tuple
-		  (+ p0 p1)
-		  (/ (- (* m0 p1) (* m1 p0))
-		     (+ m0 m1)))))))
+      (up (time state)
+          (coordinate-tuple
+           (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
+           (- x1 x0))
+          (momentum-tuple
+           (+ p0 p1)
+           (/ (- (* m0 p1) (* m1 p0))
+              (+ m0 m1)))))))
 #|
 (define b-state
-  (->H-state 't
-	     (coordinate-tuple
-	      (coordinate-tuple 'x_1 'y_1)
-	      (coordinate-tuple 'x_2 'y_2))
-	     (momentum-tuple
-	      (momentum-tuple 'p_x_1 'p_y_1)
-	      (momentum-tuple 'p_x_2 'p_y_2))))
+  (up 't
+      (coordinate-tuple
+       (coordinate-tuple 'x_1 'y_1)
+       (coordinate-tuple 'x_2 'y_2))
+      (momentum-tuple
+       (momentum-tuple 'p_x_1 'p_y_1)
+       (momentum-tuple 'p_x_2 'p_y_2))))
 
 (pe (- ((F->CT (two-particle-center-of-mass 'm0 'm1)) b-state)
        ((two-particle-center-of-mass-canonical 'm0 'm1) b-state)))
@@ -268,9 +257,9 @@ USA.
 
 (print-expression
  ((time-independent-canonical? (F->CT p->r))
-  (->H-state 't
-	     (coordinate-tuple 'r 'phi)
-	     (momentum-tuple 'p_r 'p_phi))))
+  (up 't
+      (coordinate-tuple 'r 'phi)
+      (momentum-tuple 'p_r 'p_phi))))
 (up (up 0 (up 0 0) (down 0 0))
     (up (up 0 (up 0 0) (down 0 0)) (up 0 (up 0 0) (down 0 0)))
     (down (up 0 (up 0 0) (down 0 0)) (up 0 (up 0 0) (down 0 0))))
@@ -284,16 +273,16 @@ USA.
 	(p (momentum Istate)))
     (let ((x (* p (sin theta)))
 	  (p_x (* p (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (print-expression
  ((time-independent-canonical? a-non-canonical-transform)
-  (->H-state 't 'theta 'p)))
+  (up 't 'theta 'p)))
 (up (up 0 0 0) (up 0 0 (+ -1 p)) (up 0 (+ 1 (* -1 p)) 0))
 
 (print-expression
  ((time-independent-canonical? (polar-canonical 'alpha))
-  (->H-state 't 'a 'I)))
+  (up 't 'a 'I)))
 (up (up 0 0 0) (up 0 0 0) (up 0 0 0))
 |#
 
@@ -302,13 +291,14 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (coordinate-tuple (ref q 0) (- (ref p 1)))
-	       (momentum-tuple   (ref p 0) (ref q 1)))))
+    (up t
+        (coordinate-tuple (ref q 0) (- (ref p 1)))
+        (momentum-tuple   (ref p 0) (ref q 1)))))
 
-(define a-state (->H-state 't 
-			   (coordinate-tuple 'x 'y)
-			   (momentum-tuple 'p_x 'p_y)))
+(define a-state
+  (up 't 
+      (coordinate-tuple 'x 'y)
+      (momentum-tuple 'p_x 'p_y)))
 
 (print-expression
  ((time-independent-canonical? Cmix)
@@ -321,9 +311,9 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (flip-outer-index p)
-	       (- (flip-outer-index q)))))
+    (up t
+        (flip-outer-index p)
+        (- (flip-outer-index q)))))
 
 (print-expression
  ((time-independent-canonical? Cmix2)
@@ -341,7 +331,7 @@ USA.
 	  (x1 (ref x 1))
 	  (p0 (ref p 0))
 	  (p1 (ref p 1)))
-      (->H-state 
+      (up 
        (time state)
        (coordinate-tuple (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
 			 (- x1 x0))
@@ -350,14 +340,13 @@ USA.
 			  (+ m0 m1)))))))
 
 (define b-state
-  (->H-state
-   't
-   (coordinate-tuple
-    (coordinate-tuple 'x_1 'y_1)
-    (coordinate-tuple 'x_2 'y_2))
-   (momentum-tuple
-    (momentum-tuple 'p_x_1 'p_y_1)
-    (momentum-tuple 'p_x_2 'p_y_2))))
+  (up 't
+      (coordinate-tuple
+       (coordinate-tuple 'x_1 'y_1)
+       (coordinate-tuple 'x_2 'y_2))
+      (momentum-tuple
+       (momentum-tuple 'p_x_1 'p_y_1)
+       (momentum-tuple 'p_x_2 'p_y_2))))
 
 (print-expression
  ((time-independent-canonical? (C 'm1 'm2)) b-state))

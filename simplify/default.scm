@@ -60,8 +60,8 @@ USA.
 
 ;;; There are no simplifiers yet for compound abstract types.
 ;(assign-operation 'simplify expression abstract-vector?)
-(assign-operation 'simplify expression abstract-column?)
-(assign-operation 'simplify expression abstract-row?)
+(assign-operation 'simplify expression abstract-up?)
+(assign-operation 'simplify expression abstract-down?)
 (assign-operation 'simplify expression abstract-matrix?)
 
 
@@ -148,7 +148,7 @@ USA.
 
 (assign-operation 'simplify simplify-differential differential?)
 
-(define (simplify-row expr)
+(define (simplify-down expr)
   (cons down-constructor-name
 	(let lp ((i 0))
 	  (if (fix:= i (s:length expr))
@@ -156,10 +156,10 @@ USA.
 	      (cons (g:simplify (s:ref expr i))
 		    (lp (fix:+ i 1)))))))
 
-(assign-operation 'simplify simplify-row row?)
+(assign-operation 'simplify simplify-down down?)
 
 
-(define (simplify-column expr)
+(define (simplify-up expr)
   (cons up-constructor-name
 	(let lp ((i 0))
 	  (if (fix:= i (s:length expr))
@@ -167,7 +167,7 @@ USA.
 	      (cons (g:simplify (s:ref expr i))
 		    (lp (fix:+ i 1)))))))
 
-(assign-operation 'simplify simplify-column column?)
+(assign-operation 'simplify simplify-up up?)
 
 
 ;;; Not quite right... Should only expressionize 

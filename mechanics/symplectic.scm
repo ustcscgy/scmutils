@@ -34,15 +34,15 @@ USA.
 (define ((canonical-transform? C) s)
   (let ((J ((D J-func) (compatible-shape s)))
         (DCs ((D C) s)))
-    (let ((DCsT (s:transpose (compatible-shape s) DCs s)))
+    (let ((DCsT (transpose DCs s)))
       (- J (* DCs J DCsT)))))
 
 #|
 (print-expression
  ((canonical-transform? (F->CT p->r))
-  (->H-state 't
-	     (coordinate-tuple 'r 'phi)
-	     (momentum-tuple 'p_r 'p_phi))))
+  (up 't
+      (up 'r 'phi)
+      (down 'p_r 'p_phi))))
 (up (up 0 (up 0 0) (down 0 0))
     (up (up 0 (up 0 0) (down 0 0)) (up 0 (up 0 0) (down 0 0)))
     (down (up 0 (up 0 0) (down 0 0)) (up 0 (up 0 0) (down 0 0))))
@@ -50,7 +50,7 @@ USA.
 
 (print-expression
  ((canonical-transform? (polar-canonical 'alpha))
-  (->H-state 't 'a 'I)))
+  (up 't 'a 'I)))
 (up (up 0 0 0) (up 0 0 0) (up 0 0 0))
 
 
@@ -62,11 +62,11 @@ USA.
 	(p (momentum Istate)))
     (let ((x (* p (sin theta)))
 	  (p_x (* p (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (print-expression
  ((canonical-transform? a-non-canonical-transform)
-  (->H-state 't 'theta 'p)))
+  (up 't 'theta 'p)))
 (up (up 0 0 0) (up 0 0 (+ -1 p)) (up 0 (+ 1 (* -1 p)) 0))
 |#
 
@@ -75,13 +75,12 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (coordinate-tuple (ref q 0) (- (ref p 1)))
-	       (momentum-tuple   (ref p 0) (ref q 1)))))
+    (up t
+	(up (ref q 0) (- (ref p 1)))
+	(down (ref p 0) (ref q 1)))))
 
-(define a-state (->H-state 't 
-			   (coordinate-tuple 'x 'y)
-			   (momentum-tuple 'p_x 'p_y)))
+(define a-state
+  (up 't (up 'x 'y) (down 'p_x 'p_y)))
 
 (print-expression
  ((canonical-transform? Cmix) a-state))
@@ -94,9 +93,9 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (flip-outer-index p)
-	       (- (flip-outer-index q)))))
+    (up t
+	(flip-outer-index p)
+	(- (flip-outer-index q)))))
 
 (print-expression
  ((canonical-transform? Cmix2)
@@ -114,22 +113,19 @@ USA.
 	  (x1 (ref x 1))
 	  (p0 (ref p 0))
 	  (p1 (ref p 1)))
-      (->H-state 
-       (time state)
-       (coordinate-tuple (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
-			 (- x1 x0))
-       (momentum-tuple (+ p0 p1)
-		       (/ (- (* m0 p1) (* m1 p0))
-			  (+ m0 m1)))))))
+      (up (time state)
+	  (up (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
+	      (- x1 x0))
+	  (down (+ p0 p1)
+		(/ (- (* m0 p1) (* m1 p0))
+		   (+ m0 m1)))))))
 
 (define b-state
-  (->H-state 't
-	     (coordinate-tuple
-	      (coordinate-tuple 'x_1 'y_1)
-	      (coordinate-tuple 'x_2 'y_2))
-	     (momentum-tuple
-	      (momentum-tuple 'p_x_1 'p_y_1)
-	      (momentum-tuple 'p_x_2 'p_y_2))))
+  (up 't
+      (up (up 'x_1 'y_1)
+	  (up 'x_2 'y_2))
+      (down (down 'p_x_1 'p_y_1)
+	    (down 'p_x_2 'p_y_2))))
 
 (print-expression
  ((canonical-transform? (C 'm1 'm2)) b-state))
@@ -163,14 +159,14 @@ USA.
 (define ((symplectic? C) s)
   (let ((J (J-matrix (degrees-of-freedom s)))
         (DC ((D-as-matrix C) s)))
-    (- J (* DC J (m:transpose DC)))))
+    (- J (* DC J (transpose DC)))))
 
 #|
 (print-expression
  ((symplectic? (F->CT p->r))
-  (->H-state 't
-	     (coordinate-tuple 'r 'phi)
-	     (momentum-tuple 'p_r 'p_phi))))
+  (up 't
+      (up 'r 'phi)
+      (down 'p_r 'p_phi))))
 (matrix-by-rows (list 0 0 0 0 0)
                 (list 0 0 0 0 0)
                 (list 0 0 0 0 0)
@@ -186,18 +182,18 @@ USA.
 	(p (momentum Istate)))
     (let ((x (* p (sin theta)))
 	  (p_x (* p (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (print-expression
  ((symplectic? a-non-canonical-transform)
-  (->H-state 't 'theta 'p)))
+  (up 't 'theta 'p)))
 (matrix-by-rows (list 0 0 0)
 		(list 0 0 (+ 1 (* -1 p)))
 		(list 0 (+ -1 p) 0))
 
 (print-expression
  ((symplectic? (polar-canonical 'alpha))
-  (->H-state 't 'a 'I)))
+  (up 't 'a 'I)))
 (matrix-by-rows (list 0 0 0)
 		(list 0 0 0)
 		(list 0 0 0))
@@ -206,13 +202,12 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (coordinate-tuple (ref q 0) (- (ref p 1)))
-	       (momentum-tuple   (ref p 0) (ref q 1)))))
+    (up t
+	(up (ref q 0) (- (ref p 1)))
+	(down   (ref p 0) (ref q 1)))))
 
-(define a-state (->H-state 't 
-			   (coordinate-tuple 'x 'y)
-			   (momentum-tuple 'p_x 'p_y)))
+(define a-state
+  (up 't (up 'x 'y) (down 'p_x 'p_y)))
 
 (print-expression ((symplectic? Cmix) a-state))
 (matrix-by-rows (list 0 0 0 0 0)
@@ -227,9 +222,9 @@ USA.
   (let ((t (time H-state))
 	(q (coordinate H-state))
 	(p (momentum H-state)))
-    (->H-state t
-	       (flip-outer-index p)
-	       (- (flip-outer-index q)))))
+    (up t
+	(flip-outer-index p)
+	(- (flip-outer-index q)))))
 
 (print-expression
  ((canonical-transform? Cmix2)
@@ -248,22 +243,19 @@ USA.
 	  (x1 (ref x 1))
 	  (p0 (ref p 0))
 	  (p1 (ref p 1)))
-      (->H-state 
-       (time state)
-       (coordinate-tuple (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
-			 (- x1 x0))
-       (momentum-tuple (+ p0 p1)
-		       (/ (- (* m0 p1) (* m1 p0))
-			  (+ m0 m1)))))))
+      (up (time state)
+	  (up (/ (+ (* m0 x0) (* m1 x1)) (+ m0 m1))
+	      (- x1 x0))
+	  (down (+ p0 p1)
+		(/ (- (* m0 p1) (* m1 p0))
+		   (+ m0 m1)))))))
 
 (define b-state
-  (->H-state 't
-	     (coordinate-tuple
-	      (coordinate-tuple 'x_1 'y_1)
-	      (coordinate-tuple 'x_2 'y_2))
-	     (momentum-tuple
-	      (momentum-tuple 'p_x_1 'p_y_1)
-	      (momentum-tuple 'p_x_2 'p_y_2))))
+  (up 't
+      (up (up 'x_1 'y_1)
+	  (up 'x_2 'y_2))
+      (down (down 'p_x_1 'p_y_1)
+	    (down 'p_x_2 'p_y_2))))
 
 (print-expression
  ((canonical-transform? (C 'm1 'm2)) b-state))
@@ -292,7 +284,7 @@ USA.
     (if (not (even? 2n))
 	(error "Wrong type -- SYMPLECTIC-MATRIX?" M))
     (let ((J (symplectic-unit (quotient 2n 2))))
-      (- J (* M J (m:transpose M))))))
+      (- J (* M J (transpose M))))))
 
 (define (symplectic-unit n)
   (let ((2n (fix:* 2 n)))
@@ -307,16 +299,19 @@ USA.
 
 (print-expression
  ((symplectic-transform? (F->CT p->r))
-  (->H-state 't
-	     (coordinate-tuple 'r 'theta)
-	     (momentum-tuple 'p_r 'p_theta))))
-(matrix-by-rows (list 0 0 0 0) (list 0 0 0 0) (list 0 0 0 0) (list 0 0 0 0))
+  (up 't
+      (up 'r 'theta)
+      (down 'p_r 'p_theta))))
+(matrix-by-rows (list 0 0 0 0)
+		(list 0 0 0 0)
+		(list 0 0 0 0)
+		(list 0 0 0 0))
 |#
 
 #|
 (print-expression
  ((symplectic-transform? a-non-canonical-transform)
-  (->H-state 't 'theta 'p)))
+  (up 't 'theta 'p)))
 (matrix-by-rows (list 0 (+ 1 (* -1 p))) (list (+ -1 p) 0))
 |#
 
@@ -331,7 +326,7 @@ USA.
         (I (momentum Istate)))
     (let ((x (* (sqrt (/ (* 2 I) alpha)) (sin theta)))
 	  (p_x (* (sqrt (* 2 alpha I)) (cos theta))))
-      (->H-state t x p_x))))
+      (up t x p_x))))
 
 (define ((polar-canonical-inverse alpha) s)
   (let ((t (time s))
@@ -342,14 +337,14 @@ USA.
 		2)))
       (let ((theta (atan (/ x (sqrt (/ (* 2 I) alpha)))
 			 (/ p (sqrt (* 2 I alpha))))))
-	(->H-state t theta I)))))
+	(up t theta I)))))
 
 
 
 (pe
  ((compose (polar-canonical-inverse 'alpha)
 	   (polar-canonical 'alpha))
-  (->H-state 't 'x 'p)))
+  (up 't 'x 'p)))
 (up t x p)
 
 |#
@@ -359,6 +354,6 @@ USA.
 
 (print-expression
  ((symplectic-transform? (polar-canonical 'alpha))
-  (->H-state 't 'a 'I)))
+  (up 't 'a 'I)))
 (matrix-by-rows (list 0 0) (list 0 0))
 |#

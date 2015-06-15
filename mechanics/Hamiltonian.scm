@@ -70,6 +70,15 @@ USA.
 (define (state->qp dynamic-state)
   (vector-tail dynamic-state 1))
 
+(define (literal-Hamiltonian-state n-dof)
+  (up (literal-number (generate-uninterned-symbol 't))
+      (s:generate n-dof 'up
+		  (lambda (i)
+		    (literal-number (generate-uninterned-symbol 'x))))
+      (s:generate n-dof 'down
+		  (lambda (i)
+		    (literal-number (generate-uninterned-symbol 'p))))))
+
 
 (define ((Lstate->Hstate L) Ls)
   (up (time Ls)
@@ -142,8 +151,13 @@ USA.
              (((partial 2) Hamiltonian) H-state)
              (- (((partial 1) Hamiltonian) H-state))))
 
+;;; For compatibility with 1st edition
 (define phase-space-derivative
   Hamiltonian->state-derivative)
+
+
+(define ((D-phase-space H) s)
+  (up 0 (((partial 2) H) s) (- (((partial 1) H) s))))
 
 ;;; If we express the energy in terms of t,Q,P we have the Hamiltonian.
 ;;; A Hamiltonian is an example of an H-function: an H-function takes
@@ -200,7 +214,7 @@ USA.
     G))
 
 (define (dual-zero v)
-  (if (or (column? v) (row? v))
+  (if (structure? v)
       (s:generate (s:length v) (s:opposite v)
 		  (lambda (i) :zero))
       :zero))
@@ -216,7 +230,7 @@ USA.
         (let ((M ((D w-of-v) z))
               (b (w-of-v z)))
 	  ;; DM=0 for this code to be correct.
-          (let ((v (* (s:inverse z M z) (- w b))))
+          (let ((v (solve-linear-left M (- w b))))
             (- (* w v) (F v))))))
     G))
 

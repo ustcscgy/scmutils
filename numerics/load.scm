@@ -25,6 +25,9 @@ USA.
 |#
 
 
+(with-working-directory-pathname "./signals/cph-dsp"
+ (lambda () (load "flovec" scmutils-base-environment)))
+
 (with-working-directory-pathname "./quadrature"
  (lambda () (load "load" scmutils-base-environment)))
 

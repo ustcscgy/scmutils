@@ -29,76 +29,73 @@ USA.
 (declare (usual-integrations))
 
 ;;; Structures are primitive tensor-like objects.  They are
-;;; represented as recursive combinations of row vectors and column
+;;; represented as recursive combinations of down vectors and up
 ;;; vectors, useful for dealing with derivatives of things with
 ;;; structured inputs and outputs.
 
 
 #| in TYPES.SCM
 
-(define (column? x)
-  ;;(and (pair? x) (eq? (car x) column-type-tag))
+(define (up? x)
+  ;;(and (pair? x) (eq? (car x) up-type-tag))
   (vector? x))
 
-(define (row? x)
+(define (down? x)
   (and (pair? x)
-       (eq? (car x) row-type-tag)))
+       (eq? (car x) down-type-tag)))
 
 (define (structure? x)
-  (or (column? x) (row? x)))
+  (or (up? x) (down? x)))
 
 
 (define (abstract-structure? x)
-  (or (abstract-column? x) (abstract-row? x)))
-
+  (or (abstract-up? x) (abstract-down? x)))
 |#
 
 (define (s:type v)
-  (cond ((column? v) column-type-tag)
-	((row? v) row-type-tag)
-	((abstract-column? v) column-type-tag)
-	((abstract-row? v) row-type-tag)
+  (cond ((up? v) up-type-tag)
+	((down? v) down-type-tag)
+	((abstract-up? v) up-type-tag)
+	((abstract-down? v) down-type-tag)
 	(else
 	 (error "Bad structure -- S:TYPE" v))))
 
-(define (sc:type-predicate v) column-quantity?)
-(define (sr:type-predicate v) row-quantity?)
-
-
-(define (vector->column v)
-  ;;(list column-type-tag v)
-  v)
-
-(define (vector->row v)
-  (list row-type-tag v))
+(define (sc:type-predicate v) up-quantity?)
+(define (sr:type-predicate v) down-quantity?)
 
 
 (define (vector->up v)
-  ;;(list column-type-tag v)
+  ;;(list up-type-tag v)
   v)
 
 (define (vector->down v)
-  (list row-type-tag v))
+  (list down-type-tag v))
+
+(define (literal-up name size)
+  (s:generate size 'up
+	      (lambda (i)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"^"
+				(number->string i))))))
 
-
+(define (literal-down name size)
+  (s:generate size 'down
+	      (lambda (i)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"_"
+				(number->string i))))))
+
 (define (s:structure up/down v)
   (case up/down
-    ((up contravariant vector column)
-     (vector->column v))
-    ((down covariant covector row)
-     (vector->row v))
+    ((up contravariant vector up)
+     (vector->up v))
+    ((down covariant covector down)
+     (vector->down v))
     (else
      (error "Bad up/down spec -- S:STRUCTURE"
 	    up/down v))))
-
-
-(define (column->vector v)
-  ;;(cadr v)
-  v)
-
-(define (row->vector v)
-  (cadr v))
-
 
 (define (up->vector v)
   ;;(cadr v)
@@ -106,44 +103,32 @@ USA.
 
 (define (down->vector v)
   (cadr v))
-
+
 (define (s:->vector v)
-  (cond ((column? v) (column->vector v))
-	((row? v) (row->vector v))
+  (cond ((up? v) (up->vector v))
+	((down? v) (down->vector v))
 	(else
 	 (error "Bad structure -- S:->VECTOR" v))))
 
-
-(define (column . args)
-  (vector->column (list->vector args)))
-
-(define (row . args)
-  (vector->row (list->vector args)))
-
 (define (up . args)
-  (vector->column (list->vector args)))
+  (vector->up (list->vector args)))
 
 (define (down . args)
-  (vector->row (list->vector args)))
+  (vector->down (list->vector args)))
 
-#|
-;;; Defined in types.scm
-(define (up? v) (column? v))
-(define (down? v) (row? v))
-|#
 
 (define (s:opposite v)
-  (cond ((column? v) 'down)
-	((row? v) 'up)
+  (cond ((up? v) 'down)
+	((down? v) 'up)
 	(else
 	 (error "Bad structure -- S:OPPOSITE" v))))
 
 (define (s:same v)
-  (cond ((column? v) 'up)
-	((row? v) 'down)
+  (cond ((up? v) 'up)
+	((down? v) 'down)
 	(else
 	 (error "Bad structure -- S:SAME" v))))
-
+
 (define (s:length v)
   (if (structure? v)
       (vector-length (s:->vector v))
@@ -180,7 +165,7 @@ USA.
                       (if (fix:= i (car chain))
                           (lp (cdr chain) (s:ref struct i))
                           (s:ref struct i)))))))
-
+
 (define (s:generate n up/down proc)
   (s:structure up/down (v:generate n proc)))
 
@@ -191,7 +176,7 @@ USA.
 	    ((not ans) ans)
 	    (else
 	     (lp (fix:+ i 1) (p (s:ref s i))))))))  
-
+
 (define (s:select . selectors)
   (let lp ((selectors selectors)
 	   (ans g:identity)) 
@@ -221,7 +206,7 @@ USA.
 (pe (s:map-chain (up 'a (down 'b 'c) 'd) cons))
 (up (a 0) (down (b 1 0) (c 1 1)) (d 2))
 |#
-
+
 ;;; S:FRINGE recursively traverses a structure, making up a list of
 ;;; the terminal elements.
 
@@ -271,21 +256,9 @@ USA.
 		  (s:same (car structures))
 		  (lambda (i)
 		    (apply proc
-			   (map (lambda (s)
-				  (s:ref s i))
+			   (map (lambda (s) (s:ref s i))
 				structures))))
       (apply proc structures)))
-
-#|
-(define (s:map/l proc structures)
-  (s:generate (s:length (car structures))
-	      (s:same (car structures))
-	      (lambda (i)
-		(apply proc
-		       (map (lambda (s)
-			      (s:ref s i))
-			    structures)))))
-|#
 
 (define ((s:elementwise proc) . structures)
   (s:map/l proc structures))
@@ -359,17 +332,6 @@ USA.
 (define (structure-structure v1 v2)
   (s:binary vector-vector v1 v2))
 
-#|
-(define (s:multiply v1 v2)
-  (if (s:compatible-for-contraction? v1 v2)
-      (v:dot-product (s:->vector v1) (s:->vector v2))
-      (begin
-	(if (not *allowing-incompatible-multiplication*)
-	    (bkpt "Incompatible multiplication" v1 v2))
-	(s:generate (s:length v2) (s:same v2)
-		    (lambda (i)
-		      (g:* v1 (s:ref v2 i)))))))
-|#
 
 ;;; Want to allow matrix multiply too...
 
@@ -394,11 +356,11 @@ USA.
 
 (define (s:compatible-for-contraction? v1 v2)
   (or (and (down? v1) (up? v2)
-	   (s:compatable-elements? v1 v2))
+	   (s:compatible-elements? v1 v2))
       (and (up? v1) (down? v2)
-	   (s:compatable-elements? v1 v2))))
+	   (s:compatible-elements? v1 v2))))
 
-(define (s:compatable-elements? v1 v2)
+(define (s:compatible-elements? v1 v2)
   (let ((n (s:length v1)))
     (and (fix:= n (s:length v2))
 	 (let lp ((i 0))
@@ -438,21 +400,6 @@ USA.
 
 
 ;;; Given two structures their outer product makes a structure
-#|
-(define (s:outer-product s1 s2)
-  (let lp ((s s2))
-    (if (structure? s)
-	(s:generate (s:length s) (s:same s)
-		    (lambda (i) (lp (s:ref s i))))
-	(g:* s1 s))))
-#|
-(pe (s:outer-product (up 'a0 'a1)
-		   (down 'b0 'b1 'b2)))
-(down (up (* a0 b0) (* a1 b0))
-      (up (* a0 b1) (* a1 b1))
-      (up (* a0 b2) (* a1 b2)))
-|#
-|#
 
 (define (s:outer-product struct2 struct1)
   (s:map/r (lambda (s1)
@@ -462,7 +409,7 @@ USA.
 	   struct1))
 #|
 (pe (s:outer-product (up 'a0 'a1)
-		   (down 'b0 'b1 'b2)))
+		     (down 'b0 'b1 'b2)))
 (down (up (* a0 b0) (* a1 b0))
       (up (* a0 b1) (* a1 b1))
       (up (* a0 b2) (* a1 b2)))
@@ -518,6 +465,8 @@ USA.
 	       (vector/scalar (s:->vector v) s)))
 
 
+;;; Is this redundant with (s:dot-product v v)?
+
 (define (s:square v)
   (let ((vv (s:->vector v)))
     (let ((n (vector-length vv)))
@@ -544,8 +493,8 @@ USA.
 	       (v:apply (s:->vector v) args)))
 
 (assign-operation 'type                s:type            structure?)
-(assign-operation 'type-predicate      sc:type-predicate column?)
-(assign-operation 'type-predicate      sr:type-predicate row?)
+(assign-operation 'type-predicate      sc:type-predicate up?)
+(assign-operation 'type-predicate      sr:type-predicate down?)
 (assign-operation 'arity               s:arity           structure?)
 (assign-operation 'inexact?            s:inexact?        structure?)
 
@@ -587,106 +536,100 @@ USA.
 
 ;;; Abstract structures generalize structural quantities.
 
-(define (literal-column symbol)
-  (make-literal column-type-tag symbol))
+(define (abstract-up symbol)
+  (make-literal up-type-tag symbol))
 
-(define (literal-row symbol)
-  (make-literal abstract-row-type-tag symbol))
-
-(define (literal-up-tuple symbol)
-  (make-literal column-type-tag symbol))
-
-(define (literal-down-tuple symbol)
-  (make-literal abstract-row-type-tag symbol))
+(define (abstract-down symbol)
+  (make-literal abstract-down-type-tag symbol))
 
 (define (as:arity v)
   ;; Default is vector of numbers.
   (get-property v 'arity *at-least-zero*))
 
 (define (ac:zero-like v)
-  (let ((z (literal-column (list 'zero-like v))))
+  (let ((z (abstract-up (list 'zero-like v))))
     (add-property! z 'zero #t)
     z))
 
 (define (ar:zero-like v)
-  (let ((z (literal-row (list 'zero-like v))))
+  (let ((z (abstract-down (list 'zero-like v))))
     (add-property! z 'zero #t)
     z))
 
-(define (make-column-combination operator #!optional reverse?)
+(define (make-up-combination operator #!optional reverse?)
   (if (default-object? reverse?)
       (lambda operands 
-	(make-combination column-type-tag
+	(make-combination up-type-tag
 			  operator operands))
       (lambda operands 
-	(make-combination column-type-tag
+	(make-combination up-type-tag
 			  operator (reverse operands)))))
 
-(define (make-row-combination operator #!optional reverse?)
+(define (make-down-combination operator #!optional reverse?)
   (if (default-object? reverse?)
       (lambda operands 
-	(make-combination abstract-row-type-tag
+	(make-combination abstract-down-type-tag
 			  operator operands))
       (lambda operands 
-	(make-combination abstract-row-type-tag
+	(make-combination abstract-down-type-tag
 			  operator (reverse operands)))))
 
 (assign-operation 'type           s:type             abstract-structure?)
-(assign-operation 'type-predicate sc:type-predicate  abstract-column?)
-(assign-operation 'type-predicate sr:type-predicate  abstract-row?)
+(assign-operation 'type-predicate sc:type-predicate  abstract-up?)
+(assign-operation 'type-predicate sr:type-predicate  abstract-down?)
 (assign-operation 'arity          as:arity           abstract-structure?)
 (assign-operation 'inexact? (has-property? 'inexact) abstract-structure?)
 
 (assign-operation 'zero?    (has-property? 'zero)    abstract-structure?)
-(assign-operation 'zero-like      ac:zero-like       abstract-column?)
-(assign-operation 'zero-like      ar:zero-like       abstract-row?)
+(assign-operation 'zero-like      ac:zero-like       abstract-up?)
+(assign-operation 'zero-like      ar:zero-like       abstract-down?)
 
 (assign-operation
-   'negate     (make-column-combination 'negate)     abstract-column?)
+   'negate     (make-up-combination 'negate)     abstract-up?)
 (assign-operation
-   'negate     (make-row-combination 'negate)        abstract-row?)
+   'negate     (make-down-combination 'negate)        abstract-down?)
 
 (assign-operation
-   'magnitude  (make-column-combination 'magnitude)  abstract-column?)
+   'magnitude  (make-up-combination 'magnitude)  abstract-up?)
 (assign-operation
-   'magnitude  (make-row-combination 'magnitude)     abstract-row?)
+   'magnitude  (make-down-combination 'magnitude)     abstract-down?)
 
 (assign-operation
-   'abs        (make-column-combination 'abs)        abstract-column?)
+   'abs        (make-up-combination 'abs)        abstract-up?)
 (assign-operation
-   'abs        (make-row-combination 'abs)           abstract-row?)
+   'abs        (make-down-combination 'abs)           abstract-down?)
 
 (assign-operation
-   'conjugate  (make-column-combination 'conjugate)  abstract-column?)
+   'conjugate  (make-up-combination 'conjugate)  abstract-up?)
 (assign-operation
-   'conjugate  (make-row-combination 'conjugate)     abstract-row?)
+   'conjugate  (make-down-combination 'conjugate)     abstract-down?)
 
 
 ;(assign-operation '= structure=structure abstract-structure? abstract-structure?)
 
 (assign-operation
-   '+  (make-vector-combination '+) abstract-column? abstract-column?)
+   '+  (make-vector-combination '+) abstract-up? abstract-up?)
 (assign-operation
-   '+  (make-column-combination '+) column?  abstract-column?)
+   '+  (make-up-combination '+) up?  abstract-up?)
 (assign-operation
-   '+  (make-column-combination '+ 'r) abstract-column? column?)
+   '+  (make-up-combination '+ 'r) abstract-up? up?)
 
 (assign-operation
-   '+  (make-row-combination '+)    row?   abstract-row?)
+   '+  (make-down-combination '+)    down?   abstract-down?)
 (assign-operation
-   '+  (make-row-combination '+ 'r) abstract-row? row?)
+   '+  (make-down-combination '+ 'r) abstract-down? down?)
 
 (assign-operation
-   '-  (make-vector-combination '-) abstract-column? abstract-column?)
+   '-  (make-vector-combination '-) abstract-up? abstract-up?)
 (assign-operation
-   '-  (make-column-combination '-) column?  abstract-column?)
+   '-  (make-up-combination '-) up?  abstract-up?)
 (assign-operation
-   '-  (make-column-combination '-) abstract-column? column?)
+   '-  (make-up-combination '-) abstract-up? up?)
 
 (assign-operation
-   '-  (make-row-combination '-)    row?   abstract-row?)
+   '-  (make-down-combination '-)    down?   abstract-down?)
 (assign-operation
-   '-  (make-row-combination '-)    abstract-row? row?)
+   '-  (make-down-combination '-)    abstract-down? down?)
 
 (assign-operation
    '*  (make-numerical-combination '*)    abstract-structure? abstract-structure?)
@@ -696,200 +639,274 @@ USA.
    '*  (make-numerical-combination '*)    abstract-structure? structure?)
 
 (assign-operation
-   '*  (make-column-combination '*)    scalar? abstract-column?)
+   '*  (make-up-combination '*)    scalar? abstract-up?)
 (assign-operation
-   '*  (make-column-combination '* 'r) abstract-column? scalar?)
+   '*  (make-up-combination '* 'r) abstract-up? scalar?)
 
 (assign-operation
-   '*  (make-row-combination '*)       scalar?    abstract-row?)
+   '*  (make-down-combination '*)       scalar?    abstract-down?)
 (assign-operation
-   '*  (make-row-combination '* 'r)    abstract-row?    scalar?)
+   '*  (make-down-combination '* 'r)    abstract-down?    scalar?)
 
 		     
 (assign-operation
-   '/  (make-column-combination '/)    abstract-column? scalar?)
+   '/  (make-up-combination '/)    abstract-up? scalar?)
 
 (assign-operation
-   '/  (make-row-combination '/)       abstract-row?    scalar?)
+   '/  (make-down-combination '/)       abstract-down?    scalar?)
 
 (assign-operation 'partial-derivative
-		  (make-column-combination 'partial-derivative)
-		  abstract-column? any?)
+		  (make-up-combination 'partial-derivative)
+		  abstract-up? any?)
 
 (assign-operation 'partial-derivative
-		  (make-row-combination 'partial-derivative)
-		  abstract-row? any?)
+		  (make-down-combination 'partial-derivative)
+		  abstract-down? any?)
 
-;;; Sometimes a structure may be usefully represented as a matrix, and
-;;; sometimes a matrix should be seen as a structure.  S:CANONICALIZE
-;;; attempts to make things matrices when they should be.  A matrix is
-;;; needed when we have something that is really a row of columns.
-
-(define (s:canonicalize s)
-  (if (and (row? s) (column? (s:ref s 0)))
-      (let ((nrows (s:length (s:ref s 0))))
-	(if (s:forall (lambda (c)
-			(and (column? c)
-			     (fix:= (s:length c) nrows)))
-		      s)
-	    (m:generate nrows (s:length s)
-			(lambda (i j)
-			  (s:ref (s:ref s j) i)))
-	    s))
-      s))
-
-
 ;;; An argument list really wants to be represented as an (up) vector
 ;;; of arguments.  Also, any matrix in the argument list wants to be
-;;; converted to a row of columns.
+;;; converted to a down of ups.
 
 (define (list->up-structure lst)
-  (vector->column
+  (vector->up
    (list->vector (map matrix->structure lst))))
 
 (define (matrix->structure mat)
-  (cond ((row? mat) mat)
-	((column? mat) mat)
+  (cond ((down? mat) mat)
+	((up? mat) mat)
 	((matrix? mat)
-	 (s:generate (m:num-cols mat) 'row
+	 (s:generate (m:num-cols mat) 'down
 		     (lambda (j)
-		       (s:generate (m:num-rows mat) 'column
+		       (s:generate (m:num-rows mat) 'up
 				   (lambda (i)
 				     (matrix-ref mat i j))))))
 	(else mat)))
 
-(define (submatrix s lowrow hirow+1 lowcol hicol+1)
+(define (submatrix s lowdown hidown+1 lowcol hicol+1)
   (cond ((structure? s)
-	 (m:submatrix (structure->matrix s) lowrow hirow+1 lowcol hicol+1))
+	 (m:submatrix (structure->matrix s) lowdown hidown+1 lowcol hicol+1))
 	((matrix? s)
-	 (m:submatrix s lowrow hirow+1 lowcol hicol+1))
+	 (m:submatrix s lowdown hidown+1 lowcol hicol+1))
 	(else (error "Wrong type submatrix" s))))
-
-#|
-(define (up-structure->list s)
-  (map s:canonicalize
-       (vector->list s)))
-|#
 
 (define (up-structure->list s)
   (vector->list (up->vector s)))
 
+;;; In the following procedures there are extra arguments, ls and rs.
+;;; If the input is multiplied by an object of the ls shape on the 
+;;; left and the rs shape on the right, the result is a numerical quantity.
+
+;;; Would like one of these...
+;;; (* (* O |a>) |b>) = (* (* (s:flip O) |b>) |a>)
+
+;;; (* <a| O |b>) = (* <b| (s:transpose O) |a>)
+
+(define (s:transpose ls ms rs)
+   (m->s rs
+         (m:transpose (s->m ls ms rs))
+         ls))
+
+(define (s:transpose1 ms rs)
+  (let ((ls (compatible-shape (g:* ms rs))))
+   (m->s rs
+         (m:transpose (s->m ls ms rs))
+         ls)))
+
+#|
+(define (transpose-test left-multiplier thing right-multiplier)
+  ;; Should produce numerical zero and a zero structure
+  (list (- (* left-multiplier (* thing right-multiplier))
+	   (* (* (s:transpose2 thing) left-multiplier) right-multiplier))
+	(- (s:transpose left-multiplier thing right-multiplier)
+	   (s:transpose1 thing right-multiplier))))
+
+;;; down down
+(transpose-test (up 'a 'b)
+		(down (down 'c 'd) (down 'e 'f) (down 'g 'h))
+		(up 'i 'j 'k))
+#| (0 (down (down 0 0 0) (down 0 0 0))) |#
+
+;;; up up
+(transpose-test (down 'a 'b)
+		(up (up 'c 'd) (up 'e 'f) (up 'g 'h))
+		(down 'i 'j 'k))
+#| (0 (up (up 0 0 0) (up 0 0 0))) |#
+
+;;; up down
+(transpose-test (up 'a 'b)
+		(up (down 'c 'd) (down 'e 'f) (down 'g 'h))
+		(down 'i 'j 'k))
+#| (0 (down (up 0 0 0) (up 0 0 0))) |#
+
+;;; down up
+(transpose-test (down 'a 'b)
+		(down (up 'c 'd) (up 'e 'f) (up 'g 'h))
+		(up 'i 'j 'k))
+#| (0 (up (down 0 0 0) (down 0 0 0))) |#
+|#
+
+(define (s:inverse ls ms rs)		;but see s:invert...
+  (m->s (compatible-shape rs)
+	(m:invert
+	 (s->m ls ms rs))
+	(compatible-shape ls)))
+
+(define (s:inverse1 ms rs)		;but see s:invert...
+  (let ((ls (compatible-shape (g:* ms rs))))
+    (m->s (compatible-shape rs)
+	  (m:invert
+	   (s->m ls ms rs))
+	  (compatible-shape ls))))
+
+#|
+;;;; Test by equation solving.  All answers should be <0 0>.
+
+;;; down of downs
+(let ((a (down (down 'a 'b) (down 'c 'd)))
+      (b (up 'e 'f)))
+  (let ((c (* a b)))
+    (- b (* (s:inverse1 a b) c))))
+#| (up 0 0) |#
+
+;;; up of ups
+(let ((a (up (up 'a 'b) (up 'c 'd)))
+      (b (down 'e 'f)))
+  (let ((c (* a b)))
+    (- b (* (s:inverse1 a b) c))))
+#| (down 0 0) |#
+
+;;; up of downs
+(let ((a (up (down 'a 'b) (down 'c 'd)))
+      (b (down 'e 'f)))
+  (let ((c (* a b)))
+    (- b (* (s:inverse1 a b) c))))
+#| (down 0 0) |#
+
+;;; down of ups
+(let ((a (down (up 'a 'b) (up 'c 'd)))
+      (b (up 'e 'f)))
+  (let ((c (* a b)))
+    (- b (* (s:inverse1 a b) c))))
+#| (up 0 0) |#
+|#
+
 ;;; Sometimes a 2-tensor must be viewed as a matrix for some purpose,
 ;;; for example to invert it.  The following are the required coercions 
-;;; between tensor structures and matrices.
+;;; between tensor structures and matrices.  This can not work for 
+;;; general structures, such as a 2-down with substructure.
 
 ;;; Convention for A^m_n: rightmost index, n, is length of outermost
 ;;; structure.
 
-;;; a row of n rows each m long -> n rows X m columns
+;;; a down of n downs each m long -> n downs X m ups
 
 (define (A_mn->Mnm s)			
-  (if (and (row? s) (row? (s:ref s 0)))
-      (let ((nrows (s:length s))
+  (if (and (down? s) (down? (s:ref s 0)))
+      (let ((ndowns (s:length s))
 	    (ncols (s:length (s:ref s 0))))
 	(if (s:forall (lambda (r)
-			(and (row? r)
+			(and (down? r)
 			     (fix:= (s:length r) ncols)))
 		      s)
-	    (m:generate nrows ncols
+	    (m:generate ndowns ncols
 			(lambda (i j)
 			  (s:ref (s:ref s i) j)))
 	    (error "Not A_mn -- A_mn->Mnm" s)))
       (error "Not A_mn -- A_mn->Mnm" s)))
 #|
-(A_mn->Mnm (row (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+(A_mn->Mnm (down (down 'a 'b) (down 'c 'd) (down 'e 'f)))
 ;Value: (*matrix* (3 . 2) #(#(a b) #(c d) #(e f)))
 |#
 
 (define (Mnm->A_mn mat)
   (assert (matrix? mat) "Not a matrix -- Mnm->A_mn" mat)
-  (s:generate (m:num-rows mat) 'row
+  (s:generate (m:num-rows mat) 'down
 	      (lambda (i)
-		(s:generate (m:num-cols mat) 'row
+		(s:generate (m:num-cols mat) 'down
 			    (lambda (j)
 			      (matrix-ref mat i j))))))
 
 #|
-((compose mnm->a_mn a_mn->mnm) (row (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+((compose mnm->a_mn a_mn->mnm) (down (down 'a 'b) (down 'c 'd) (down 'e 'f)))
 #|
 (down (down a b) (down c d) (down e f))
 |#
 |#
 
-;;; a col of n cols each m long -> m rows X n columns
+;;; a col of n cols each m long -> m downs X n ups
 
 (define (A^mn->Mmn s)
-  (if (and (column? s) (column? (s:ref s 0)))
+  (if (and (up? s) (up? (s:ref s 0)))
       (let ((ncols (s:length s))
-	    (nrows (s:length (s:ref s 0))))
+	    (ndowns (s:length (s:ref s 0))))
 	(if (s:forall (lambda (r)
-			(and (column? r)
-			     (fix:= (s:length r) nrows)))
+			(and (up? r)
+			     (fix:= (s:length r) ndowns)))
 		      s)
-	    (m:generate nrows ncols
+	    (m:generate ndowns ncols
 			(lambda (i j)
 			  (s:ref (s:ref s j) i)))
 	    (error "Not A^mn -- A^mn->Mmn" s)))
       (error "Not A^mn -- A^mn->Mmn" s)))
 #|
-(A^mn->Mmn (column (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+(A^mn->Mmn (up (up 'a 'b) (up 'c 'd) (up 'e 'f)))
 ;Value: (*matrix* (2 . 3) #(#(a c e) #(b d f)))
 |#
 
 (define (Mmn->A^mn mat)
   (assert (matrix? mat) "Not a matrix -- Mmn->A^mn" mat)
-  (s:generate (m:num-cols mat) 'column
+  (s:generate (m:num-cols mat) 'up
 	      (lambda (j)
-		(s:generate (m:num-rows mat) 'column
+		(s:generate (m:num-rows mat) 'up
 			    (lambda (i)
 			      (matrix-ref mat i j))))))
 #|
-((compose mmn->a^mn a^mn->mmn) (column (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+((compose mmn->a^mn a^mn->mmn) (up (up 'a 'b) (up 'c 'd) (up 'e 'f)))
 #|
 (up (up a b) (up c d) (up e f))
 |#
 |#
 
-;;; a row of n cols each m long -> m rows X n columns
+;;; a down of n cols each m long -> m downs X n ups
 
 (define (A^m_n->Mmn s)
-  (if (and (row? s) (column? (s:ref s 0)))
-      (let ((nrows (s:length (s:ref s 0))))
+  (if (and (down? s) (up? (s:ref s 0)))
+      (let ((ndowns (s:length (s:ref s 0))))
 	(if (s:forall (lambda (c)
-			(and (column? c)
-			     (fix:= (s:length c) nrows)))
+			(and (up? c)
+			     (fix:= (s:length c) ndowns)))
 		      s)
-	    (m:generate nrows (s:length s)
+	    (m:generate ndowns (s:length s)
 			(lambda (i j)
 			  (s:ref (s:ref s j) i)))
 	    (error "Not A^m_n -- A^m_n->Mmn" s)))
       (error "Not A^m_n -- A^m_n->Mmn" s)))
 #|
-(A^m_n->Mmn (row (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+(A^m_n->Mmn (down (up 'a 'b) (up 'c 'd) (up 'e 'f)))
 ;Value: (*matrix* (2 . 3) #(#(a c e) #(b d f)))
 |#
 
 (define (Mmn->A^m_n mat)
   (assert (matrix? mat) "Not a matrix -- Mmn->A^m_n" mat)
-  (s:generate (m:num-cols mat) 'row
+  (s:generate (m:num-cols mat) 'down
 	      (lambda (j)
-		(s:generate (m:num-rows mat) 'column
+		(s:generate (m:num-rows mat) 'up
 			    (lambda (i)
 			      (matrix-ref mat i j))))))
 #|
-((compose mmn->A^m_n A^m_n->mmn) (row (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+((compose mmn->A^m_n A^m_n->mmn) (down (up 'a 'b) (up 'c 'd) (up 'e 'f)))
 #|
 (down (up a b) (up c d) (up e f))
 |#
 |#
 
-;;; a col of n rows each m long -> n rows X m columns
+;;; a col of n downs each m long -> n downs X m ups
 
 (define (A_m^n->Mnm s)
-  (if (and (column? s) (row? (s:ref s 0)))
+  (if (and (up? s) (down? (s:ref s 0)))
       (let ((ncols (s:length (s:ref s 0))))
 	(if (s:forall (lambda (c)
-			(and (row? c)
+			(and (down? c)
 			     (fix:= (s:length c) ncols)))
 		      s)
 	    (m:generate (s:length s) ncols
@@ -898,19 +915,19 @@ USA.
 	    (error "Not A_m^n -- A_m^n->Mmn" s)))
       (error "Not A_m^n -- A_m^n->Mmn" s)))
 #|
-(A_m^n->Mnm (column (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+(A_m^n->Mnm (up (down 'a 'b) (down 'c 'd) (down 'e 'f)))
 ;Value: (*matrix* (3 . 2) #(#(a b) #(c d) #(e f)))
 |#
 
 (define (Mnm->A_m^n mat)
   (assert (matrix? mat) "Not a matrix -- Mnm->A_m^n" mat)
-  (s:generate (m:num-rows mat) 'column
+  (s:generate (m:num-rows mat) 'up
 	      (lambda (i)
-		(s:generate (m:num-cols mat) 'row
+		(s:generate (m:num-cols mat) 'down
 			    (lambda (j)
 			      (matrix-ref mat i j))))))
 #|
-((compose mnm->A_m^n A_m^n->mnm) (column (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+((compose mnm->A_m^n A_m^n->mnm) (up (down 'a 'b) (down 'c 'd) (down 'e 'f)))
 #|
 (up (down a b) (down c d) (down e f))
 |#
@@ -919,16 +936,16 @@ USA.
 ;;; A few lonely tensor operations here -- this will expand later.
 
 (define (2-down? s)
-  (and (row? s) (row? (s:ref s 0))))
+  (and (down? s) (down? (s:ref s 0))))
 
 (define (2-up? s)
-  (and (column? s) (column? (s:ref s 0))))
+  (and (up? s) (up? (s:ref s 0))))
 
 (define (up-of-downs? s)
-  (and (column? s) (row? (s:ref s 0))))
+  (and (up? s) (down? (s:ref s 0))))
 
 (define (down-of-ups? s)
-  (and (row? s) (column? (s:ref s 0))))
+  (and (down? s) (up? (s:ref s 0))))
 
 (define (2-tensor? s)
   (or (2-down? s) (2-up? s) (up-of-downs? s) (down-of-ups? s)))
@@ -961,56 +978,88 @@ USA.
 	(else (error "s:invert" s))))
 
 #|
-;;;; Test by equation solving.  All answers should be <e f>.
+;;;; Test by equation solving.  All answers should be <0 0>.
 
 ;;; down of downs
 (let ((a (down (down 'a 'b) (down 'c 'd)))
       (b (up 'e 'f)))
-  (* a (* (s:invert a) b)))
-#|
-(up e f)
-|#
+  (let ((c (* a b)))
+    (- b (* (s:invert a) c))))
+#| (up 0 0) |#
 
 ;;; up of ups
 (let ((a (up (up 'a 'b) (up 'c 'd)))
       (b (down 'e 'f)))
-  (* a (* (s:invert a) b)))
-#|
-(down e f)
-|#
+  (let ((c (* a b)))
+    (- b (* (s:invert a) c))))
+#| (down 0 0) |#
 
 ;;; up of downs
 (let ((a (up (down 'a 'b) (down 'c 'd)))
       (b (down 'e 'f)))
-  (* a (* (s:invert a) b)))
-#|
-(down e f)
-|#
+  (let ((c (* a b)))
+    (- b (* (s:invert a) c))))
+#| (down 0 0) |#
 
 ;;; down of ups
 (let ((a (down (up 'a 'b) (up 'c 'd)))
       (b (up 'e 'f)))
-  (* a (* (s:invert a) b)))
-#|
-(up e f)
-|#
+  (let ((c (* a b)))
+    (- b (* (s:invert a) c))))
+#| (up 0 0) |#
 |#
 
 (define (scalar/tensor x s)
   (g:* x (s:invert s)))
 
-(define (s:solve-rs rv s)
-  (g:* rv (s:invert s)))
+(define (solve-linear-left M product)
+  (let ((cp (compatible-shape product)))
+    (let ((cr (compatible-shape (g:* cp M))))
+      (g:* (s:inverse cp M cr) product))))
 
-(define (s:solve-cs cv s)
-  (g:* (s:invert s) cv))
+(define (solve-linear-right product M)
+  (let ((cp (compatible-shape product)))
+    (let ((cr (compatible-shape (g:* M cp))))
+      (g:* product (s:inverse cr M cp)))))
 
-(define (s:solve-du-cs cv s)
-  (g:* (s:invert s) cv))
+(define (s:divide-by-structure rv s)
+  (solve-linear-left s rv))
 
-(define (s:solve-ud-rs rv s)
-  (g:* rv (s:invert s)))
+#|
+;;; Test cases
+
+(let ((a (up (down 'a 'b) (down 'c 'd)))
+      (b (down 'e 'f)))
+  (let ((c (* a b)))
+    (- b (s:divide-by-structure c a))))
+#| (down 0 0) |#
+
+(let ((a (down (up 'a 'b) (up 'c 'd)))
+      (b (up 'e 'f)))
+  (let ((c (* a b)))
+    (- b (s:divide-by-structure c a))))
+#| (up 0 0) |#
+
+
+;;; The following are strange results...
+
+(let ((a (down (down 'a 'b) (down 'c 'd)))
+      (b (down 'e 'f)))
+  (let ((c (* a b)))
+    (* a (s:divide-by-structure b a))))
+#|
+(down e f)
+|#
+
+(let ((a (up (up 'a 'b) (up 'c 'd)))
+      (b (up 'e 'f)))
+  (* a (s:divide-by-structure b a)))
+#|
+(up e f)
+|#
+|#
 
+#|
 (define (s:transpose2 s)
   (cond ((2-down? s)
 	 (Mnm->A_mn (m:transpose (A_mn->Mnm s))))
@@ -1028,7 +1077,7 @@ USA.
 (define (s:transpose-down->up s)
   (vector->up (down->vector s)))
 
-#|
+
 (define (transpose-test left-multiplier thing right-multiplier)
   ;; Should produce numerical zero and a zero structure
   (list (- (* left-multiplier (* thing right-multiplier))
@@ -1063,21 +1112,20 @@ USA.
 #|
 (0 (up (down 0 0 0) (down 0 0 0)))
 |#
+
+(assign-operation 'transpose          s:transpose2               2-tensor?)
+(assign-operation 'transpose          s:transpose-up->down       up?)
+(assign-operation 'transpose          s:transpose-down->up       down?)
 |#
 
-(assign-operation 'invert             s:invert                 2-tensor?)
 
-(assign-operation 'transpose          s:transpose2             2-tensor?)
-(assign-operation 'transpose          s:transpose-up->down     up?)
-(assign-operation 'transpose          s:transpose-down->up     down?)
 
-(assign-operation '/   scalar/tensor  scalar?                  2-tensor?)
+(assign-operation 'invert             s:invert                   2-tensor?)
+(assign-operation '/   scalar/tensor  scalar?                    2-tensor?)
 
-(assign-operation '/   s:solve-rs     row?                     2-down?)
-(assign-operation '/   s:solve-cs     column?                  2-up?)
-(assign-operation '/   s:solve-ud-rs  row?                     up-of-downs?)
-(assign-operation '/   s:solve-du-cs  column?                  down-of-ups?)
-
+(assign-operation '/   s:divide-by-structure          structure?  structure?)
+(assign-operation 'solve-linear solve-linear-left     structure?  structure?)
+
 (define (s:determinant s)
   (m:determinant (structure->matrix s)))
 
@@ -1171,16 +1219,25 @@ USA.
   (linear-function->multiplier (lambda (x) 0) s))
 |#
 
+
+
+;;; A thing that can multiply s and produces the number zero.
+
 (define (compatible-zero s)
   (if (structure? s)
       (flip-indices (s:zero-like s))
       (g:zero-like s)))
+
+(define dual-zero compatible-zero)
 #|
 (compatible-zero (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
 #|
 (down 0 (down 0 0) (up 0 0) (down 0 0))
 |#
 |#
+
+
+;;; A thing that can multiply s and produce a numerical quantity.
 
 (define (compatible-shape s)
   (if (structure? s)
@@ -1287,6 +1344,10 @@ USA.
 ;Value: 8
 |#
 
+(assign-operation 'dimension s:dimension  structure?)
+
+
+
 (define (ultra-unflatten shape list)
   (if (structure? shape)
       (let lp ((s '()) (i 0) (list list))
@@ -1334,14 +1395,14 @@ USA.
   (if *careful-conversion*
       (assert (numerical-quantity? (g:* ls (g:* ms rs)))
               "Innapropriate s->m" ls ms rs))
-  (let ((nrows (s:dimension ls))
+  (let ((ndowns (s:dimension ls))
 	(ncols (s:dimension rs)))
-    (m:generate nrows ncols
+    (m:generate ndowns ncols
 		(lambda (i j)
 		  (g:* (ultra-unflatten
 			ls
 			(vector->list
-			 (v:make-basis-unit nrows i)))
+			 (v:make-basis-unit ndowns i)))
 		       (g:* ms
 			    (ultra-unflatten
 			     rs
@@ -1380,40 +1441,6 @@ USA.
       (down (down (down 0 0) (down m2 0)) (down (down 0 0) (down 0 m2))))
 |#
 
-;;; In the following procedures there are extra arguments, ls and rs.
-;;; ls designates the shape of the object to be multiplied on the left
-;;; of the result and rs designates the shape of the object to be
-;;; multiplied on the right of the result.
-
-
-;;; (* (* O |a>) |b>) = (* (* (s:flip O) |b>) |a>)
-
-(define (s:flip rs ms ls)
-  (m->s ls
-	(m:transpose (s->m rs ms ls))
-	rs))
-
-
-;;; (* <a| O |b>) = (* <b| (s:transpose O) |a>)
-#|
-(define (s:transpose ls ms rs)
-  (m->s (compatible-shape rs)
-	(m:transpose (s->m ls ms rs))
-	(compatible-shape ls)))
-|#
-
-(define (s:transpose ls ms rs)
-   (m->s rs
-         (m:transpose (s->m ls ms rs))
-         ls))
-
-(define (s:inverse ls ms rs)		;but see s:invert...
-  (m->s (compatible-shape rs)
-	(m:invert
-	 (s->m ls ms rs))
-	(compatible-shape ls)))
-
-
 ;;; Any one argument function of a structure can be seen
 ;;; as a matrix.  This is only useful if the function 
 ;;; has a linear multiplier (e.g. derivative)

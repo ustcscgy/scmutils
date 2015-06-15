@@ -76,11 +76,11 @@ USA.
 
      (define derivative-symbol 'D)
 
-     (define (column-maker? expr) (and (pair? expr) (eq? (car expr) 'up)))
+     (define (up-maker? expr) (and (pair? expr) (eq? (car expr) 'up)))
 
      (define (vector-maker? expr) (and (pair? expr) (eq? (car expr) 'vector)))
 
-     (define (row-maker? expr) (and (pair? expr) (eq? (car expr) 'down)))
+     (define (down-maker? expr) (and (pair? expr) (eq? (car expr) 'down)))
 
      (define (matrix-by-rows-maker? expr)
        (and (pair? expr) (eq? (car expr) 'matrix-by-rows)))
@@ -625,7 +625,7 @@ USA.
 	(expt (insure-bp uptable 100 (cadr args))))
     (make-box-with-bp
      130
-     (glue-horiz (list base "^{" expt "}")))))
+     (glue-horiz (list "{" base "}^{" expt "}")))))
 
 
 (define (2d:unparse-superscript uptable args)
@@ -648,8 +648,9 @@ USA.
     (make-box-with-bp
      140
      (glue-horiz
-      (append (list top)
-	      (list "^{")
+      (append (list "{")
+	      (list top)
+	      (list "}^{")
 	      (let lp ((scripts scripts))
 		(if (null? (cdr scripts))
 		    (list (car scripts))
@@ -678,8 +679,9 @@ USA.
     (make-box-with-bp
      140
      (glue-horiz
-      (append (list top)
-	      (list "_{")
+      (append (list "{")
+	      (list top)
+	      (list "}_{")
 	      (let lp ((scripts scripts))
 		(if (null? (cdr scripts))
 		    (list (car scripts))
@@ -735,9 +737,9 @@ USA.
    (glue-horiz (list "(ddot " (insure-bp uptable 140 (car args)) ")"))))
 
 (define (tex:unparse-primed uptable args)
-  (make-box-with-bp
-   140
-   (glue-horiz (list "{" (insure-bp uptable 140 (car args)) "\\prime}"))))
+  (let ((top (insure-bp uptable 140 (car args))))
+    (make-box-with-bp 140
+     (glue-horiz (list "{" top "}^\\prime")))))
 
 (define (2d:unparse-primed uptable args)
   (make-box-with-bp
@@ -745,9 +747,9 @@ USA.
    (glue-horiz (list "(prime " (insure-bp uptable 140 (car args)) ")"))))
 
 (define (tex:unparse-primeprimed uptable args)
-  (make-box-with-bp
-   140
-   (glue-horiz (list "{" (insure-bp uptable 140 (car args)) "\\prime\\prime}"))))
+  (let ((top (insure-bp uptable 140 (car args))))
+    (make-box-with-bp 140
+     (glue-horiz (list "{" top "}^{\\prime\\prime}")))))
 
 (define (2d:unparse-primeprimed uptable args)
   (make-box-with-bp
@@ -871,10 +873,15 @@ USA.
 	       displaystyle-rows))
 	 (separated-columns
 	  (glue-horiz (interpolate " \\cr \\cr " separated-rows))))
+    #;
     (glue-horiz
-     (list "\\left[ \\matrix{ "
+     (list "\\left\\{ \\matrix{ "
 	   separated-columns
-	   "} \\right]"))))
+	   "} \\right\\}"))
+    (glue-horiz
+     (list "\\left\\lgroup \\matrix{ "
+	   separated-columns
+	   "} \\right\\rgroup"))))
 	 
 (define (tex:unparse-up uptable matrix-list)
   (let* ((displaystyle-rows
@@ -892,7 +899,6 @@ USA.
 	  (glue-horiz (interpolate " \\cr \\cr " separated-rows))))
     (glue-horiz
      (list left-up-delimiter separated-columns right-up-delimiter))))
-
 
 (define (tex:unparse-down uptable matrix-list)
   (let* ((displaystyle-rows
@@ -1048,13 +1054,16 @@ USA.
     (cond ((null? exp) "")
 	  ((number? exp) (unparse-number exp symbol-substs uptable))
 	  ((symbol? exp) (unparse-symbol exp symbol-substs uptable))
-	  ((column-maker? exp)
+	  ((up-maker? exp)
 	   ((cadr (assq 'column uptable))
 	    uptable
 	    (map list (map up (cdr exp)))))
-	  ((row-maker? exp)
+	  ((down-maker? exp)
 	   ((cadr (assq 'row uptable))
 	    uptable
+	    ;; For horizontal format
+	    ;;(list (map up (cdr exp)))
+	    ;; For vertical format
 	    (map list (map up (cdr exp)))))
 	  ((vector-maker? exp)
 	   ((cadr (assq 'vector uptable))

@@ -87,6 +87,9 @@ USA.
 	(d 'determinant g:determinant)
 	(d 'trace g:trace)
         (d 'transpose g:transpose)
+	(d 'dimension g:dimension)
+
+        (d 'solve-linear g:solve-linear)
 
 	(d 'derivative g:derivative)
 

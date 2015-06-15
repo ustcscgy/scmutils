@@ -128,24 +128,42 @@ USA.
     (make-initialized-vector rows
       (lambda (i) (matrix-ref m i i)))))
 
+(define (literal-matrix name nrows ncols)
+  (m:generate nrows ncols
+	      (lambda (i j)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"^"
+				(number->string i)
+				"_"
+				(number->string j))))))
+
+#|
+(literal-matrix 'A 2 3)
+#|
+(matrix-by-rows (list A^0_0 A^0_1 A^0_2)
+		(list A^1_0 A^1_1 A^1_2))
+|#
+|#
+
+(define (literal-column-matrix name nrows)
+  (m:generate nrows 1
+	      (lambda (i j)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"^"
+				(number->string i))))))
+
+(define (literal-row-matrix name ncols)
+  (m:generate 1 ncols
+	      (lambda (i j)
+		(string->symbol
+		 (string-append (symbol->string name)
+				"_"
+				(number->string j))))))
+
 ;;; We need to be able to enter matrices easily, in a variety of
 ;;; ways. 
-
-(define (column->column-matrix v)
-  (assert (column? v))
-  (vector->column-matrix (column->vector v)))
-
-(define (column-matrix->column m)
-  (assert (column-matrix? m))
-  (vector->column (nth-col (matrix->array m) 0)))
-
-(define (row->row-matrix v)
-  (assert (row? v))
-  (vector->row-matrix (row->vector v)))
-
-(define (row-matrix->row m)
-  (assert (row-matrix? m))
-  (vector->row (nth-row (matrix->array m) 0)))
 
 (define (up->column-matrix v)
   (assert (up? v))
@@ -153,7 +171,7 @@ USA.
 
 (define (column-matrix->up m)
   (assert (column-matrix? m))
-  (vector->column (nth-col (matrix->array m) 0)))
+  (vector->up (nth-col (matrix->array m) 0)))
 
 (define (down->row-matrix v)
   (assert (down? v))
@@ -680,8 +698,8 @@ USA.
   (if numerical? (determinant-numerical A) (determinant-general A)))
 
 (define (m:rsolve b A)
-  (cond ((column? b)
-	 (column-matrix->column
+  (cond ((up? b)
+	 (column-matrix->up
 	  (m:solve A (up->column-matrix b))))
 	((column-matrix? b) 
 	 (m:solve A b))
@@ -690,8 +708,14 @@ USA.
 	  (m:transpose
 	   (m:solve (m:transpose A)
 		    (m:transpose (down->row-matrix b))))))
-	(else (error "I don't know how to solve: : b A"))))
+        ((row-matrix? b)
+	 (m:transpose
+	   (m:solve (m:transpose A)
+		    (m:transpose b))))
+	(else (error "I don't know how to solve:" b A))))
 
+(define (m:solve-linear A b)
+  (m:rsolve b a))
 
 (define (set-numerical! #!optional matinv solve determinant)
   (set! numerical? #t)
@@ -781,6 +805,7 @@ USA.
 (assign-operation '/   m:rsolve         column-matrix? square-matrix?)
 (assign-operation '/   m:rsolve         up? square-matrix?)
 (assign-operation '/   m:rsolve         down? square-matrix?)
+(assign-operation '/   m:rsolve         row-matrix? square-matrix?)
 (assign-operation '/   matrix/matrix    matrix? square-matrix?)
 
 (assign-operation 'dot-product m:dot-product-row row-matrix? row-matrix?)
@@ -804,10 +829,18 @@ USA.
 (assign-operation 'determinant m:determinant square-matrix?)
 (assign-operation 'trace       m:trace       square-matrix?)
 (assign-operation 'transpose   m:transpose   matrix?)
+(assign-operation 'dimension   m:dimension   square-matrix?)
+(assign-operation 'dimension   m:num-rows    column-matrix?)
+(assign-operation 'dimension   m:num-cols    row-matrix?)
+
+(assign-operation 'solve-linear m:solve-linear square-matrix? column-matrix?)
+(assign-operation 'solve-linear m:solve-linear square-matrix? up?)
+(assign-operation 'solve-linear m:solve-linear square-matrix? row-matrix?)
+(assign-operation 'solve-linear m:solve-linear square-matrix? down?)
 
 ;;; Abstract matrices generalize matrix quantities.
 
-(define (literal-matrix symbol)
+(define (abstract-matrix symbol)
   (make-literal abstract-matrix-type-tag symbol))
 
 (define (am:arity v)
@@ -815,17 +848,17 @@ USA.
   (get-property v 'arity *at-least-zero*))
 
 (define (am:zero-like m)
-  (let ((z (literal-matrix (list 'zero-like m))))
+  (let ((z (abstract-matrix (list 'zero-like m))))
     (add-property! z 'zero #t)
     z))
 
 (define (am:one-like m)
-  (let ((z (literal-matrix (list 'one-like m))))
+  (let ((z (abstract-matrix (list 'one-like m))))
     (add-property! z 'one #t)
     z))
 
 (define (am:id-like m)
-  (let ((z (literal-matrix (list 'identity-like m))))
+  (let ((z (abstract-matrix (list 'identity-like m))))
     (add-property! z 'one #t)
     z))
 

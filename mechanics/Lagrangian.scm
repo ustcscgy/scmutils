@@ -30,10 +30,10 @@ USA.
 
 ;;; However, there are alternative names for the actual data types.
 
-(define coordinate-tuple column)
-(define velocity-tuple column)
-(define acceleration-tuple column)
-(define momentum-tuple row)
+(define coordinate-tuple up)
+(define velocity-tuple up)
+(define acceleration-tuple up)
+(define momentum-tuple down)
 
 ;;; Lagrangian mechanics requires a configuration
 ;;;   space Q, and a function L:RxQxQ' --> R
@@ -59,7 +59,7 @@ USA.
 
 (define (state->n-dof state)
   (let ((q (vector-ref state 1)))
-    (if (column? q)
+    (if (up? q)
 	(s:length q)
 	1)))
 
@@ -99,6 +99,15 @@ USA.
 (define Q     state->q)
 (define Qdot  state->qdot)
 (define Qdotdot  state->qddot)
+
+(define (literal-Lagrangian-state n-dof)
+  (up (literal-number (generate-uninterned-symbol 't))
+      (s:generate n-dof 'up
+		  (lambda (i)
+		    (literal-number (generate-uninterned-symbol 'x))))
+      (s:generate n-dof 'up
+		  (lambda (i)
+		    (literal-number (generate-uninterned-symbol 'v))))))
 
 ;;;; Chapter 1
 
@@ -477,7 +486,7 @@ USA.
 ;;; from Lagrange's equations, based on the operator form above:
 
 #|
-(define (Lagrange-explicit Lagrangian)
+(define (Lagrangian->acceleration Lagrangian)
   (let ((P ((partial 2) Lagrangian))
         (F ((partial 1) Lagrangian)))
     (let ((dP/dq ((partial 1) P))
@@ -531,7 +540,6 @@ USA.
 	       (+ ((partial 0) P) 
 		  (* ((partial 1) P) velocity)))
 	    state)))))
-|#
 
 (define ((Lagrangian->acceleration L #!optional dissipation-function) state)
   (if (default-object? dissipation-function)
@@ -559,15 +567,30 @@ USA.
 		 (+ ((partial 0) P) 
 		    (* ((partial 1) P) velocity)))
 	      state))))))
+|#
 
-(define Lagrange-explicit Lagrangian->acceleration)
+(define ((Lagrangian->acceleration L #!optional dissipation-function) state)
+  (let ((P ((partial 2) L))
+	(F ((partial 1) L)))
+    (if (default-object? dissipation-function)
+	(solve-linear-left (((partial 2) P) state)
+                           ((- F
+                               (+ ((partial 0) P) 
+                                  (* ((partial 1) P) velocity)))
+                            state))
+	(solve-linear-left (((partial 2) P) state)
+                           ((- (- F
+                                  ((partial 2) dissipation-function))
+                               (+ ((partial 0) P) 
+                                  (* ((partial 1) P) velocity)))
+                            state)))))
 
 #|
 ;;; Thus, for example, we can obtain the general form of the vector
 ;;; of accelerations as a function of the positions, and velocities:
 
 (show-expression
- ((Lagrange-explicit (L-sliding-pend 'm_1 'm_2 'b 'g))
+ ((Lagrangian->acceleration (L-sliding-pend 'm_1 'm_2 'b 'g))
   (->local 't
 	   (coordinate-tuple 'x 'theta)
 	   (velocity-tuple 'xdot 'thetadot))))
@@ -630,7 +653,7 @@ USA.
 
 #|
 (define (Lagrangian->state-derivative L)
-  (let ((acceleration (Lagrange-explicit L)))
+  (let ((acceleration (Lagrangian->acceleration L)))
     (lambda (state)
       (up
        1
@@ -640,13 +663,13 @@ USA.
 
 (define (Lagrangian->state-derivative L #!optional dissipation-function)
   (if (default-object? dissipation-function)
-      (let ((acceleration (Lagrange-explicit L)))
+      (let ((acceleration (Lagrangian->acceleration L)))
 	(lambda (state)
 	  (up
 	   1
 	   (velocity state)
 	   (acceleration state))))
-      (let ((acceleration (Lagrange-explicit L dissipation-function)))
+      (let ((acceleration (Lagrangian->acceleration L dissipation-function)))
 	(lambda (state)
 	  (up
 	   1

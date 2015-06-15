@@ -349,8 +349,13 @@ USA.
    coordinate-system-name the-coordinate-system-generator)
   coordinate-system-name)
 
-(define (dimension coordinate-system)
+(define (coordinate-system-dimension coordinate-system)
   (coordinate-system 'dimension))
+
+;;; So that the generic operation can get this.
+(environment-define scmutils-base-environment
+		    'coordinate-system-dimension
+		    coordinate-system-dimension)
 
 (define (frame? x)
   (and (procedure? x)
@@ -866,7 +871,7 @@ USA.
 ;;    )
 
 ;;; Notice that the (cos theta0) has been rotated to the bottom
-;;; to be compatable with the traditional S^2 convention.
+;;; to be compatible with the traditional S^2 convention.
 ;;
 ;; The first n-1 angles  must be nonzero to avoid the coordinate singularity.
 ;;

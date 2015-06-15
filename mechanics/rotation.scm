@@ -37,6 +37,7 @@ USA.
 (define (rotate-x-matrix angle)
   (rotate-x-matrix-2 (cos angle) (sin angle)))
 
+(define Rx-matrix rotate-x-matrix)
 
 (define (rotate-y-matrix-2 cos-angle sin-angle)
   (matrix-by-rows 
@@ -47,6 +48,8 @@ USA.
 (define (rotate-y-matrix angle)
   (rotate-y-matrix-2 (cos angle) (sin angle)))
 
+(define Ry-matrix rotate-y-matrix)
+
 
 (define (rotate-z-matrix-2 cos-angle sin-angle)
   (matrix-by-rows
@@ -56,6 +59,8 @@ USA.
 
 (define (rotate-z-matrix angle)
   (rotate-z-matrix-2 (cos angle) (sin angle)))
+
+(define Rz-matrix rotate-z-matrix)
 
 
 (define (angle&axis->rotation-matrix theta n)

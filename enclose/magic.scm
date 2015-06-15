@@ -215,7 +215,7 @@ USA.
 					   (cadr operands)
 					   (caddr operands)
 					   (map flonumize (cdddr operands)))))
-	   ((m:minor m:submatrix)
+	   ((m:minor m:submatrix ref)
 	    (make-scode-combination operator
 				    (cons* (flonumize (car operands))
 					   (cdr operands))))

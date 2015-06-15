@@ -95,11 +95,11 @@ a
 (define L (literal-function 'L (Lagrangian 2)))
 
 (print-expression
- ((Dt L) (up't (up 'x 'y) (up 'vx 'vy))))
+ ((Dt L) (up 't (up 'x 'y) (up 'vx 'vy))))
 <error, not enuf args>
 
 (print-expression
- ((Dt L) (up't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
+ ((Dt L) (up 't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
 (+ (* ax (((partial 2 0) L) (up t (up x y) (up vx vy))))
    (* ay (((partial 2 1) L) (up t (up x y) (up vx vy))))
    (* vx (((partial 1 0) L) (up t (up x y) (up vx vy))))
@@ -137,7 +137,7 @@ a
 
 
 (print-expression
- ((LE L) (up't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
+ ((LE L) (up 't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
 (down
  (+ (* ax (((partial 2 0) ((partial 2 0) L)) (up t (up x y) (up vx vy))))
     (* ay (((partial 2 0) ((partial 2 1) L)) (up t (up x y) (up vx vy))))

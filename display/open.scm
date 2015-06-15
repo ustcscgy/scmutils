@@ -152,6 +152,16 @@ USA.
 				(- dy (+ y fy)))))))
     window))
 
+(define (rename-window window name)
+  (cond ((string? name) 'OK)
+	((symbol? name) (set! name (symbol->string name)))
+	((number? name) (set! name (number->string name)))
+	(else (error "Window name must be string")))
+  (graphics-operation window 'set-window-name name)
+  (graphics-operation win 'set-icon-name name)
+  name)
+
+
 (define (resize-window window width height)
   (let ((name (graphics-type-name (graphics-type window))))
     (case name
@@ -307,6 +317,13 @@ USA.
 		(loop a xa m xm))
 	    (if (not (near? xb xm))
 		(loop m xm b xb)))))))
+
+
+;;; Chap 4
+(define make-point cons)
+(define abscissa car)
+(define ordinate cdr)
+
 
 (define *allowable-roundoffs* 10)
 

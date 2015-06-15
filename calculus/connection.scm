@@ -230,7 +230,7 @@ USA.
 	      (Gijk i j k))))))))
 
 (define (literal-Christoffel-1 name coordsys)
-  (let ((n (dimension coordsys)))
+  (let ((n (coordinate-system-dimension coordsys)))
     (make-Christoffel-1
      (s:map/r (lambda (name)
 		(literal-manifold-function name coordsys))
@@ -238,7 +238,7 @@ USA.
      (coordinate-system->basis coordsys))))
 
 (define (literal-Christoffel-2 name coordsys)
-  (let ((n (dimension coordsys)))
+  (let ((n (coordinate-system-dimension coordsys)))
     (make-Christoffel
      (s:map/r (lambda (name)
 		(literal-manifold-function name coordsys))

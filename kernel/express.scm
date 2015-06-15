@@ -111,11 +111,11 @@ USA.
 ;;; they only contain constructions for them.  Thus we need to be able
 ;;; to recognize the constructors:
 
-(define (row-maker? expr)
+(define (down-maker? expr)
   (and (pair? expr)
        (eq? (car expr) down-constructor-name)))
 
-(define (column-maker? expr)
+(define (up-maker? expr)
   (and (pair? expr)
        (eq? (car expr) up-constructor-name)))
 
@@ -147,10 +147,8 @@ USA.
 	     '(list
 	       vector
 	       quaternion
-	       row
-	       column
-	       up 
 	       down
+	       up
 	       matrix-by-rows
 	       matrix-by-cols))))
 
@@ -169,14 +167,14 @@ USA.
 			      ',(differential-tags term)
 			      ,(exprlp (differential-coefficient term))))
 			  (differential-term-list expr)))))
-	  ((row? expr)
+	  ((down? expr)
 	   (cons down-constructor-name
 		 (let lp ((i 0))
 		   (if (fix:= i (s:length expr))
 		       '()
 		       (cons (exprlp (s:ref expr i))
 			     (lp (fix:+ i 1)))))))
-	  ((column? expr)		;subsumes vector? below.
+	  ((up? expr)		;subsumes vector? below.
 	   (cons up-constructor-name
 		 (let lp ((i 0))
 		   (if (fix:= i (s:length expr))

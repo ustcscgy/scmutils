@@ -96,10 +96,30 @@ USA.
 
 (define g:determinant (make-generic-operator 1 'determinant))
 
-(define g:trace (make-generic-operator 1 'trace))
+(define g:trace
+  (make-generic-operator 1
+			 'trace 
+			 ;;overlays system trace procedure trace-both
+			 trace-both))
 
-(define g:transpose (make-generic-operator 1 'transpose))
+(define (g:transpose thing #!optional shape)
+  (if (default-object? shape)
+      (g:transpose-1-arg thing)
+      (s:transpose1 thing shape)))
 
+
+(define g:transpose-1-arg
+  (make-generic-operator 1 'transpose))
+
+(define g:dimension
+  (make-generic-operator 1
+			 'dimension
+			 (lambda (x)
+			   ;;definition in calculus/manifold.scm
+			   (coordinate-system-dimension x))))
+
+(define g:solve-linear
+  (make-generic-operator 2 'solve-linear))
 
 ;;; Duplicate of text in OPERATOR.SCM, except that the explicit type
 ;;; tag is here rather than the variable operator-type-tag.  This is

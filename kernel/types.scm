@@ -62,15 +62,15 @@ USA.
 (define quaternion-type-tag '*quaternion*)
 
 
-;;; Column vectors are implemented as scheme vectors
+;;; Up vectors are implemented as scheme vectors
 
-(define-integrable column-type-tag '*vector*)
+(define-integrable up-type-tag '*vector*)
 
-(define-integrable abstract-column-type-tag '*vector*)
+(define-integrable abstract-up-type-tag '*vector*)
 
-(define-integrable row-type-tag '*down*)
+(define-integrable down-type-tag '*down*)
 
-(define-integrable abstract-row-type-tag '*abstract-row*)
+(define-integrable abstract-down-type-tag '*abstract-down*)
 
 
 (define-integrable matrix-type-tag '*matrix*)
@@ -95,10 +95,10 @@ USA.
 	vector-type-tag
 	quaternion-type-tag
 	;;abstract-vector-type-tag
-	;;column-type-tag
-	;;abstract-column-type-tag
-	row-type-tag
-	abstract-row-type-tag
+	;;up-type-tag
+	;;abstract-up-type-tag
+	down-type-tag
+	abstract-down-type-tag
 	matrix-type-tag
 	abstract-matrix-type-tag
 	function-type-tag
@@ -108,9 +108,9 @@ USA.
 
 (define compound-type-tags
   (list vector-type-tag
-	;;column-type-tag
+	;;up-type-tag
 	quaternion-type-tag
-	row-type-tag
+	down-type-tag
 	matrix-type-tag
 	series-type-tag
 	abstract-matrix-type-tag))
@@ -119,8 +119,8 @@ USA.
   (list number-type-tag
 	vector-type-tag
 	;;abstract-vector-type-tag
-	;;abstract-column-type-tag
-	abstract-row-type-tag
+	;;abstract-up-type-tag
+	abstract-down-type-tag
 	abstract-matrix-type-tag))
 
 (define (abstract-quantity? x)
@@ -206,56 +206,52 @@ USA.
   (quaternion? v))
 
 
-(define (column? x)
-  ;;(and (pair? x) (eq? (car x) column-type-tag))
+(define (up? x)
+  ;;(and (pair? x) (eq? (car x) up-type-tag))
   (vector? x))
 
-(define up? column?)
+(define (abstract-up? x)
+  (and (pair? x) (eq? (car x) abstract-up-type-tag)))
 
-(define (abstract-column? x)
-  (and (pair? x) (eq? (car x) abstract-column-type-tag)))
-
-(define (column-quantity? v)
-  (or (column? v)
-      (abstract-column? v)
+(define (up-quantity? v)
+  (or (up? v)
+      (abstract-up? v)
       (and (differential? v)
-	   (column-quantity? (differential-of v)))))
+	   (up-quantity? (differential-of v)))))
 
 
 (define *up*
-  (make-type column-type-tag
-	     abstract-column-type-tag
-	     vector-quantity? column? abstract-column?))
+  (make-type up-type-tag
+	     abstract-up-type-tag
+	     vector-quantity? up? abstract-up?))
 
 
-(define (row? x)
+(define (down? x)
   (and (pair? x)
-       (eq? (car x) row-type-tag)))
+       (eq? (car x) down-type-tag)))
 
-(define down? row?)
+(define (abstract-down? x)
+  (and (pair? x) (eq? (car x) abstract-down-type-tag)))
 
-(define (abstract-row? x)
-  (and (pair? x) (eq? (car x) abstract-row-type-tag)))
-
-(define (row-quantity? v)
-  (or (row? v)
-      (abstract-row? v)
+(define (down-quantity? v)
+  (or (down? v)
+      (abstract-down? v)
       (and (differential? v)
-	   (row-quantity? (differential-of v)))))
+	   (down-quantity? (differential-of v)))))
 
 
 (define *down*
   (make-type
-   row-type-tag
-   abstract-row-type-tag
-   row-quantity? row? abstract-row?))
+   down-type-tag
+   abstract-down-type-tag
+   down-quantity? down? abstract-down?))
 
 (define (structure? x)
-  (or (column? x) (row? x)))
+  (or (up? x) (down? x)))
 
 
 (define (abstract-structure? x)
-  (or (abstract-column? x) (abstract-row? x)))
+  (or (abstract-up? x) (abstract-down? x)))
 
 (define (matrix? m)		
   (and (pair? m)
