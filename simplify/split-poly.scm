@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -94,23 +94,25 @@ USA.
 
 ;;; Reconstruction
 
+(define (actual-factors factors)
+  (filter (lambda (f)
+	    (or (not (number? f))
+		(not (= f 1))))
+	  (cons (car factors)
+		(map (lambda (f n)
+		       (symb:expt f (fix:+ n 1)))
+		     (cdr factors)
+		     (iota (fix:- (length factors) 1))))))
+
 (define (split-polynomial->expression P)
   (let ((factors (factor-polynomial-expression P)))
-    (cons '*
-	  (filter (lambda (f)
-		    (or (not (number? f))
-			(not (= f 1))))
-		  (cons (car factors)
-			(map symb:expt
-			     (cdr factors)
-			     (iota (length factors) 1)))))))
-
+    (cons '* (actual-factors factors))))
 
 (define (factor-polynomial-expression P)
-  (poly:expression-> (expression P)
+  (pcf:expression-> (expression P)
 		     (lambda (p v)
 		       (map (lambda (factor)
-			      (default-simplify (poly:->expression factor v)))
+			      (default-simplify (pcf:->expression factor v)))
 			    (split-polynomial p)))))
 
 #| ;;; Simple test cases.
@@ -133,27 +135,29 @@ USA.
 
 ;;; Recursive generalization
 
-(define (poly:->factors p v)
+(define (pcf:->factors p v)
   (let ((factors (map (lambda (factor)
-			(poly:->expression factor v))
+			(pcf:->expression factor v))
 		      (split-polynomial p))))
-    (let ((ff
-	   (filter (lambda (f)
-		     (or (not (number? f))
-			 (not (= f 1))))
-		   (cons (car factors)
-			 (map symb:expt
-			      (cdr factors)
-			      (iota (length factors) 1))))))
+    (let ((ff (actual-factors factors)))
       (cond ((null? ff) 1)
 	    ((null? (cdr ff)) (car ff))
-	    (else (cons '* ff))))))
+	    (else
+	     (cons '*
+		   (let lp ((args ff))
+		     (cond ((null? args) '())
+			   ((product? (car args))
+			    (append (operands (car args))
+				    (lp (cdr args))))
+			   (else
+			    (cons (car args)
+				  (lp (cdr args))))))))))))
 
 
 (define poly:factor-analyzer
-  (make-analyzer poly:->factors
-		 poly:expression->
-		 poly:operators-known))
+  (make-analyzer pcf:->factors
+		 pcf:expression->
+		 pcf:operators-known))
 
 (define poly:factor (default-simplifier poly:factor-analyzer))
 

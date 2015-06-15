@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -36,8 +36,8 @@ USA.
 (define pi (* 4 pi/4))
 |#
 
-(define :2/pi (/ 1 2 pi/4))
-(define :3pi/4 (* 3 pi/4))
+(define 2/pi (/ 1 2 pi/4))
+(define 3pi/4 (* 3 pi/4))
 
 
 ;;; Utilities for special functions
@@ -112,7 +112,7 @@ USA.
 		     +.921566975526530895082307e+3
 		     +.74428389741411178824152e+2
 		     +.1e1))))
-	  (* (sqrt (/ :2/pi ax))
+	  (* (sqrt (/ 2/pi ax))
 	     (- (* (cos xx) p0)
 		(* z (sin xx) q0)))))))
 
@@ -140,7 +140,7 @@ USA.
 	       +.1e+1)))
 	(let* ((z (/ 8.0 ax))
 	       (y (* z z))
-	       (xx (- ax :3pi/4))
+	       (xx (- ax 3pi/4))
 	       (p1			;Pone 6747
 		(/ (poly-by-coeffs->value y
 		     +.1290918471896188077350689e+5
@@ -169,7 +169,7 @@ USA.
 		     +.8522392064341340397334e+2
 		     +.1e+1)))
 	       (ans
-		(* (sqrt (/ :2/pi ax))
+		(* (sqrt (/ 2/pi ax))
 		   (- (* (cos xx) p1)
 		      (* z (sin xx) q1)))))
 	  (if (< x 0.0)
@@ -260,7 +260,7 @@ USA.
 		     +1.0		               ;q03
 		     )))
 	  (+ (/ r0 s0)
-	     (* :2/pi (bessj0 x) (log x))))
+	     (* 2/pi (bessj0 x) (log x))))
 	(let* ((z (/ 8.0 ax))		
 	       (y (* z z))
 	       (xx (- ax pi/4))
@@ -290,7 +290,7 @@ USA.
 		     +.921566975526530895082307e+3
 		     +.74428389741411178824152e+2
 		     +.1e1))))
-	  (* (sqrt (/ :2/pi ax))
+	  (* (sqrt (/ 2/pi ax))
 	     (+ (* (sin xx) p0)
 		(* z (cos xx) q0)))))))
 
@@ -320,12 +320,12 @@ USA.
 		     +1.0                               ;q03
 		     )))
 	  (+ (/ (* x r0) s0)
-	     (* :2/pi
+	     (* 2/pi
 		(- (* (bessj1 x) (log x))
 		   (/ 1.0 x)))))
 	(let* ((z (/ 8.0 ax))		
 	       (y (* z z))
-	       (xx (- ax :3pi/4))
+	       (xx (- ax 3pi/4))
 	       (p1			;Pone 6747
 		(/ (poly-by-coeffs->value y
 		     +.1290918471896188077350689e+5
@@ -352,7 +352,7 @@ USA.
 		     +.11191098527047487025919e+4
 		     +.8522392064341340397334e+2
 		     +.1e+1))))
-	  (* (sqrt (/ :2/pi ax))
+	  (* (sqrt (/ 2/pi ax))
 	     (+ (* (sin xx) p1)
 		(* z (cos xx) q1)))))))
 
@@ -380,7 +380,7 @@ USA.
 				       +226.1030244
 				       +1.0)))
 	  (+ (/ r0 s0)
-	     (* :2/pi (bessj0 x) (log x))))
+	     (* 2/pi (bessj0 x) (log x))))
 	(let* ((z (/ 8.0 ax))		
 	       (y (* z z))
 	       (xx (- ax pi/4))
@@ -398,7 +398,7 @@ USA.
 				       -0.6911147651e-5
 				       +0.7621095161e-6
 				       -0.934945152e-7)))
-	  (* (sqrt (/ :2/pi ax))
+	  (* (sqrt (/ 2/pi ax))
 	     (+ (* (sin xx) p0)
 		(* z (cos xx) q0)))))))
 
@@ -424,12 +424,12 @@ USA.
 				       +0.3549632885e3
 				       +1.0)))
 	  (+ (/ (* x r0) s0)
-	     (* :2/pi
+	     (* 2/pi
 		(- (* (bessj1 x) (log x))
 		   (/ 1.0 x)))))
 	(let* ((z (/ 8.0 ax))		
 	       (y (* z z))
-	       (xx (- ax :3pi/4))
+	       (xx (- ax 3pi/4))
 	       (p0
 		(poly-by-coeffs->value y
 				       +1.0
@@ -444,7 +444,7 @@ USA.
 				       +0.8449199096e-5
 				       -0.88228987e-6
 				       +0.105787412e-6)))
-	  (* (sqrt (/ :2/pi ax))
+	  (* (sqrt (/ 2/pi ax))
 	     (+ (* (sin xx) p0)
 		(* z (cos xx) q0)))))))
 |#
@@ -471,21 +471,21 @@ USA.
 #|
 
 (define (bessh:n<<x n x)
-  (* (sqrt (/ 2 :pi z))
-     (exp (* +i (- z (* :pi/2 n) :pi/4)))))
+  (* (sqrt (/ 2 pi z))
+     (exp (* +i (- z (* pi/2 n) pi/4)))))
 
 |#
 
 #|
 ;;; Consistency check based on Wronskian:
 
-;;; J_{n+1}(x) Y_n(x) - J_n(x) Y_{n+1}(x) = 2/(:pi x)
+;;; J_{n+1}(x) Y_n(x) - J_n(x) Y_{n+1}(x) = 2/(pi x)
 
 (define (bessel-check n x)
   (/ (- (* (bessj (+ n 1) x) (bessy n x))
 	(* (bessj n x) (bessy (+ n 1) x))
-	(/ 2 (* :pi x)))
-     (/ 2 (* :pi x))))
+	(/ 2 (* pi x)))
+     (/ 2 (* pi x))))
 
 
 (let lp ((x .0001) (worstx 0.0) (relerr 0.0))
@@ -533,9 +533,9 @@ USA.
       (lambda (theta)
 	(cos (* z (sin theta))))
       0.0
-      :pi
+      pi
       1e-16)
-     :pi))
+     pi))
 
 
 (define win

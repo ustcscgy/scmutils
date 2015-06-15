@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -242,8 +242,7 @@ USA.
 			    (differential-coefficient (car terms))))
 		      (lp (cdr terms)))
 		(lp (cdr terms))))))))
-
-
+
 ;;; Here we have the primitive addition and multiplication that
 ;;; everything else is built on.
 
@@ -527,11 +526,49 @@ USA.
 
 (define diff:cosh
   (diff:unary-op g:cosh g:sinh))
+
+;;; Funny functions -- needs singularity distributions?
+;;; known-real? means provably real.  e.g. a polynomial in *known-reals*
+
+(define (diff:conjugate z)
+  #| ;; This cannot really work.
+  (terms->differential
+   (map (lambda (term)
+	  (make-differential-term (differential-tags term)
+				  (g:conjugate (differential-coefficient term))))
+	(differential->terms z)))
+  |#
+  (if (not (known-real? (finite-part z)))
+      (error "Not real -- DIFF:CONJUGATE" z))
+  (diff:unary-op (lambda (x) x) (lambda (x) 1)))
 
 
-;;; Funny functions -- needs singularity distributions
+(define (diff:real-part z)
+  (if (not (known-real? (finite-part z)))
+      (error "Not real -- DIFF:REAL-PART" z))
+  (diff:unary-op (lambda (x) x) (lambda (x) 1)))
 
-;;; diff:magnitude, diff:abs
+(define (diff:imag-part z)
+  (if (not (known-real? (finite-part z)))
+      (error "Not real -- DIFF:IMAG-PART" z))
+  (diff:unary-op (lambda (x) 0) (lambda (x) 0)))
+
+(define (diff:magnitude z)
+  #|
+  (if (not (known-real? (finite-part z)))
+      (error "Not real -- DIFF:MAGNITUDE" z))
+  ;; Could be z or -z
+  |#
+  (error "Unimplemented -- DIFF:MAGNITUDE" z))
+
+(define (diff:angle z)
+  #|
+  (if (not (known-real? (finite-part z)))
+      (error "Not real -- DIFF:ANGLE" z))
+  ;; Could be 1 or -1
+  |#
+  (error "Unimplemented -- DIFF:ANGLE" z))
+
 
 (define (diff:type x) differential-type-tag)
 (define (diff:type-predicate x) differential?)
@@ -584,6 +621,14 @@ USA.
 (assign-operation 'atan2           diff:atan2            differential? not-compound?)
 (assign-operation 'atan2           diff:atan2            not-compound? differential?)
 
+;;; The following are not completely thought out!  Needs more work.  What about abs?
+
+(assign-operation 'conjugate       diff:conjugate        differential?)
+(assign-operation 'real-part       diff:real-part        differential?)
+(assign-operation 'imag-part       diff:imag-part        differential?)
+(assign-operation 'magnitude       diff:magnitude        differential?)
+(assign-operation 'angle           diff:angle            differential?)
+
 ;;; The derivative of a univariate function over R is a value
 ;;;  ((derivative (lambda (x) (expt x 5))) 'a)
 ;;;    ==> (* 5 (expt a 4))
@@ -609,16 +654,21 @@ USA.
 ;;;                    \     Df       /
 ;;;                      x |----> Df(x)
 
+#|
+;;; This is the fundamental idea, but if I can improve performance
+;;; by a memoization hack.  See end of file.
 
 (define (simple-derivative-internal f x)
   (let ((dx (make-differential-tag)))
     (extract-dx-part dx (f (make-x+dx x dx)))))
+|#
 
 (define (make-x+dx x dx)
   (d:+ x
        (make-differential-quantity
 	(list (make-differential-term (list dx) :one))))) ;worry!!!
 
+
 (define (extract-dx-part dx obj)
   (define (extract obj)
     (if (differential? obj)
@@ -650,7 +700,9 @@ USA.
 			(map-stream dist (series->stream obj))))
 	  (else (extract obj))))
   (dist obj))
-
+
+
+
 ;;; This is not quite right... It is only good for testing R-->R stuff.
 ;;; It will be removed when we have multivariate stuff working correctly
 ;;;  It also belongs with operators?
@@ -658,3 +710,122 @@ USA.
 ;;; Now disabled, see DERIV.SCM.
 
 ;(assign-operation 'derivative      diff:derivative       function?)
+
+;;; Performance enhancement (memoizing derivative)
+;;; Helps, at 2x cost, but must be improved before on in distribution.
+
+;;; Table utilities
+
+(define (make-equal-table)
+  ((weak-hash-table/constructor equal-hash-mod equal? #t)))
+
+(define (equal-table/get table key default)
+  (hash-table/get table key default))
+
+(define (equal-table/put! table key value)
+  (hash-table/put! table key value))
+
+#|
+(define *max-table-size* 3)
+
+(define (make-equal-table)
+  (list 0))
+
+(define (equal-table/get table key default)
+  (let ((vcell (assoc key (cdr table))))
+    (if vcell (cdr vcell) default)))
+
+(define (equal-table/put! table key value)
+  (set-cdr! table
+	    (cons (cons key value)
+		  (cdr table)))
+  (if (fix:= (car table) *max-table-size*)
+      (except-last-pair! table)
+      (set-car! table
+		(fix:+ (car table) 1))))
+|#
+
+(define *memoizing-derivative* #f)
+
+(define simple-derivative-internal
+  (let ((*not-seen* (list '*not-seen*))
+	(ftable (make-eq-hash-table)))
+    (define (the-derivative f x)
+      (if *memoizing-derivative*
+	  (let ((f (1arg-real-function-canonicalizer f)))
+	    (define (compute-derivative)
+	      (let ((dx (make-differential-tag)))
+		(set! dmiss (+ dmiss 1))
+		(extract-dx-part dx (f (make-x+dx x dx)))))
+	    (let ((dtable (hash-table/get ftable f *not-seen*)))
+	      (set! dcount (+ dcount 1))
+	      (if (eq? dtable *not-seen*)
+		  (let ((dtable (make-equal-table))
+			(df/dx (compute-derivative)))
+		    (hash-table/put! ftable f dtable)
+		    (equal-table/put! dtable x df/dx)
+		    df/dx)
+		  (let ((df/dx (equal-table/get dtable x *not-seen*)))
+		    (if (eq? df/dx *not-seen*)
+			(let ((df/dx (compute-derivative)))
+			  (equal-table/put! dtable x df/dx)
+			  df/dx)
+			(begin
+			  (set! dhit (+ dhit 1))
+			  df/dx))))))
+	  (let ((dx (make-differential-tag)))
+	    (extract-dx-part dx (f (make-x+dx x dx))))))
+    the-derivative))
+
+(define dhit 0)
+(define dmiss 0)
+(define dcount 0)
+
+(define (reset-derivative-statistics)
+  (set! dhit 0)
+  (set! dmiss 0)
+  (set! dcount 0))
+
+;;; A function canonicalizer
+
+(define 1arg-real-function-canonicalizer
+  (let ((*not-seen* (list '*not-seen*))
+	(stable (make-eq-hash-table))
+	(ftable (make-equal-table)))
+    (let ((my-x (generate-uninterned-symbol 'x)))
+      (define (function-canonicalizer f)
+	(let ((seen (hash-table/get stable f *not-seen*)))
+	  (if (eq? seen *not-seen*)
+	      (let ((val (f my-x)))
+		(set! fmiss (+ fmiss 1))
+		(let ((cf (equal-table/get ftable val *not-seen*)))
+		  (if (eq? cf *not-seen*)
+		      (begin
+			(equal-table/put! ftable val f)
+			(hash-table/put! stable f (cons f val))
+			f)
+		      (begin
+			(set! falthit (+ falthit 1))
+			(hash-table/put! stable f (cons cf val))
+			cf))))
+	      (let ((cf (car seen)) (vf (cdr seen)))
+		(set! fhithit (+ fhithit 1))
+		cf))))
+      function-canonicalizer)))
+
+(define fmiss 0)
+(define falthit 0)
+(define fhithit 0)
+
+(define (reset-function-statistics)
+  (set! fmiss 0)
+  (set! falthit 0)
+  (set! fhithit 0))
+
+(define (reset-derivative-memo-statistics)
+  (reset-function-statistics)
+  (reset-derivative-statistics))
+
+(define (show-derivative-memo-statistics)
+  (pp `(((fmiss ,fmiss) (falthit ,falthit) (fhithit ,fhithit))
+	((dmiss ,dmiss) (dhit ,dhit) (dcount ,dcount)))))

@@ -30,7 +30,8 @@ USA.
 ;;; coordinate bases
 
 (define (coordinate-basis? x)
-  (and (pair? x) (eq? (car x) '*coordinate-basis*)))
+  (and (pair? x)
+       (eq? (car x) '*coordinate-basis*)))
 
 (define (coordinate-system->basis coordinate-system)
   (list '*coordinate-basis*
@@ -107,28 +108,26 @@ USA.
     1form-basis))
 
 #|
-(instantiate-coordinates (S2 'R) '(theta phi))
+(install-coordinates S2-spherical (up 'theta 'phi))
 
 (define e0
   (components->vector-field
    (up (literal-function 'e0t (-> (UP* Real) Real))
        (literal-function 'e0p (-> (UP* Real) Real)))
-   (S2 'R)))
+   S2-spherical))
 
 (define e1
   (components->vector-field
    (up (literal-function 'e1t (-> (UP* Real) Real))
        (literal-function 'e1p (-> (UP* Real) Real)))
-   (S2 'R)))
+   S2-spherical))
 
 (define edual
-  (vector-basis->dual 
-   (down e0 e1)
-   (S2 'R)))
+  (vector-basis->dual (down e0 e1) S2-spherical))
 
 (pec ((edual (down e0 e1))
-      (((S2 'R) '->point)
-       (up 'theta 'phi))))
+      ((S2-spherical '->point)
+       (up 'theta0 'phi0))))
 #| Result:
 (up (down 1 0) (down 0 1))
 |#
@@ -140,3 +139,30 @@ USA.
     (* (vector-basis f)
        (s:map/r (lambda (1fb) (lambda (m) ((1fb v) m0)))
 		1form-basis))))
+
+;;; Change of basis: The Jacobian is a structure of manifold
+;;; functions.  The outer index is the from-basis index, so this
+;;; structure can be multiplied by tuple of component functions of a
+;;; vector field relative to the from basis to get component functions
+;;; for a vector field in the to basis.
+
+(define (Jacobian to-basis from-basis)
+  (s:map/r (basis->1form-basis to-basis)
+	   (basis->vector-basis from-basis)))
+
+#|
+(define v (literal-vector-field 'v R2-rect))
+
+(define vjp
+  (* (Jacobian (R2-polar 'coordinate-basis)
+	       (R2-rect 'coordinate-basis))
+     ((R2-rect 'coordinate-basis-1form-fields)
+      v)))
+
+(pe (vjp ((R2-rect '->point) (up 'x 'y))))
+(up
+ (/ (+ (* x (v^0 (up x y))) (* y (v^1 (up x y))))
+    (sqrt (+ (expt x 2) (expt y 2))))
+ (/ (+ (* x (v^1 (up x y))) (* -1 y (v^0 (up x y))))
+    (+ (expt x 2) (expt y 2))))
+|#

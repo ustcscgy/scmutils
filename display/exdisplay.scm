@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -1012,17 +1012,6 @@ USA.
 	    uptable
 	    (map (lambda (row) (cdr (map up row)))
 		 (cdr exp))))
-#|
-	  ((matrix? exp)
-	   ((cadr (assq 'matrix uptable))
-	    uptable
-	    (map (lambda (row) (map up row))
-		 (matrix->lists exp))))
-	  ((vector? exp)
-	   ((cadr (assq 'vector uptable))
-	    uptable
-	    (map up (vector->list exp))))
-|#
 	  ((eq? (car exp) '+)
 	   (process-sum exp symbol-substs uptable))
 	  ((symbol? (car exp))
@@ -1105,22 +1094,7 @@ USA.
 	(cont (string-head string index)
 	      (string-tail string (+ index 1))))))
 
-(define (matrix? exp)
-  (and (vector? exp)
-       (vector? (vector-ref exp 0))
-       (let ((l (vector-length (vector-ref exp 0))))
-	 (for-all (lambda (v) (and (vector? v) (= (vector-length v) l)))
-		  (cdr (vector->list exp))))))
 
-(define (for-all p? l)			;from SCMUTILS
-  (let loop ((l l))
-    (cond ((null? l) true)
-	  ((p? (car l)) (loop (cdr l)))
-	  (else false))))
-
-(define (matrix->lists mat)
-  (map vector->list (vector->list mat)))
-       
 (define (transpose matrix-lists)
   (apply map (cons list matrix-lists)))
 

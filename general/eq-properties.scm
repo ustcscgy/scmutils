@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,6 +27,7 @@ USA.
 ;;; extended to work on any kind of eq? data structure.
 
 (declare (usual-integrations))
+;;;(load-option 'hash-table)
 
 ;;; Property lists are a way of creating data that looks like a record
 ;;; structure without commiting to the fields that will be used until
@@ -38,21 +39,32 @@ USA.
 ;;; without such crutches.  -- GJS
 
 
-(load-option 'hash-table)
 (define eq-properties (make-eq-hash-table))
 
 (define (eq-put! node property value)
-  (let ((plist (hash-table/get eq-properties node #f)))
-    (if plist
-	(let ((vcell (assq property (cdr plist))))
-	  (if vcell
-	      (set-cdr! vcell value)
-	      (set-cdr! plist
-			(cons (cons property value)
-			      (cdr plist)))))
-	(hash-table/put! eq-properties node
-			 (list node (cons property value)))))
+  (let ((plist (hash-table/get eq-properties node '())))
+    (let ((vcell (assq property plist)))
+      (if vcell
+	  (set-cdr! vcell value)
+	  (hash-table/put! eq-properties node
+			   (cons (cons property value)
+				 plist)))))
   'done)
+
+(define (eq-get node property)
+  (let ((plist (hash-table/get eq-properties node '())))
+    (let ((vcell (assq property plist)))
+      (if vcell
+	  (cdr vcell)
+	  #f))))
+
+(define (eq-rem! node property)
+  (let ((plist (hash-table/get eq-properties node '())))
+    (let ((vcell (assq property plist)))
+      (if vcell
+	  (hash-table/put! eq-properties node (delq! vcell plist)))))
+  'done)
+
 
 (define (eq-adjoin! node property new)
   (eq-put! node property
@@ -60,28 +72,13 @@ USA.
 			  (or (eq-get node property) '())))
   'done)
 
-(define (eq-rem! node property)
-  (let ((plist (hash-table/get eq-properties node #f)))
-    (if plist
-	(let ((vcell (assq property (cdr plist))))
-	  (if vcell
-	      (hash-table/put! eq-properties node (delq! vcell plist))))))
-  'done)
-
-
-(define (eq-get node property)
-  (let ((plist (hash-table/get eq-properties node #f)))
-    (if plist
-	(let ((vcell (assq property (cdr plist))))
-	  (if vcell
-	      (cdr vcell)
-	      #f))
-	#f)))
 
 (define (eq-plist node)
-  (hash-table/get eq-properties node #f))
-
+  (let ((plist (hash-table/get eq-properties node #f)))
+    (if plist (cons node plist) #f)))
 
+;;; Path names are built with properties.
+
 (define (eq-path path)
   (define (lp node)
     (if node

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -32,8 +32,14 @@ USA.
   
 (define brent-error 1.0e-5)
 
-
 ;;; f is a function of the parameters.
+
+(define nelder-start-step .01)
+(define nelder-epsilon 1.0e-10)
+(define nelder-maxiter 1000)
+
+#|
+;;; Simple, flat case 
 
 (define (multidimensional-minimize f parameters)
   (let ((f (compose f vector->list)))
@@ -46,10 +52,73 @@ USA.
       (if (eq? 'ok (car result))
 	  (vector->list (caadr result))
 	  (error "Minimizer did not converge")))))
+|#
 
-(define nelder-start-step .01)
-(define nelder-epsilon 1.0e-10)
-(define nelder-maxiter 1000)
+
+(define (multidimensional-minimize f parameters)
+  (let ((f (compose f (vector->parameters parameters))))
+    (let ((result
+	   (nelder-mead f
+			(parameters->vector parameters)
+			nelder-start-step
+			nelder-epsilon
+			nelder-maxiter)))
+      (if (eq? 'ok (car result))
+	  ((vector->parameters parameters)
+	   (caadr result))
+	  (error "Minimizer did not converge")))))
+
+(define (parameters->vector p)
+  (define (flatten x)
+    (cond ((number? x) (list x))
+	  ((structure? x)
+	   (let ((lst (vector->list (s:->vector x))))
+	     (if (for-all? lst number?)
+		 lst
+		 (append-map flatten lst))))
+	  ((list? x)
+	   (if (for-all? x number?)
+	       x
+	       (append-map flatten x)))
+	  (else
+	   (error "Non-numerical data in optimizer" p x))))
+  (if (for-all? p number?)
+      (list->vector p)
+      (list->vector (flatten p))))
+
+#|
+(parameters->vector
+ (list (vector 1 2.3 4)
+       (up 3.5 (down 5 1.3) 6)))
+;Value: #(1 2.3 4 3.5 5 1.3 6)
+|#
+
+
+(define ((vector->parameters prototype) vect)
+  (let ((cur 0))
+    (let plp ((proto prototype))
+      (cond ((structure? proto)
+	     (s:generate (s:length proto)
+			 (s:same proto)
+			 (lambda (i)
+			   (plp (s:ref proto i)))))
+	    ((list? proto)
+	     (let llp ((proto proto))
+	       (if (null? proto)
+		   '()
+		   (let ((first (plp (car proto))))
+		     (cons first (llp (cdr proto)))))))
+	    (else
+	     (let ((el (vector-ref vect cur)))
+	       (set! cur (fix:+ cur 1))
+	       el))))))
+
+#|
+((vector->parameters
+  (list (vector 'a 'b 'c) (up 'd (down 'e 'f) 'g)))
+ #(1 2.3 4 3.5 5 1.3 6))
+;Value: (#(1 2.3 4) #(3.5 (*down* #(5 1.3)) 6))
+|#
 
 #| ;;; Historical nonsense
 (define (multidimensional-minimize f x0 cont)

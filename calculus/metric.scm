@@ -34,8 +34,8 @@ USA.
 
 ;;; Example: natural metric on a sphere of radius R
 
-(define 2-sphere (rectangular 2))
-(instantiate-coordinates 2-sphere '(theta phi))
+(define 2-sphere R2-rect)
+(install-coordinates 2-sphere (up 'theta 'phi))
 
 (define ((g-sphere R) u v)
   (* (square R)
@@ -60,8 +60,8 @@ USA.
 
 ;;; Example: Lorentz metric on R^4
 
-(define SR (rectangular 4))
-(instantiate-coordinates SR '(t x y z))
+(define SR R4-rect)
+(install-coordinates SR (up 't 'x 'y 'z))
 
 (define ((g-Lorentz c) u v)
   (+ (* (dx u) (dx v))
@@ -72,9 +72,8 @@ USA.
 
 ;;; Example: general metric on R^2
 
-(define R2 (rectangular 2))
-(instantiate-coordinates R2 '(x y))
-(define R2-basis (coordinate-system->basis R2))
+(install-coordinates R2-rect (up 'x 'y))
+(define R2-basis (coordinate-system->basis R2-rect))
 
 (define ((g-R2 g_00 g_01 g_11) u v)
   (+ (* g_00 (dx u) (dx v))
@@ -82,9 +81,9 @@ USA.
      (* g_11 (dy u) (dy v))))
 
 (pec (((g-R2 'a 'b 'c)
-       (literal-vector-field 'u R2)
-       (literal-vector-field 'v R2))
-      ((R2 '->point) (up 'x0 'y0))))
+       (literal-vector-field 'u R2-rect)
+       (literal-vector-field 'v R2-rect))
+      ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (+ (* (u^0 (up x0 y0)) (v^0 (up x0 y0)) a)
    (* (+ (* (v^0 (up x0 y0)) (u^1 (up x0 y0)))
@@ -125,13 +124,13 @@ USA.
 
 #|
 (pec (((metric:invert (g-R2 'a 'b 'c) R2-basis)
-       (literal-1form-field 'omega R2)
-       (literal-1form-field 'theta R2))
-      ((R2 '->point) (up 'x0 'y0))))
+       (literal-1form-field 'omega R2-rect)
+       (literal-1form-field 'theta R2-rect))
+      ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (/ (+ (* (omega_1 (up x0 y0)) (theta_1 (up x0 y0)) a)
-      (* (+ (* -1 (theta_1 (up x0 y0)) (omega_0 (up x0 y0)))
-	    (* -1 (omega_1 (up x0 y0)) (theta_0 (up x0 y0))))
+      (* (+ (* -1 (omega_0 (up x0 y0)) (theta_1 (up x0 y0)))
+	    (* -1 (theta_0 (up x0 y0)) (omega_1 (up x0 y0))))
 	 b)
       (* (theta_0 (up x0 y0)) (omega_0 (up x0 y0)) c))
    (+ (* c a) (* -1 (expt b 2))))
@@ -144,7 +143,7 @@ USA.
 	(gi (metric:invert g R2-basis))
 	(vector-basis (list d/dx d/dy))
 	(dual-basis (list dx dy))
-	(m ((R2 '->point) (up 'x0 'y0))))
+	(m ((R2-rect '->point) (up 'x0 'y0))))
    (matrix:generate 2 2
      (lambda (i k)
        (sigma (lambda (j)
@@ -186,9 +185,9 @@ USA.
 #|
 (pec
  ((((lower (g-R2 'a 'b 'c))
-    (literal-vector-field 'v R2))
-   (literal-vector-field 'w R2))
-  ((R2 '->point) (up 'x0 'y0))))
+    (literal-vector-field 'v R2-rect))
+   (literal-vector-field 'w R2-rect))
+  ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (+ (* (w^0 (up x0 y0)) (v^0 (up x0 y0)) a)
    (* (+ (* (v^0 (up x0 y0)) (w^1 (up x0 y0)))
@@ -199,10 +198,10 @@ USA.
 
 (pec
  ((((raise (g-R2 'a 'b 'c) R2-basis)
-    ((lower (g-R2 'a 'b 'c)) (literal-vector-field 'v R2)))
+    ((lower (g-R2 'a 'b 'c)) (literal-vector-field 'v R2-rect)))
    (compose (literal-function 'w (-> (UP Real Real) Real))
-	    (R2 '->coords)))
-  ((R2 '->point) (up 'x0 'y0))))
+	    (R2-rect '->coords)))
+  ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (+ (* (v^0 (up x0 y0)) (((partial 0) w) (up x0 y0)))
    (* (v^1 (up x0 y0)) (((partial 1) w) (up x0 y0))))
@@ -226,11 +225,11 @@ USA.
     
 #|
 (pec
- ((((sharpen (g-R2 'a 'b 'c) R2-basis ((R2 '->point) (up 'x0 'y0)))
-    ((lower (g-R2 'a 'b 'c)) (literal-vector-field 'v R2)))
+ ((((sharpen (g-R2 'a 'b 'c) R2-basis ((R2-rect '->point) (up 'x0 'y0)))
+    ((lower (g-R2 'a 'b 'c)) (literal-vector-field 'v R2-rect)))
    (compose (literal-function 'w (-> (UP Real Real) Real))
-	    (R2 '->coords)))
-  ((R2 '->point) (up 'x0 'y0))))
+	    (R2-rect '->coords)))
+  ((R2-rect '->point) (up 'x0 'y0))))
 
 #| Result:
 (up (* (v^0 (up x0 y0)) (((partial 0) w) (up x0 y0)))

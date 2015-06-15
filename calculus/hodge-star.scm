@@ -25,11 +25,27 @@ USA.
 
 ;;;; Hodge-star dual
 
-(define (Hodge-star metric basis #!optional orthonormalize?)
-  (let* ((vector-basis
-	  (if (or (default-object? orthonormalize?) (not orthonormalize?))
-	      (basis->vector-basis basis)
-	      (Gram-Schmidt (basis->vector-basis basis) metric)))
+;;; spec may be a coordinate system with an orthonormal basis
+;;;             an orthonormal basis
+;;;             a basis
+
+;;; if the spec is a basis that needs to be orthonormalized, 
+;;; the optional orthonormalize? argument must be a coordinate system
+
+(define (Hodge-star metric spec #!optional orthonormalize?)  
+  (let* ((basis
+	  (if (basis? spec)
+	      (if (default-object? orthonormalize?)
+		  spec
+		  ;; orthonormalize? must be a coordinate system
+		  (orthonormalize spec metric orthonormalize?))
+	      ;; spec must be a coordinate system.
+	      (if (default-object? orthonormalize?)
+		  (coordinate-system->basis spec)
+		  (orthonormalize (coordinate-system->basis spec)
+				  metric
+				  spec))))
+	 (vector-basis (basis->vector-basis basis))
 	 (on-vector-basis (ultra-flatten vector-basis))
 	 (basis-check
 	  (matrix-by-row-list
@@ -39,12 +55,7 @@ USA.
 	 (bsigns
 	  (make-initialized-list (basis->dimension basis)
 				 (lambda (i) (matrix-ref basis-check i i))))
-	 (on-1form-basis
-	  (ultra-flatten
-	   (if (or (default-object? orthonormalize?) (not orthonormalize?))
-	       (basis->1form-basis basis)
-	       (vector-basis->dual vector-basis
-				   (rectangular (basis->dimension basis)))))))
+	 (on-1form-basis (ultra-flatten (basis->1form-basis basis))))
     (define (the-star pform-field)
       (assert (or (function? pform-field) (form-field? pform-field)))
       (let ((p (get-rank pform-field)))
@@ -85,23 +96,204 @@ USA.
 	      val))))
     ;;(assert (orthonormal? basis-check))  ;Currently assumed OK.
     the-star))
+
+(define (orthonormalize basis metric coordinate-system)
+    (let ((ovb (Gram-Schmidt (basis->vector-basis basis) metric)))
+      (make-basis ovb
+		  (vector-basis->dual ovb coordinate-system))))
 
 #|
-(define R2 (rectangular 2))
-(instantiate-coordinates R2 '(t x))
-(define R2-point ((R2 '->point) (up 't0 'x0)))
-(define R2-basis (coordinate-system->basis R2))
+;;; First, some simple tests on 3-dimensional Euclidean space.
+(clear-arguments)
+(suppress-arguments (list '(up x0 y0 z0)))
+
+(install-coordinates R3-rect (up 'x 'y 'z))
+(define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
+(define R3-basis (coordinate-system->basis R3-rect))
+
+(define (E3-metric v1 v2)
+  (+ (* (dx v1) (dx v2))
+     (* (dy v1) (dy v2))
+     (* (dz v1) (dz v2))))
+
+(define E3-star (Hodge-star E3-metric R3-rect))
+
+#|
+(define E3-star (Hodge-star E3-metric (coordinate-system->basis R3-rect)))
+|#
+
+(pec (((E3-star (literal-scalar-field 'f R3-rect))
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect)
+       (literal-vector-field 'w R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* w^2 u^0 f v^1)
+   (* -1 w^2 u^1 v^0 f)
+   (* -1 u^0 v^2 w^1 f)
+   (* v^2 u^1 w^0 f)
+   (* u^2 w^1 v^0 f)
+   (* -1 u^2 w^0 f v^1))
+|#
+
+(pec (((E3-star (literal-1form-field 'omega R3-rect))
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* v^1 u^0 omega_2)
+   (* -1 v^1 u^2 omega_0)
+   (* -1 v^2 u^0 omega_1)
+   (* v^2 u^1 omega_0)
+   (* u^2 v^0 omega_1)
+   (* -1 u^1 v^0 omega_2))
+|#
+
+(pec (((E3-star
+	(+ (* (literal-scalar-field 'alpha R3-rect) (wedge dx dy))
+	   (* (literal-scalar-field 'beta R3-rect) (wedge dy dz))
+	   (* (literal-scalar-field 'gamma R3-rect) (wedge dz dx))))
+       (literal-vector-field 'u R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* u^0 beta) (* u^2 alpha) (* u^1 gamma))
+|#
+
+(pec ((E3-star
+       (* (literal-scalar-field 'alpha R3-rect) (wedge dx dy dz)))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+alpha
+|#
+
+(define omega
+  (+ (* (literal-scalar-field 'alpha R3-rect)  dx)
+     (* (literal-scalar-field 'beta R3-rect)   dy)
+     (* (literal-scalar-field 'gamma R3-rect)  dz)))
+;;; omega = alpha*dx + beta*dy + gamma*dz
+
+(pec (((E3-star omega)
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* v^1 u^0 gamma)
+   (* -1 v^1 u^2 alpha)
+   (* -1 v^2 u^0 beta)
+   (* v^2 u^1 alpha)
+   (* u^2 v^0 beta)
+   (* -1 u^1 v^0 gamma))
+|#
+;;; *omega = alpha*dy^dz - beta*dx^dz + gamma*dx^dy
+
+
+(pec (((E3-star (d omega))
+       (literal-vector-field 'u R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* u^0 ((partial 1) gamma))
+   (* -1 u^0 ((partial 2) beta))
+   (* u^2 ((partial 0) beta))
+   (* -1 u^2 ((partial 1) alpha))
+   (* -1 u^1 ((partial 0) gamma))
+   (* u^1 ((partial 2) alpha)))
+|#
+;;; Indeed, *d is the curl operator.
+
+(pec (((d (E3-star omega))
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect)
+       (literal-vector-field 'w R3-rect))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ (* w^2 v^1 u^0 ((partial 0) alpha))
+   (* w^2 v^1 u^0 ((partial 1) beta))
+   (* w^2 v^1 u^0 ((partial 2) gamma))
+   (* -1 w^2 u^1 v^0 ((partial 0) alpha))
+   (* -1 w^2 u^1 v^0 ((partial 1) beta))
+   (* -1 w^2 u^1 v^0 ((partial 2) gamma))
+   (* -1 v^1 w^0 u^2 ((partial 0) alpha))
+   (* -1 v^1 w^0 u^2 ((partial 1) beta))
+   (* -1 v^1 w^0 u^2 ((partial 2) gamma))
+   (* -1 v^2 w^1 u^0 ((partial 0) alpha))
+   (* -1 v^2 w^1 u^0 ((partial 1) beta))
+   (* -1 v^2 w^1 u^0 ((partial 2) gamma))
+   (* v^2 w^0 u^1 ((partial 0) alpha))
+   (* v^2 w^0 u^1 ((partial 1) beta))
+   (* v^2 w^0 u^1 ((partial 2) gamma))
+   (* w^1 u^2 v^0 ((partial 0) alpha))
+   (* w^1 u^2 v^0 ((partial 1) beta))
+   (* w^1 u^2 v^0 ((partial 2) gamma)))
+|#
+
+(pec ((E3-star (d (E3-star omega)))
+      R3-point)
+     (compose arg-suppressor simplify))
+#| Result:
+(+ ((partial 0) alpha) ((partial 1) beta) ((partial 2) gamma))
+|#
+;;; Indeed, *d* is the divergence operator...
+
+(clear-arguments)
+|#
+
+#|
+;;; Now for a 1-1 Minkowski space
+
+(install-coordinates R2-rect (up 't 'x))
+(define R2-point ((R2-rect '->point) (up 't0 'x0)))
+(define R2-basis (coordinate-system->basis R2-rect))
 (define c 'c)
 
 (define (L2-metric u v)
   (+ (* -1 c c (dt u) (dt v))
      (* 1 (dx u) (dx v))))
 
-(define L2-vector-basis
-  (Gram-Schmidt (basis->vector-basis R2-basis) L2-metric))
+
+(define L2-Hodge-star
+  (Hodge-star L2-metric R2-rect))
+
+(pec (((L2-Hodge-star (lambda (x) 1))
+       (literal-vector-field 'u R2-rect)
+       (literal-vector-field 'v R2-rect))
+      R2-point))
+#| Result:
+(+ (* (u^0 (up t0 x0)) (v^1 (up t0 x0)))
+   (* -1 (u^1 (up t0 x0)) (v^0 (up t0 x0))))
+|#
+;;; Wrong.  Must generally orthonormalize.
+
+
+(define L2-Hodge-star
+  (Hodge-star L2-metric R2-rect #t))
+
+(pec (((L2-Hodge-star (lambda (x) 1))
+       (literal-vector-field 'u R2-rect)
+       (literal-vector-field 'v R2-rect))
+      R2-point))
+#| Result:
+(+ (* c (u^0 (up t0 x0)) (v^1 (up t0 x0)))
+   (* -1 c (v^0 (up t0 x0)) (u^1 (up t0 x0))))
+  = cdt^dx(u v)
+|#
+
+#|
+;;; Can accelerate by explicitly passing in an explicitly constructed
+;;; orthonormal constant basis.
+
+(define L2-basis (orthonormalize R2-basis L2-metric R2-rect))
+
+(define L2-vector-basis (basis->vector-basis L2-basis))
 
 (s:foreach (lambda (v)
-	     (pe ((v (literal-manifold-function 'f R2))
+	     (pe ((v (literal-manifold-function 'f R2-rect))
 		  R2-point)))
 	   L2-vector-basis)
 #|
@@ -109,14 +301,23 @@ USA.
 (((partial 1) f) (up t0 x0))
 |#
 
+(define L2-1form-basis (vector-basis->dual L2-vector-basis R2-rect))
+
 (s:foreach (lambda (omega)
-	     (pe ((omega (literal-vector-field 'v R2))
+	     (pe ((omega (literal-vector-field 'v R2-rect))
 		  R2-point)))
-	   (vector-basis->dual L2-vector-basis R2))
+	   L2-1form-basis)
 #|
 (* c (v^0 (up t0 x0)))
 (v^1 (up t0 x0))
 |#
+
+(pec ((L2-1form-basis L2-vector-basis) R2-point))
+#| Result:
+(up (down 1 0) (down 0 1))
+|#
+
+;;; Now make constant basis...
 
 (define L2-constant-vector-basis
   (down (* (/ 1 c) d/dt) d/dx))
@@ -130,21 +331,22 @@ USA.
 
 (define L2-Hodge-star
   (Hodge-star L2-metric L2-constant-basis))
-
-(pec (((L2-Hodge-star (lambda (x) 1))
-       (literal-vector-field 'u R2)
-       (literal-vector-field 'v R2))
-      R2-point))
-#| Result:
-(+ (* c (u^0 (up t0 x0)) (v^1 (up t0 x0)))
-   (* -1 c (v^0 (up t0 x0)) (u^1 (up t0 x0))))
-  = cdt^dx(u v)
 |#
 
+(pec (((L2-Hodge-star (lambda (x) 1))
+       (literal-vector-field 'u R2-rect)
+       (literal-vector-field 'v R2-rect))
+      R2-point))
+#| Result:
+(+ (* -1 c (v^0 (up t0 x0)) (u^1 (up t0 x0)))
+   (* c (v^1 (up t0 x0)) (u^0 (up t0 x0))))
+|#
+;;; As desired.
+
 (pec (((L2-Hodge-star
-	(* (literal-manifold-function 'alpha R2)
+	(* (literal-manifold-function 'alpha R2-rect)
 	   (* c dt)))
-       (literal-vector-field 'u R2))
+       (literal-vector-field 'u R2-rect))
       R2-point))
 #| Result:
 (* -1 (alpha (up t0 x0)) (u^1 (up t0 x0)))
@@ -152,9 +354,9 @@ USA.
 |# 
 
 (pec (((L2-Hodge-star
-	(* (literal-manifold-function 'alpha R2)
+	(* (literal-manifold-function 'alpha R2-rect)
 	   dx))
-       (literal-vector-field 'u R2))
+       (literal-vector-field 'u R2-rect))
       R2-point))
 #| Result:
 (* -1 c (alpha (up t0 x0)) (u^0 (up t0 x0)))
@@ -162,7 +364,7 @@ USA.
 |#
 
 (pec ((L2-Hodge-star
-       (* (literal-manifold-function 'alpha R2)
+       (* (literal-manifold-function 'alpha R2-rect)
 	  (wedge (* c dt) dx)))
       R2-point))
 #| Result:
@@ -171,10 +373,9 @@ USA.
 |#
 
 #|
-(define R2 (rectangular 2))
-(instantiate-coordinates R2 '(x y))
-(define R2-point ((R2 '->point) (up 'x0 'y0)))
-(define R2-basis (coordinate-system->basis R2))
+(install-coordinates R2-rect (up 'x 'y))
+(define R2-point ((R2-rect '->point) (up 'x0 'y0)))
+(define R2-basis (coordinate-system->basis R2-rect))
 
 (define ((g-R2 g_00 g_01 g_11) u v)
   (+ (* g_00 (dx u) (dx v))
@@ -184,7 +385,8 @@ USA.
 (define R2-metric (g-R2 'a 'b 'c))
 
 ;;; Hodge-star must Orthonormalize here
-(define R2-star (Hodge-star R2-metric R2-basis #t))
+
+(define R2-star (Hodge-star R2-metric R2-rect #t))
 
 (pec (((R2-star (lambda (x) 1)) d/dx d/dy) R2-point))
 #| Result:
@@ -218,75 +420,10 @@ USA.
 |#
 
 #|
-(clear-arguments)
-(suppress-arguments (list '(up x0 y0 z0)))
-
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
-(define R3-basis (coordinate-system->basis R3))
-
-(define (E3-metric v1 v2)
-  (+ (* (dx v1) (dx v2))
-     (* (dy v1) (dy v2))
-     (* (dz v1) (dz v2))))
-
-(define E3-star (Hodge-star E3-metric (coordinate-system->basis R3)))
-
-(pec (((E3-star (literal-scalar-field 'f R3))
-       (literal-vector-field 'u R3)
-       (literal-vector-field 'v R3)
-       (literal-vector-field 'w R3))
-      R3-point)
-     (compose arg-suppressor simplify))
-#| Result:
-(+ (* w^2 u^0 f v^1)
-   (* -1 w^2 u^1 v^0 f)
-   (* -1 u^0 v^2 w^1 f)
-   (* v^2 u^1 w^0 f)
-   (* u^2 w^1 v^0 f)
-   (* -1 u^2 w^0 f v^1))
-|#
-(pec (((E3-star (literal-1form-field 'omega R3))
-       (literal-vector-field 'u R3)
-       (literal-vector-field 'v R3))
-      R3-point)
-     (compose arg-suppressor simplify))
-#| Result:
-(+ (* omega_0 v^2 u^1)
-   (* -1 omega_0 u^2 v^1)
-   (* -1 v^2 omega_1 u^0)
-   (* omega_1 u^2 v^0)
-   (* omega_2 u^0 v^1)
-   (* -1 omega_2 v^0 u^1))
-|#
-
-(pec (((E3-star
-	(+ (* (literal-scalar-field 'alpha R3) (wedge dx dy))
-	   (* (literal-scalar-field 'beta R3) (wedge dy dz))
-	   (* (literal-scalar-field 'gamma R3) (wedge dz dx))))
-       (literal-vector-field 'u R3))
-      R3-point)
-     (compose arg-suppressor simplify))
-#| Result:
-(+ (* alpha u^2) (* gamma u^1) (* beta u^0))
-|#
-
-(pec ((E3-star
-       (* (literal-scalar-field 'alpha R3) (wedge dx dy dz)))
-      R3-point)
-     (compose arg-suppressor simplify))
-#| Result:
-alpha
-|#
-(clear-arguments)
-|#
-
-#|
 ;;; Example: Lorentz metric on R^4
 
-(define SR (rectangular 4))
-(instantiate-coordinates SR '(t x y z))
+(define SR R4-rect)
+(install-coordinates SR (up 't 'x 'y 'z))
 (define SR-point ((SR '->point) (up 't0 'x0 'y0 'z0)))
 (define c 'c)
 
@@ -351,14 +488,13 @@ alpha
 		      ((lower metric) X)))))))
 
 
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-basis (coordinate-system->basis R3))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
+(install-coordinates R3-rect (up 'x 'y 'z))
+(define R3-basis (coordinate-system->basis R3-rect))
+(define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
-(define u (literal-vector-field 'u R3))
-(define v (literal-vector-field 'v R3))
-(define w (literal-vector-field 'w R3))
+(define u (literal-vector-field 'u R3-rect))
+(define v (literal-vector-field 'v R3-rect))
+(define w (literal-vector-field 'w R3-rect))
 
 (define (E3-metric v1 v2)
   (+ (* (dx v1) (dx v2))
@@ -366,9 +502,9 @@ alpha
      (* (dz v1) (dz v2))))
 
 (define omega
-  (+ (* (literal-manifold-function 'alpha R3) (wedge dx dy))
-     (* (literal-manifold-function 'beta  R3) (wedge dy dz))
-     (* (literal-manifold-function 'gamma R3) (wedge dz dx))))
+  (+ (* (literal-manifold-function 'alpha R3-rect) (wedge dx dy))
+     (* (literal-manifold-function 'beta  R3-rect) (wedge dy dz))
+     (* (literal-manifold-function 'gamma R3-rect) (wedge dz dx))))
 
 (pec (- (((((ip E3-metric R3-basis) u) omega) v) R3-point)
 	((((interior-product u) omega) v) R3-point)))
@@ -377,7 +513,7 @@ alpha
 |#
 
 (define theta 
-  (* (literal-scalar-field 'delta R3) (wedge dx dy dz)))
+  (* (literal-scalar-field 'delta R3-rect) (wedge dx dy dz)))
 
 (pec (- (((((ip E3-metric R3-basis) u) theta) v w) R3-point)
 	((((interior-product u) theta) v w) R3-point)))
@@ -389,8 +525,8 @@ alpha
 
 ;;; Electrodynamics...
 #|
-(define SR (rectangular 4))
-(instantiate-coordinates SR '(t x y z))
+(define SR R4-rect)
+(install-coordinates SR (up 't 'x 'y 'z))
 (define SR-basis (coordinate-system->basis SR))
 (define an-event ((SR '->point) (up 't0 'x0 'y0 'z0)))
 (define c 'c)

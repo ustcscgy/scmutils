@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,7 +27,13 @@ USA.
 
 (declare (usual-integrations))
 
+;;; This is the basic thing...
 
+(define (compile-and-run sexp #!optional environment declarations keep?)
+  (if (default-object? environment) (set! environment scmutils-base-environment))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep?) (set! keep? 'keep))
+  (scode-eval (compile-expression sexp environment declarations keep?) environment))
 
 (define (compile-and-run-numerical sexp #!optional environment declarations keep?)
   (if (default-object? environment) (set! environment scmutils-base-environment))
@@ -84,8 +90,8 @@ USA.
 (define compiler-output->procedure
   (access compiler-output->procedure (->environment '(compiler top-level))))
 
-(define compile-scode/no-file
-  (access compile-scode/no-file (->environment '(compiler top-level))))
+(define compile-scode
+  (access compile-scode (->environment '(compiler top-level))))
 
 (define scode-variable?
   (access variable? system-global-environment))
@@ -112,7 +118,7 @@ USA.
 
 (define (compile-expression s-expression environment declarations keep-debugging-info?)
   (fluid-let ((sf:noisy? #f))
-    (compile-scode/no-file
+    (compile-scode
      (integrate/sexp s-expression environment declarations #f)
      (and keep-debugging-info? 'KEEP))))
 
@@ -121,7 +127,7 @@ USA.
 
 (define (compile-procedure-text procedure-text declarations keep-debugging-info?)
   (fluid-let ((sf:noisy? #f))
-    (compile-scode/no-file
+    (compile-scode
      (integrate/scode (make-declaration declarations procedure-text) #f)
      (and keep-debugging-info? 'KEEP))))
 

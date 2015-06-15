@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -226,9 +226,9 @@ USA.
 
 ;;; More complicated, reconstructing a sum of "reals":
 (define foo
-  (+ (* 3 :pi) (* 2 :pi :pi) (sqrt 5) (exp 1)))
+  (+ (* 3 pi) (* 2 pi pi) (sqrt 5) (exp 1)))
 
-(define X (list :pi (expt :pi 2) (sqrt 5) (exp 1) (- foo)))
+(define X (list pi (expt pi 2) (sqrt 5) (exp 1) (- foo)))
 
 (pp (pslq X))
 (relation 3.275277109516825 2.510269140274375e-14 (3 2 1 1 1))

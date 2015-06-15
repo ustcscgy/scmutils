@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -95,6 +95,12 @@ a
 (define LE Euler-Lagrange-operator)
 (define Lagrange-equations-operator LE)
 
+;;; Given a local tuple, produces a finite state.
+
+(define (clip-state n)
+  (lambda (u)
+    (vector-head u n)))
+
 #|
 (print-expression
  ((LE (L-harmonic 'm 'k))
@@ -151,18 +157,6 @@ a
     (* m (((expt D 2) phi) t) (expt (r t) 2))))
 |#
 
-#|
-;;; This stuff is undebugged.
-
-(define ((generalized-LE Lagrangian) state)
-  (let lp ((i 1))
-    (if (= i (s:length state))
-	Lagrangian
-	(- (Dt (lp (+ i 1)))
-	   (compose ((partial i) Lagrangian)
-		    trim-last-argument)))))
-
-
 (define ((generalized-LE Lagrangian) state)
   (let ((m (s:length state)))
     (assert (and (fix:> m 3) (even? m))
@@ -170,13 +164,12 @@ a
     (let lp ((i (quotient m 2)))
       (if (fix:= i 0)
 	  0
-	  (- ((compose ((expt Dt (fix:- i 1))
-			((partial i) Lagrangian))
-		       (iterated trim-last-argument
-				 (fix:- (quotient m 2) i)))
+	  (- (((expt Dt (fix:- i 1))
+	       ((partial i) Lagrangian))
 	      state)
 	     (lp (fix:- i 1)))))))
 
+#|
 (define ((L2harmonic m k) state)
   (let ((x (coordinate state))
 	(a (acceleration state)))
@@ -185,38 +178,39 @@ a
 (print-expression
  ((generalized-LE (L2harmonic 'm 'k))
   (->local 't 'x 'v 'a 'j 'p)))
-(+ (* -1 a m) (* -1 k x))
+(+ (* a m) (* k x))
 
-(define L (literal-function 'L (Lagrangian)))
+
+(define L
+  (compose (literal-function 'L (Lagrangian))
+	   (clip-state 3)))
 
 (pe ((generalized-LE L) (->local 't 'x 'v 'a)))
-(+ (* a (((partial 2) ((partial 2) L)) (up t x v a)))
-   (* v (((partial 1) ((partial 2) L)) (up t x v a)))
-   (((partial 0) ((partial 2) L)) (up t x v a))
+(+ (* a (((partial 2) ((partial 2) L)) (up t x v)))
+   (* v (((partial 1) ((partial 2) L)) (up t x v)))
+   (((partial 0) ((partial 2) L)) (up t x v))
    (* -1 (((partial 1) L) (up t x v))))
 
+
+(define L
+  (compose (literal-function 'L (Lagrangian))
+	   (clip-state 4)))
+
 (pe ((generalized-LE L) (->local 't 'x 'v 'a 'j 'p)))
-(+ (* (expt a 2) (((partial 2) ((partial 2) ((partial 3) L))) (up t x v a j p)))
-   (* 2 a j (((partial 2) ((partial 3) ((partial 3) L))) (up t x v a j p)))
-   (* 2 a p (((partial 2) ((partial 3) ((partial 4) L))) (up t x v a j p)))
-   (* 2 a v (((partial 1) ((partial 2) ((partial 3) L))) (up t x v a j p)))
-   (* (expt j 2) (((partial 3) ((partial 3) ((partial 3) L))) (up t x v a j p)))
-   (* 2 j p (((partial 3) ((partial 3) ((partial 4) L))) (up t x v a j p)))
-   (* 2 j v (((partial 1) ((partial 3) ((partial 3) L))) (up t x v a j p)))
-   (* (expt p 2) (((partial 3) ((partial 4) ((partial 4) L))) (up t x v a j p)))
-   (* 2 p v (((partial 1) ((partial 3) ((partial 4) L))) (up t x v a j p)))
-   (* (expt v 2) (((partial 1) ((partial 1) ((partial 3) L))) (up t x v a j p)))
-   (* 2 a (((partial 0) ((partial 2) ((partial 3) L))) (up t x v a j p)))
-   (* a (((partial 1) ((partial 3) L)) (up t x v a j p)))
-   (* -1 a (((partial 2) ((partial 2) L)) (up t x v a j)))
-   (* 2 j (((partial 0) ((partial 3) ((partial 3) L))) (up t x v a j p)))
-   (* j (((partial 2) ((partial 3) L)) (up t x v a j p)))
-   (* -1 j (((partial 2) ((partial 3) L)) (up t x v a j)))
-   (* 2 p (((partial 0) ((partial 3) ((partial 4) L))) (up t x v a j p)))
-   (* p (((partial 3) ((partial 3) L)) (up t x v a j p)))
-   (* 2 v (((partial 0) ((partial 1) ((partial 3) L))) (up t x v a j p)))
-   (* -1 v (((partial 1) ((partial 2) L)) (up t x v a j)))
-   (((partial 1) L) (up t x v a))
-   (((partial 0) ((partial 0) ((partial 3) L))) (up t x v a j p))
-   (* -1 (((partial 0) ((partial 2) L)) (up t x v a j))))
+(+ (* (expt a 2) (((partial 2) ((partial 2) ((partial 3) L))) (up t x v a)))
+   (* 2 a j (((partial 2) ((partial 3) ((partial 3) L))) (up t x v a)))
+   (* 2 a v (((partial 1) ((partial 2) ((partial 3) L))) (up t x v a)))
+   (* (expt j 2) (((partial 3) ((partial 3) ((partial 3) L))) (up t x v a)))
+   (* 2 j v (((partial 1) ((partial 3) ((partial 3) L))) (up t x v a)))
+   (* (expt v 2) (((partial 1) ((partial 1) ((partial 3) L))) (up t x v a)))
+   (* 2 a (((partial 0) ((partial 2) ((partial 3) L))) (up t x v a)))
+   (* a (((partial 1) ((partial 3) L)) (up t x v a)))
+   (* -1 a (((partial 2) ((partial 2) L)) (up t x v a)))
+   (* 2 j (((partial 0) ((partial 3) ((partial 3) L))) (up t x v a)))
+   (* p (((partial 3) ((partial 3) L)) (up t x v a)))
+   (* 2 v (((partial 0) ((partial 1) ((partial 3) L))) (up t x v a)))
+   (* -1 v (((partial 1) ((partial 2) L)) (up t x v a)))
+   (((partial 0) ((partial 0) ((partial 3) L))) (up t x v a))
+   (* -1 (((partial 0) ((partial 2) L)) (up t x v a)))
+   (((partial 1) L) (up t x v a)))
 |#

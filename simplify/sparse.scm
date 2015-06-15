@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -45,6 +45,11 @@ USA.
 (define (sparse-constant-term? term)
   (for-all? (sparse-exponents term) zero?))
 
+(define (sparse-univariate? p)
+  (and (pair? p)
+       (fix:= (length (sparse-exponents (car p)))
+	      1)))
+
 (define (sparse-constant? p)
   (and (fix:= (length p) 1)
        (sparse-constant-term? (car p))))
@@ -63,8 +68,7 @@ USA.
 (define (sparse-zero-term? t)
   (and (sparse-constant-term? t)
        (= (sparse-coefficient t) 0)))
-
-
+
 (define (sparse-constant-term arity-n constant)
   (sparse-term (make-list arity-n 0) constant))
 
@@ -84,7 +88,7 @@ USA.
       (list (sparse-identity-term arity-n varnum)
 	    (sparse-constant-term arity-n (- root)))))
 
-
+
 (define (sparse-term-> t1 t2)
   (sparse:>exponents? (sparse-exponents t1)
 		      (sparse-exponents t2)))
@@ -104,6 +108,7 @@ USA.
 		   ((fix:> (car l1) (car l2)) #t)
 		   ((fix:< (car l1) (car l2)) #f)
 		   (else (lp (cdr l1) (cdr l2)))))))))
+
 #|
 ;;; Lexicographical Order
 
@@ -117,19 +122,28 @@ USA.
 |#
 
 (define (sparse-normalize poly term)
-  (map (lambda (pterm)
-	 (sparse-term
-	  (map - (sparse-exponents pterm) (sparse-exponents term))
-	  (/ (sparse-coefficient pterm) (sparse-coefficient term))))
-       poly))
+  (if (or (and (number? term) (= term 1))
+	  (sparse-one-term? term))
+      poly
+      (map (lambda (pterm)
+	     (sparse-term
+	      (map - (sparse-exponents pterm) (sparse-exponents term))
+	      (/ (sparse-coefficient pterm) (sparse-coefficient term))))
+	   poly)))
 
 (define (sparse-scale poly term)
-  (map (lambda (pterm)
-	 (sparse-term
-	  (map + (sparse-exponents pterm) (sparse-exponents term))
-	  (* (sparse-coefficient pterm) (sparse-coefficient term))))
-       poly))
+  (if (or (and (number? term) (= term 1))
+	  (sparse-one-term? term))
+      poly
+      (map (lambda (pterm)
+	     (sparse-term
+	      (map + (sparse-exponents pterm) (sparse-exponents term))
+	      (* (sparse-coefficient pterm) (sparse-coefficient term))))
+	   poly)))
 
+(define (sparse-negate-term t)
+  (sparse-term (sparse-exponents t) (- (sparse-coefficient t))))
+
 (define (sparse-add xlist ylist)
   (let tloop ((xlist xlist) (ylist ylist))
     (cond ((null? xlist) ylist)
@@ -148,9 +162,6 @@ USA.
 		    (cons (car xlist) (tloop (cdr xlist) ylist)))
 		   (else
 		    (cons (car ylist) (tloop xlist (cdr ylist))))))))))
-
-(define (negate-term t)
-  (sparse-term (sparse-exponents t) (- (sparse-coefficient t))))
 
 (define (sparse-multiply xlist ylist)
   (let lp ((xlist xlist))
@@ -190,7 +201,7 @@ USA.
 					  (/ ncoef dcoef))))
 		     (dloop
 		      (sparse-add (cdr nterms)
-		        (sparse-multiply-term (negate-term qt)
+		        (sparse-multiply-term (sparse-negate-term qt)
 			  (cdr denominator-terms)))
 		      (lambda (q r)
 			(cont (sparse-add (list qt) q) r)))))
@@ -227,36 +238,43 @@ USA.
 			     (pp `((sq ,sq) (sr ,sr))))))))))
 |#
 
-;;; Evaluation of polynomials at argument vectors.
+;;; Evaluation of polynomials at argument lists.
 
 (define (sparse-evaluate p x)
-  (apply +
-	 (map (lambda (term)
-		(* (sparse-coefficient term)
-		   (apply *
-			  (map expt
-			       x
-			       (sparse-exponents term)))))
-	      p)))
+  (if (null? p)
+      0
+      (begin
+	(assert (fix:= (length x)
+		       (length (sparse-exponents (car p)))))
+	(apply +
+	       (map (lambda (term)
+		      (* (sparse-coefficient term)
+			 (apply *
+				(map expt
+				     x
+				     (sparse-exponents term)))))
+		    p)))))
 
 
 ;;; If x is smaller than the arity of p then the last vars are filled
 ;;; in by components of x, making a polynomial of lesser arity.
 
 (define (sparse-evaluate> p x)
-  (let* ((n (length x))
-	 (arity (length (sparse-exponents (car p))))
-	 (narity (- arity n)))
-    (combine-like-terms
-     (map (lambda (term)
-	    (sparse-term (list-head (sparse-exponents term) narity)
-			 (* (sparse-coefficient term)
-			    (apply *
-				   (map expt
-					x
-					(list-tail (sparse-exponents term)
-						   narity))))))
-	  p))))
+  (if (or (null? x) (null? p))
+      p
+      (let* ((n (length x))
+	     (arity (length (sparse-exponents (car p))))
+	     (narity (- arity n)))
+	(sparse-combine-like-terms
+	 (map (lambda (term)
+		(sparse-term (list-head (sparse-exponents term) narity)
+			     (* (sparse-coefficient term)
+				(apply *
+				       (map expt
+					    x
+					    (list-tail (sparse-exponents term)
+						       narity))))))
+	      p)))))
 
 #|
 (print-expression
@@ -267,17 +285,19 @@ USA.
 |#
 
 (define (sparse-evaluate< p x)
-  (let ((n (length x)))
-    (combine-like-terms
-     (map (lambda (term)
-	    (sparse-term (list-tail (sparse-exponents term) n)
-			 (* (sparse-coefficient term)
-			    (apply *
-				   (map expt
-					x
-					(list-head (sparse-exponents term)
-						   n))))))
-	  p))))
+  (if (or (null? x) (null? p))
+      p
+      (let ((n (length x)))
+	(sparse-combine-like-terms
+	 (map (lambda (term)
+		(sparse-term (list-tail (sparse-exponents term) n)
+		  (* (sparse-coefficient term)
+		     (apply *
+			    (map expt
+				 x
+				 (list-head (sparse-exponents term)
+					    n))))))
+	      p)))))
 
 #|
 (print-expression
@@ -287,10 +307,10 @@ USA.
 (((1) . (+ 4 (* x y))) ((0) . (+ 1 (* 3 (expt x 2) (expt y 3)))))
 |#
 
-(define (combine-like-terms terms)
-  (merge-adjacent-terms (sort terms sparse-term->)))
+(define (sparse-combine-like-terms terms)
+  (sparse-merge-adjacent-terms (sort terms sparse-term->)))
 
-(define (merge-adjacent-terms terms)
+(define (sparse-merge-adjacent-terms terms)
   (cond ((null? terms)
 	 '())
 	((null? (cdr terms))
@@ -302,10 +322,11 @@ USA.
 	 (let ((coeff (+ (sparse-coefficient (car terms))
 			 (sparse-coefficient (cadr terms)))))
 	   (if (= coeff 0)
-	       (merge-adjacent-terms (cddr terms))
-	       (merge-adjacent-terms
-		(cons (sparse-term (sparse-exponents (car terms)) coeff)
+	       (sparse-merge-adjacent-terms (cddr terms))
+	       (sparse-merge-adjacent-terms
+		(cons (sparse-term (sparse-exponents (car terms))
+				   coeff)
 		      (cddr terms))))))
 	(else
 	 (cons (car terms)
-	       (merge-adjacent-terms (cdr terms))))))
+	       (sparse-merge-adjacent-terms (cdr terms))))))

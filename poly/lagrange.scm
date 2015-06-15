@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,6 +35,8 @@ USA.
 ;;; evaluates the polynomial interpolating SIN at the given points.
 ;;; 
 
+;;; Edited by GJS 10Jan09
+
 (declare (usual-integrations + - * /))
 
 ;;; Needs: ENCLOSE/COMCON (for LAMBDAFY, LETIFY utilities)
@@ -51,6 +53,24 @@ USA.
 					  (make-linear-interpolator
 					   (table-of eqv? xs diffs))))))))
 
+#|
+(pp (lagrange '(y1 y2 y3 y4) '(x1 x2 x3 x4)))
+(lambda (x98)
+  (let ((y99 (- x98 x1)) (y100 (- x98 x2)) (y101 (- x98 x3)) (y102 (- x98 x4)))
+    (let ((y103 (/ (- (* y3 y100) (* y2 y101)) (- x3 x2))))
+      (/
+       (-
+        (*
+         (/ (- (* (/ (- (* y4 y101) (* y3 y102)) (- x4 x3)) y100) (* y103 y102))
+            (- x4 x2))
+         y99)
+        (*
+         (/ (- (* y103 y99) (* (/ (- (* y2 y99) (* y1 y100)) (- x2 x1)) y101))
+            (- x3 x1))
+         y102))
+       (- x4 x1)))))
+|#
+
 
 #|
 (define (lagrange ys xs)
@@ -59,6 +79,10 @@ USA.
 		      (make-linear-interpolator
 		       (table-of eqv? xs (map (lambda (x) (- var x)) xs))))))
 |#
+
+
+
+
 
 (define (triangle-iterate xs v f)	;(f x0 x1 v0 v1)
   (define (all-except-ends l)
@@ -96,21 +120,16 @@ USA.
 		 (vector->list exp)))
       exp))
 	     
-
+#|
 (define (lagrange-interpolation-function ys xs)
   (lambda->interpreted-generic-procedure
    (lagrange ys xs)))
 
-#|
+
 (define (lagrange-interpolation-function ys xs)
   (lagrange (vector->list ys)
 	    (vector->list xs)))      
 |#
-
-
-
-
-
 
 
 

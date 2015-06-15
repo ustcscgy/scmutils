@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -130,7 +130,7 @@ USA.
 ;;; In the limit as n->infinity the length of the nth Farey sequence is
 
 (define (Farey-length n)
-  (* (/ 3 (square :pi)) (square n)))
+  (* (/ 3 (square pi)) (square n)))
 
 #|
 (length (Farey-sequence 20))
@@ -154,7 +154,7 @@ USA.
 				     (map (lambda (p)
 					    (if (> p q) '() (list (/ p q))))
 					  (iota m))))
-			 (iota m 1)))
+			 (cdr (iota m))))
 	  <)))
 
 (define (Lamothe-simplicity m/n)
@@ -220,7 +220,7 @@ USA.
 (Farey-encode-real 5/8 10)
 ;Value: (L R L R)
 
-(Farey-encode-real :pi 20)
+(Farey-encode-real pi 20)
 ;Value: (R R R L L L L L L L R R R R R R R R R R)
 
 (Farey-encode-real :phi 20)
@@ -249,7 +249,7 @@ USA.
 
 ;;; Farey-encoding is not very efficient.
 
-(Farey-decode (Farey-encode-real :pi 25))
+(Farey-decode (Farey-encode-real pi 25))
 ;Value: 355/113
 |#
 

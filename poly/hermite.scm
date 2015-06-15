@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,10 +23,14 @@ USA.
 
 |#
 
-;;; Hermite interpolation 6/1/89 (mh)
+;;;; Hermite interpolation 6/1/89 (mh)
 
-;;; This is currently configured to only work for polynomials with
-;;;  numerical coefficients. (gjs)
+;;; Edited by GJS 10Jan09
+
+(declare (usual-integrations))
+
+;;; This is currently configured to work for polynomials with only
+;;; numerical coefficients. (gjs)
 
 ;;; Return the cubic polynomial that matches specified value and
 ;;; slope at each of two points.
@@ -41,11 +45,12 @@ USA.
       ;; make the polynomial on [0,1] and then scale.
       ;; Note: the derivative must be scaled initially
       (let ((s (- b a)))
-        (let ((p (poly:+ (poly:scale fa h0)
-			 (poly:scale fb h1)
-			 (poly:scale (* s fpa) h2)
-			 (poly:scale (* s fpb) h3))))
-          (poly:arg-shift (poly:arg-scale p (/ 1 s)) (- a)))))
+        (let ((p (poly:+ (poly:+ (poly:scale h0 fa)
+				 (poly:scale h1 fb))
+			 (poly:+ (poly:scale h2 (* s fpa))
+				 (poly:scale h3 (* s fpb))))))
+          (poly:arg-shift (poly:arg-scale p (list (/ 1 s)))
+			  (list (- a))))))
     cubic-interpolant))
 
 
@@ -53,19 +58,20 @@ USA.
 ;;; and first two derivatives at each of two points.
 
 (define make-quintic-interpolant
-  (let ((m (matrix:invert
-	    #(#(1  0  0  0  0  0)
-	      #(0  1  0  0  0  0)
-	      #(0  0  2  0  0  0)
-	      #(1  1  1  1  1  1)
-	      #(0  1  2  3  4  5)
-	      #(0  0  2  6 12 20)))))
+  (let ((m
+	 (m:invert (matrix-by-rows '(1  0  0  0  0  0)
+				   '(0  1  0  0  0  0)
+				   '(0  0  2  0  0  0)
+				   '(1  1  1  1  1  1)
+				   '(0  1  2  3  4  5)
+				   '(0  0  2  6 12 20)))))
     (define (quintic-interpolant a fa fpa fppa b fb fpb fppb)
       (let* ((s (- b a))
              (v (vector fa (* fpa s) (* fppa s s)
                         fb (* fpb s) (* fppb s s)))
-             (p (poly:dense-> (vector->list (matrix:matrix*vector m v)))))
-        (poly:arg-shift (poly:arg-scale p (/ 1 s)) (- a))))
+             (p (poly:dense-> (vector->list (matrix*vector m v)))))
+        (poly:arg-shift (poly:arg-scale p (list (/ 1 s)))
+			(list (- a)))))
     quintic-interpolant))
 
 
@@ -92,7 +98,7 @@ USA.
                        (if (fix:< j i)
                            0
                            (! i (fix:- j (fix:+ i -1))))))))
-         (mat (matrix:invert (generate-matrix 2m 2m term))))
+         (mat (m:invert (m:generate 2m 2m term))))
     (define (hermite-interpolator avals bvals)
       (let* ((a (car avals)) (b (car bvals))
              (s (- b a))
@@ -106,7 +112,8 @@ USA.
 				     (scale (map *s (cdr L))))))))
                       scale))
              (v (list->vector (append (scale (cdr avals)) (scale (cdr bvals)))))
-             (p (poly:dense-> (vector->list (matrix:matrix*vector mat v)))))
-        (poly:arg-shift (poly:arg-scale p (/ 1 s)) (- a))))
+             (p (poly:dense-> (vector->list (matrix*vector mat v)))))
+        (poly:arg-shift (poly:arg-scale p (list (/ 1 s)))
+			(list (- a)))))
     hermite-interpolator))
 

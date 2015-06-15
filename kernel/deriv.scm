@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -31,13 +31,15 @@ USA.
 ;;; generic operators for differential quantities.  We also defined
 ;;; DIFF:DERIVATIVE, the procedure that produces the derivative
 ;;; function of a real-valued function of a real argument.  Here we
-;;; use this mechanism to build derivatives of systems with structured
-;;; arguments and structured values.  The basic rule is that a
-;;; derivative function produces a value which may be multiplied by an
-;;; increment of the argument to get a linear approximation to the
-;;; increment in the function.
+;;; use this mechanism to build derivatives of systems with
+;;; structured arguments and structured values.  The basic rule is
+;;; that a derivative function produces a value which may be
+;;; multiplied by an increment of the argument to get a linear
+;;; approximation to the increment in the function.
 
-;;; Let's start with functions on Euclidean space:
+;;; Let's start with functions on Euclidean space.  We create a
+;;; Euclidean-space derivative so that we may pass in an arbitrary
+;;; structure of nested vectors and covectors.
 ;;;
 ;;;           f
 ;;;     R^n -----> R^m
@@ -51,65 +53,39 @@ USA.
 ;;; It is only for these Euclidean spaces that we can identify the
 ;;; manifold with its tangent space at each point.  This will be a
 ;;; problem we will get back to later.  Note that df is a linear
-;;; function, so it can be represented by an mXn matrix. (That is, 
+;;; function, so it can be represented by an mXn matrix. (That is,
 ;;; one with m rows and n columns.)
 
-;;; One first try is to reduce the problem to simple derivatives.
-#|
-(define (deriv:euclidean f)
+;;; Note: it makes no difference if the deriv:euclidean-structure is
+;;; linear-memoized... Never get a cache hit.
+
+(define (deriv:euclidean-structure f selectors)
+  (define (sd g v)
+    (cond ((structure? v)
+	   (s:generate (s:length v) (s:opposite v)
+		       (lambda (i)
+			 (sd (lambda (xi)
+			       (g (s:with-substituted-coord v i xi)))
+			     (s:ref v i))))) 
+	  ((or (numerical-quantity? v) (abstract-quantity? v))
+	   (simple-derivative-internal g v))
+	  (else
+	   (error "Bad structure -- DERIV:EUCLIDEAN-STRUCTURE" g v))))
   (define (a-euclidean-derivative v)
-    (cond ((vector? v)
-	   (let ((a
-		  (v:generate (vector-length v)
-		    (lambda (i)
-		      (simple-derivative-internal
-		       (lambda (xi)
-			 (f (vector-with-substituted-coord v i xi)))
-		       (vector-ref v i))))))
-	     (if (vector? (vector-ref a 0))
-		 (array->matrix (transpose-array a))
-		 a)))
-	  ((abstract-vector? v)
-	   ???)
-	  ((numerical-quantity? v)
+    (cond ((structure? v)
+	   (sd (lambda (w)
+		 (f (s:subst-internal v w selectors)))
+	       (ref-internal v selectors)))
+	  ((null? selectors)
 	   (simple-derivative-internal f v))
 	  (else
-	   (error "Bad argument to derivative" f v))))
+	   (error "Bad selectors -- DERIV:EUCLIDEAN-STRUCTURE"
+		  f selectors v))))
   a-euclidean-derivative)
-|#
-;;; In order to implement derivatives with respect to abstract
-;;; quantities we need to create more types -- differential vector,
-;;; differential matrix, etc?  Let's attack that later.
-
-;;; One thing that we notice is funny about this procedure is the
-;;; strange conversion of the vector of vectors into a transposed
-;;; matrix.  This is because we are not keeping the up/down parity of
-;;; indices here.  We could do better if we realized that a row vector
-;;; of column vectors (which we are naturally creating) is the same as
-;;; the column of rows that is the canonical form for a matrix.
 
-;;; We generalize this Euclidean-space derivative so that we may pass
-;;; in an arbitrary structure of nested vectors.
-
-(define (deriv:euclidean-structure f)
-    (define (sd g v)
-      (cond ((structure? v)
-	     (s:generate (s:length v) (s:opposite v)
-			 (lambda (i)
-			   (sd (lambda (xi)
-				 (g (s:with-substituted-coord v i xi)))
-			       (s:ref v i))))) 
-	    ((or (numerical-quantity? v)
-		 (abstract-quantity? v))
-	     (simple-derivative-internal g v))
-	    (else
-	     (error "Bad structure -- DERIV:EUCLIDEAN-STRUCTURE"
-		    g v))))
-    (define (a-euclidean-derivative v)
-      (sd f v))
-    a-euclidean-derivative)
-
 #|
+;;; An old failed experiment...
+
 (define (deriv:euclidean-structure f)
   (define (sd g v)
     (cond ((structure? v)
@@ -153,99 +129,55 @@ USA.
 ;;; To recover this idea see custom-repl.scm
 |#
 
-;;; We ignore abstract structures, for the nonce.
-;;; There are structures.  A structure is like a vector, but it is
-;;; either UP or DOWN.  S:GENERATE takes an argument that gives the
-;;; UP/DOWN type.  S:OPPOSITE computes the toggle of that bit.
-
-#|;;; Harmonic oscillator example
-
-(pp
- (expression
-  (let ((k (literal-number 'k)) (m (literal-number 'm)))
-    ((deriv:euclidean-structure
-      (lambda (v)
-	(let ((t (s:ref v 0))
-	      (q (s:ref v 1))
-	      (p (s:ref v 2)))
-	  (+ (/ (* p (m:transpose p))
-		(* 2 m))
-	     (* 1/2 k (* (m:transpose q) q))
-	     (sin t)))))
-     (up (literal-number 't)
-	 (up (literal-number 'x)
-	     (literal-number 'y))
-	 (down (literal-number 'px)
-	       (literal-number 'py)))))))
-(down (cos t)
-      (down (* (* 1/2 k) (+ x x))
-	    (* (* 1/2 k) (+ y y)))
-      (up (* (/ 1 (* 2 m)) (+ px px))
-	  (* (/ 1 (* 2 m)) (+ py py))))
-|#
-
 ;;; Once we have this, we can implement derivatives of multivariate
 ;;; functions by wrapping their arguments into an UP-STRUCTURE for
-;;; differentiation by DERIV:EUCLIDEAN-STRUCTURE.
+;;; differentiation by DERIV:EUCLIDEAN-STRUCTURE.  This code sucks!
 
-(define (deriv:multivariate-derivative f)
-  (let ((a (g:arity f)))
-    (cond ((equal? a *at-least-zero*)
-	   (lambda args
-	     (let ((ans
-		    ((deriv:euclidean-structure
-		      (lambda (s) (g:apply f (up-structure->list s))))
-		     (list->up-structure args))))
-	       (if (and (null? (cdr args)) ;one structure argument
-			(structure? (car args)))
-		   (g:ref ans 0)	   ;flush a level of structure
-		   ans))))
-	  ((equal? a *exactly-zero*)
+(define (deriv:multivariate-derivative f selectors)
+  (let ((a (g:arity f))
+	(d (lambda (f) (deriv:euclidean-structure f selectors))))
+    (cond ((equal? a *exactly-zero*)
 	   (lambda () :zero))
 	  ((equal? a *at-least-one*)
 	   (lambda (x . y)
-	     ((deriv:euclidean-structure
-	       (lambda (s) (g:apply f (up-structure->list s))))
+	     ((d (lambda (s) (g:apply f (up-structure->list s))))
 	      (list->up-structure (cons x y)))))
 	  ((equal? a *exactly-one*)
-	   (deriv:euclidean-structure f))
+	   (d f))
 	  ((equal? a *at-least-two*)
 	   (lambda (x y . z)
-	     ((deriv:euclidean-structure
-	       (lambda (s) (g:apply f (up-structure->list s))))
+	     ((d (lambda (s) (g:apply f (up-structure->list s))))
 	      (list->up-structure (cons* x y z)))))
 	  ((equal? a *exactly-two*)
 	   (lambda (x y)
-	     ((deriv:euclidean-structure
-	       (lambda (s) (g:apply f (up-structure->list s))))
+	     ((d (lambda (s) (g:apply f (up-structure->list s))))
 	      (list->up-structure (list x y)))))
 	  ((equal? a *at-least-three*)
 	   (lambda (u x y . z)
-	     ((deriv:euclidean-structure
-	       (lambda (s) (g:apply f (up-structure->list s))))
+	     ((d (lambda (s) (g:apply f (up-structure->list s))))
 	      (list->up-structure (cons* u x y z)))))
 	  ((equal? a *exactly-three*)
 	   (lambda (x y z)
-	     ((deriv:euclidean-structure
-	       (lambda (s) (g:apply f (up-structure->list s))))
+	     ((d (lambda (s) (g:apply f (up-structure->list s))))
 	      (list->up-structure (list x y z)))))
 	  ((equal? a *one-or-two*)
 	   (lambda (x #!optional y)
 	     (if (default-object? y)
-		 ((deriv:euclidean-structure f) x)
-		 ((deriv:euclidean-structure
-		   (lambda (s) (g:apply f (up-structure->list s))))
+		 ((d f) x)
+		 ((d (lambda (s)
+		       (g:apply f (up-structure->list s))))
 		  (list->up-structure (list x y))))))
 	  (else
 	   (lambda args
-	     (let ((ans
-		    ((deriv:euclidean-structure
-		      (lambda (s) (g:apply f (up-structure->list s))))
-		     (list->up-structure args))))
-	       (if (and (null? (cdr args)) ;one structure argument
-			(structure? (car args)))
-		   (g:ref ans 0)	   ;flush a level of structure
-		   ans)))))))
+	     (cond ((null? args)
+		    (error "No args passed to derivative?")
+		    0)
+		   ((null? (cdr args))	; one argument
+		    ((d f) (car args)))
+		   (else
+		    ((d (lambda (s)
+			  (g:apply f (up-structure->list s))))
+		     (list->up-structure args)))))))))
 
 #|
 (define (deriv:derivative f)
@@ -272,40 +204,11 @@ USA.
 	  (* (/ 1 (* 2 m)) (+ py py))))
 |#
 
-
-;;; Also, there is no problem implementing a general kind of partial
-;;; derivative once we have this, because the partial derivative
-;;; operation is nothing more than a selector operation composed with
-;;; the result of the DERIV:MULTIVARIATE-DERIVATIVE.  Of course, there
-;;; may be some special cases where these are computed without working
-;;; out the whole shebang, but that is relatively easy.
-
-;;; The selectors are numerical indices into the argument structure.
-#|
-(define (deriv:pd f selectors)
-  (let lp ((selectors selectors)
-	   (ans (deriv:multivariate-derivative f))) 
-    (if (null? selectors)
-	(compose s:canonicalize ans)
-	(lp (cdr selectors)
-	    (compose (lambda (s)
-		       (s:ref s (car selectors)))
-		     ans)))))
-|#
-
-(define (deriv:pd f selectors)
-  (let lp ((selectors selectors)
-	   (ans (deriv:multivariate-derivative f))) 
-    (if (null? selectors)
-	ans
-	(lp (cdr selectors)
-	    (compose (lambda (s)
-		       (s:ref s (car selectors)))
-		     ans)))))
-
-;;; (assign-operation 'partial-derivative  deriv:pd   function? any?)
-
 (assign-operation 'partial-derivative
-		  deriv:pd
+		  deriv:multivariate-derivative
 		  (disjunction function? structure?)
 		  any?)
+
+;;; In order to implement derivatives with respect to abstract
+;;; quantities we need to create more types -- differential vector,
+;;; differential matrix, etc?  Let's attack that later.

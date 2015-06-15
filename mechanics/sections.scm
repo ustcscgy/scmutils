@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -39,10 +39,9 @@ USA.
 	 (lambda (nx ny)
 	   (plot-point window x y)
 	   (iterate-map (fix:- i 1) nx ny))
-	 (lambda ()  
-	   (newline)
+	 (lambda ()
 	   (display "Illegal point: ")
-	   (write (list  x y))
+	   (write-line (list  x y))
 	   (button-loop x y)))
 	(button-loop x y)))
   (define (button-loop ox oy)
@@ -51,16 +50,16 @@ USA.
      (lambda (x y button)
        (case button
 	 ((0)
+	  (display "Started: ")
 	  (write-line (list x y))
-	  (display " started.")
 	  (iterate-map n x y))
 	 ((1) 
+	  (display "Continued: ")
 	  (write-line (list ox oy))
-	  (display " continued.")
 	  (iterate-map n ox oy))
 	 ((2)
+	  (display "Hit: ")
 	  (write-line (list x y))
-	  (display " hit.")
 	  (button-loop ox oy))))))
   (if (default-object? n) (set! n 1000))
   (newline)
@@ -69,6 +68,7 @@ USA.
   (display "Middle button continues a trajectory.")
   (newline)
   (display "Right button interrogates coordinates.")
+  (newline)
   (button-loop 9. 9.))
 
 (define (pointer-coordinates window continue)

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,6 +23,39 @@ USA.
 
 |#
 
+;;; Edited by GJS 10Jan09
 
-(load "interp" generic-environment)
+;;; Hairy polynomial rootfinder.  Not so good, but I tried (GJS)
 (load "polyroot" scmutils-base-environment)
+
+;;; The Polynomial Interpolator: generic code.
+;;; export = (Lagrange-interpolation-function ys xs)
+(with-case-preserved
+    (lambda ()
+      (load "interp-generic" generic-environment)))
+
+;;; A compiled Polynomial Interpolator: fast numerical code.
+;;; export = (lagrange-interpolation-function ys xs)
+(load "interp" scmutils-base-environment)
+
+
+;;;     Halfant stuff
+;;; Elegant constructor of custom Lagrange interpolator procedures
+(load "lagrange" generic-environment)
+
+;;;     Actual polynomial codes (requires pcf)
+;;; Shifts and scales polynomial domains, 
+;;; makes interpolation polynomials, estimates errors.
+(load "polyinterp" scmutils-base-environment)
+
+;;; Legendre polynomials
+(load "legendre" scmutils-base-environment)
+
+;;; Hermite interpolators (splines)
+(load "hermite" scmutils-base-environment)
+
+;;; Chebyshev expansions, economization
+(load "nchebpoly" scmutils-base-environment)
+
+;;; Piecewise polynomial approximations; good function memoizers
+(load "ppa" scmutils-base-environment)

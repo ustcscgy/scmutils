@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -116,13 +116,13 @@ USA.
 
 (define (modint:expt base exponent p)
   (define (square x)
-    (mod:* x x p))
+    (modint:* x x p))
   (let lp ((exponent exponent))
     (cond ((int:= exponent 0) 1)
 	  ((even? exponent)
 	   (square (lp (quotient exponent 2))))
 	  (else
-	   (mod:* base (lp (int:- exponent 1)) p)))))
+	   (modint:* base (lp (int:- exponent 1)) p)))))
 
 
 (define mod:+ (mod:binary-combine modint:+))
@@ -150,7 +150,7 @@ USA.
 ;;;   Finds x such that  m[i] = x mod p[i]
 
 (define (mod:chinese-remainder . modints)
-  (assert (forall modint? modints))
+  (assert (for-all? modints modint?))
   (let ((moduli (map mod:modulus modints))
 	(residues (map mod:residue modints)))
     ((modint:chinese-remainder moduli) residues)))

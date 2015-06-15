@@ -76,7 +76,8 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 	       (lambda vectors	
 		 (assert (fix:= (length vectors) (fix:+ k 1)))
 		 (lambda (point)
-		   (let ((n (s:dimension point)))
+		   (let ((n ((point->manifold point) 'dimension)))
+		     ;;(s:dimension (manifold-point-representation point))
 		     (if (fix:< k n)
 			 (sigma
 			  (lambda (i)
@@ -99,8 +100,8 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 			  0 k)
 			 0))))))
 	  (procedure->nform-field the-k+1form
-				  `(d ,(diffop-name kform))
-				  (fix:+ (get-rank kform) 1))))))
+				  (fix:+ (get-rank kform) 1)
+				  `(d ,(diffop-name kform)))))))
 
 (define exterior-derivative
   (make-operator exterior-derivative-procedure
@@ -117,32 +118,35 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 ;;; wedges of the corresponding dual basis elements.
 
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
+(install-coordinates R3-rect (up 'x 'y 'z))
 
-(define w (literal-1form-field 'w R3))
-(define u (literal-1form-field 'u R3))
-(define v (literal-1form-field 'v R3))
+(define R3-rect-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
-(define X (literal-vector-field 'X R3))
-(define Y (literal-vector-field 'Y R3))
-(define Z (literal-vector-field 'Z R3))
-(define W (literal-vector-field 'W R3))
+(install-coordinates R3-cyl (up 'r 'theta 'zeta))
+
+(define R3-cyl-point ((R3-cyl '->point) (up 'r0 'theta0 'zeta0)))
 
 
-(pec (((d (literal-scalar-field 'f R3)) X)
-      R3-point))
+(define w (literal-1form-field 'w R3-rect))
+(define u (literal-1form-field 'u R3-rect))
+(define v (literal-1form-field 'v R3-rect))
+
+(define X (literal-vector-field 'X R3-rect))
+(define Y (literal-vector-field 'Y R3-rect))
+(define Z (literal-vector-field 'Z R3-rect))
+(define W (literal-vector-field 'W R3-rect))
+
+
+(pec (((d (literal-scalar-field 'f R3-rect)) X)
+      R3-rect-point))
 #| Result:
 (+ (* (((partial 0) f) (up x0 y0 z0)) (X^0 (up x0 y0 z0)))
    (* (((partial 1) f) (up x0 y0 z0)) (X^1 (up x0 y0 z0)))
    (* (((partial 2) f) (up x0 y0 z0)) (X^2 (up x0 y0 z0))))
 |#
 
-(define cylindrical (polar/cylindrical 3))
-
-(pec ((((square d) (literal-scalar-field 'f R3)) X Y)
-      ((cylindrical '->point) (up 'r^0 'theta^0 'z^0))))
+(pec ((((square d) (literal-scalar-field 'f R3-rect)) X Y)
+      R3-cyl-point))
 #| Result:
 0
 |#
@@ -152,32 +156,32 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 (clear-arguments)
 (suppress-arguments (list '(up x0 y0 z0)))
 
-(pec (((d w) X Y) R3-point)
+(pec (((d w) X Y) R3-rect-point)
      (compose arg-suppressor simplify))
 #| Result:
-(+ (* ((partial 0) w_1) X^0 Y^1)
-   (* -1 ((partial 0) w_1) X^1 Y^0)
-   (* -1 ((partial 1) w_0) X^0 Y^1)
-   (* ((partial 1) w_0) X^1 Y^0)
-   (* X^0 Y^2 ((partial 0) w_2))
-   (* -1 X^0 Y^2 ((partial 2) w_0))
-   (* Y^2 X^1 ((partial 1) w_2))
-   (* -1 Y^2 X^1 ((partial 2) w_1))
-   (* -1 X^2 ((partial 0) w_2) Y^0)
-   (* X^2 ((partial 2) w_0) Y^0)
-   (* -1 X^2 ((partial 1) w_2) Y^1)
-   (* X^2 ((partial 2) w_1) Y^1))
+(+ (* Y^2 ((partial 0) w_2) X^0)
+   (* Y^2 ((partial 1) w_2) X^1)
+   (* -1 Y^2 ((partial 2) w_0) X^0)
+   (* -1 Y^2 ((partial 2) w_1) X^1)
+   (* -1 Y^0 ((partial 0) w_2) X^2)
+   (* Y^0 ((partial 2) w_0) X^2)
+   (* Y^0 ((partial 1) w_0) X^1)
+   (* -1 Y^0 ((partial 0) w_1) X^1)
+   (* -1 ((partial 1) w_2) Y^1 X^2)
+   (* ((partial 2) w_1) Y^1 X^2)
+   (* -1 Y^1 ((partial 1) w_0) X^0)
+   (* Y^1 ((partial 0) w_1) X^0))
 |#
 
 (define omega
-  (+ (* (literal-scalar-field 'omega_0 R3)
+  (+ (* (literal-scalar-field 'omega_0 R3-rect)
 	(wedge dx dy))
-     (* (literal-scalar-field 'omega_1 R3)
+     (* (literal-scalar-field 'omega_1 R3-rect)
 	(wedge dy dz))
-     (* (literal-scalar-field 'omega_2 R3)
+     (* (literal-scalar-field 'omega_2 R3-rect)
 	(wedge dz dx))))
 
-(pec (((d omega) X Y Z) R3-point)
+(pec (((d omega) X Y Z) R3-rect-point)
      (compose arg-suppressor simplify))
 #| Result:
 (+ (* X^0 Z^2 ((partial 0) omega_1) Y^1)
@@ -200,7 +204,7 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
    (* -1 X^2 Z^0 ((partial 2) omega_0) Y^1))
 |#
 
-(pec (((d (d omega)) X Y Z W) R3-point))
+(pec (((d (d omega)) X Y Z W) R3-rect-point))
 #| Result:
 0
 |#
@@ -211,6 +215,7 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 ;;; One problem is that this needs the coordinate system to make the
 ;;; constant vector field.
 
+;;; Broken because coordinate systems must be associated with patches.
 (define (make-constant-vector-field m0 v)
   (let ((coordinate-system (rectangular (s:dimension m0))))
     (components->vector-field (lambda (coords)
@@ -222,7 +227,8 @@ v1_bar(w(v2_bar))(x) - v2_bar(w(v1_bar))(x)
 (define (((exterior-derivative-helper kform) #!rest vectors) point)
   (let ((k (get-rank kform)))
     (assert (fix:= (length vectors) (fix:+ k 1)))
-    (let ((n (s:dimension point)))
+    (let ((n ((point->manifold point) 'dimension)))
+      ;;(s:dimension (manifold-point-representation point))
       (cond ((fix:= k 0)
 	     (((ref vectors 0) kform) point))		 
 	    ((fix:< k n)

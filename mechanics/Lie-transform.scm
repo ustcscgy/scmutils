@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -181,7 +181,14 @@ p_0
  (+ (/ (* (expt dt 3) p_phi_0 (expt p_r_0 2)) (* (expt m 3) (expt r_0 4)))
     (/ (* 1/3 GM (expt dt 3) p_phi_0) (* (expt m 2) (expt r_0 5)))
     (/ (* -1/3 (expt dt 3) (expt p_phi_0 3)) (* (expt m 3) (expt r_0 6)))))
-
+;;; Binah: 9 December 2009
+;;;  With simple-derivative-internal memoized
+;;;   process time: 2830 (2830 RUN + 0 GC); real time: 2846
+;;;  Without memoization
+;;;   process time: 1360 (1360 RUN + 0 GC); real time: 1377
+;;;  But memoization makes some stuff feasible (see calculus/tensor.scm).
+;;;
+;;; Earlier
 ;;; MAHARAL 
 ;;;         process time: 3940 (3710 RUN + 230 GC); real time: 3956
 ;;; HOD     

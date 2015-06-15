@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -88,8 +88,8 @@ USA.
   
 (define *important-numbers*
   `((1 1)
-    (,:pi :pi)
-    (,(/ 1 :pi) (/ 1 :pi))
+    (,pi :pi)
+    (,(/ 1 pi) (/ 1 :pi))
     (,(exp 1) (exp 1))
     (,(exp -1) (exp -1))
     (,(sqrt 2) (sqrt 2))
@@ -129,7 +129,7 @@ USA.
 
 #|
 ;;; previous idea
-		 (let* ((ag (/ (angle z) :pi))
+		 (let* ((ag (/ (angle z) pi))
 			(af (heuristic-round-real ag)))
 		   (if (= ag af)
 		       (make-rectangular (heuristic-round-real r)
@@ -141,6 +141,8 @@ USA.
 ;;; (set! heuristic-number-canonicalizer heuristic-canonicalize-complex)
 
 #|
+;;; Watch out--symb:pi is now in numsymb.scm
+
 (define (heuristic-round-angle a)
   (let* ((ag (/ a :pi))
 	 (af (heuristic-round-real ag)))

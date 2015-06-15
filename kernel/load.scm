@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -56,12 +56,12 @@ USA.
 (load "types"    scmutils-base-environment)
 ;;(load "/usr/local/scmutils/src/kernel/types.scm.~21~"    scmutils-base-environment)
 
-;;;(define (diff-memoize-1arg f) f)
-;;;(define (diff-memoize-2arg f) f)
-;;;(define (diff-memoize f) f)
-(define (diff-memoize-1arg f) (linear-memoize-1arg f))
-(define (diff-memoize-2arg f) (linear-memoize f))
-(define (diff-memoize f) (linear-memoize f))
+(define (diff-memoize-1arg f) f)
+(define (diff-memoize-2arg f) f)
+(define (diff-memoize f) f)
+;;;(define (diff-memoize-1arg f) (linear-memoize-1arg f))
+;;;(define (diff-memoize-2arg f) (linear-memoize f))
+;;;(define (diff-memoize f) (linear-memoize f))
 ;;;(define (diff-memoize f) (hash-memoize f))
 
 (load "matrices" scmutils-base-environment)
@@ -73,6 +73,8 @@ USA.
 (load "deriv"    scmutils-base-environment)
 (load "operator" scmutils-base-environment)
 (load "function" scmutils-base-environment)
+;;; The following gives no advantage...
+;;;(load "function-memoized" scmutils-base-environment)
 
 (load "numbers"  scmutils-base-environment)
 ;;; The following two need to be loaded after NUMBERS, 
@@ -89,4 +91,5 @@ USA.
 ;;; Sets up generic environment
 (load "genenv"   scmutils-base-environment)
 
-(load "custom-repl" scmutils-base-environment)
+;;; I don't trust this hack -- GJS
+;;;(load "custom-repl" scmutils-base-environment)

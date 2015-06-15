@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -24,9 +24,9 @@ USA.
 |#
 
 (define (gcd-test d f g)
-  (let ((pd (poly:expression-> d (lambda (p v) p)))
-	(pf (poly:expression-> f (lambda (p v) p)))
-	(pg (poly:expression-> g (lambda (p v) p))))
+  (let ((pd (pcf:expression-> d (lambda (p v) p)))
+	(pf (pcf:expression-> f (lambda (p v) p)))
+	(pg (pcf:expression-> g (lambda (p v) p))))
     (poly:= (poly:gcd (poly:* pd pf) (poly:* pd pg))
 	    pd)))
 
@@ -164,13 +164,12 @@ process time: 740 (740 RUN + 0 GC); real time: 734
       (* x2 1)
       (* x1 x2 x3 x4 x4)))
 
+;;; 11 Dec 2008 Zohar
 (show-time
  (lambda ()
    (gcd-test d4a f4a g4a)))
-process time: 7800 (7590 RUN + 210 GC); real time: 7798
+;process time: 30 (30 RUN + 0 GC); real time: 35
 ;Value: #t
-
-
 
 
 (define d10
@@ -193,7 +192,12 @@ process time: 7800 (7590 RUN + 210 GC); real time: 7798
       (* x1 x2 x2 x3 x4 x5 x5 x6 x6 x8 x8 x9 x10)
       (* x1 x3 x6 x7 x8 x10)
       (* x4 x4 x5 x5 x6 x6 x7 x9 x9)))
- 
-(gcd-test d10 f10 g10)
+
+(show-time
+ (lambda ()
+   (gcd-test d10 f10 g10)))
+;;; 11 Dec 2008 Zohar
+;process time: 220 (220 RUN + 0 GC); real time: 218
+;Value: #t
 
 

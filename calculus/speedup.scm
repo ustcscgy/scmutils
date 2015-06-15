@@ -36,11 +36,14 @@ USA.
 ;;; Functions of one structured argument.  We must supply an argument
 ;;; prototype.
 
+#|
+;;; The following is in src/calculus/dgutils.scm
+
 (define memoized-simplify
   (hash-memoize-1arg 
    (lambda (expr)
      (default-simplify expr))))
-
+|#
 
 (define (simplify-structure-function f argument-prototype)  
   (if *optimizing-functions*
@@ -99,28 +102,37 @@ USA.
 	   (if *debugging-simplify-function* (pp cselimed-expr))
 	   function))))
 
-;;; Sometimes we need to simplify an internal result.  
-
-(define (simplify-numerical-expression expr)
-  (cond ((and (pair? expr) (eq? (car expr) '*number*))
-	 (let ((result
-		(make-numerical-literal
-		 (memoized-simplify expr))))
-	   ;; copy extra properties, if any
-	   (set-cdr! (cdr result) (cddr expr))
-	   result))
-	(else expr)))
-
-#|
-(pp (simplify-numerical-expression
-     (/ 1 (+ (/ 1 'r1) (/ 1 'r2)))))
-(*number* (expression (/ (* r1 r2) (+ r1 r2))))
-|#
-
 ;;; Procedures that benefit from such a speedup...
 
-;;; from tensor.scm 
+;;; From vector-fields.scm
 
+(define ((vector-field-procedure components coordinate-system) f)
+  (let ((vf (* (D (compose f (coordinate-system '->point))) components)))
+    (compose (simplify-structure-function vf
+	       (coordinate-system 'coordinate-prototype))
+	     (coordinate-system '->coords))))
+
+(define ((coordinate-basis-vector-field-procedure coordinate-system . i) f)
+  (compose (simplify-structure-function
+	    ((apply partial i) (compose f (coordinate-system '->point)))
+	    (coordinate-system 'coordinate-prototype))
+	   (coordinate-system '->coords)))
+
+
+;;; From form-fields.scm
+
+(define ((1form-field-procedure components coordinate-system) vf)
+  (define (internal vf)
+    (assert (vector-field? vf))
+    (compose (simplify-structure-function
+	      (* components
+		 (vector-field->components vf coordinate-system))
+	      (coordinate-system 'coordinate-prototype))
+	     (coordinate-system '->coords)))
+  (s:map/r internal vf))
+
+;;; from tensor.scm 
+#|
 (define (t:comma t coordinate-system)
   (assert (tensor-field? t) "Not a tensor field.")
   (let ((dc (coordinate-system 'dual-chains))
@@ -130,67 +142,22 @@ USA.
 	      (s:map/r (lambda (coeff-fun)
 			 (let* ((f
 				 ((apply partial chain)
-				  (compose coeff-fun (coordinate-system '->point))))
-				#|(sf 
-				 (simplify-structure-function f
-				      (coordinate-system 'coordinate-prototype)))
-				|#)
-			   (simplify-structure-function
-			    (compose f (coordinate-system '->coords))
-			    ((tensor-manifold t) 'point-prototype))))
+				  (compose coeff-fun (coordinate-system '->point)))))
+			   (simplify-structure-function f
+			     (coordinate-system 'coordinate-prototype)))
 		       coeffs))
 	    dc)
-     coordinate-system)))
+     coordinate-system))))
 
-;;; From vector-fields.scm
-
-(define ((vector-field-procedure components coordinate-system) f)
-  (let ((vf (* (D (compose f (coordinate-system '->point))) components)))
-    (if (coordinate-system 'manifold)
-	(simplify-structure-function
-	 (compose vf (coordinate-system '->coords))
-	 ((coordinate-system 'manifold) 'point-prototype))
-	(compose (simplify-structure-function vf
-		       (coordinate-system 'coordinate-prototype))
-		 (coordinate-system '->coords)))))
-
-(define ((coordinate-basis-vector-field-procedure coordinate-system . i) f)
-  (if (coordinate-system 'manifold)
-      (simplify-structure-function
-       (compose ((apply partial i) (compose f (coordinate-system '->point)))
-		(coordinate-system '->coords))
-       ((coordinate-system 'manifold) 'point-prototype))
-      (compose (simplify-structure-function
-		((apply partial i) (compose f (coordinate-system '->point)))
-		(coordinate-system 'coordinate-prototype))
-	       (coordinate-system '->coords))))
-
-
-;;; From form-fields.scm
-
-(define ((1form-field-procedure components coordinate-system) vf)
-  (define (internal vf)
-    (assert (vector-field? vf))
-    (if (coordinate-system 'manifold)
-	(simplify-structure-function
-	 (compose (* components
-		     (vector-field->components vf coordinate-system))
-		  (coordinate-system '->coords))
-	 ((coordinate-system 'manifold) 'point-prototype))
-	(compose (simplify-structure-function
-		  (* components
-		     (vector-field->components vf coordinate-system))
-		  (coordinate-system 'coordinate-prototype))
-		 (coordinate-system '->coords))))
-  (s:map/r internal vf))
-
 (define (tensor-field->coefficient-structure t coordinate-system)
   (assert (tensor-field? t) "Not a tensor field.")
   (let ((type (tensor-type t))
 	(basis (coordinate-system 'coordinate-basis))
 	(n (coordinate-system 'dimension)))
-    (let ((u (car type)) (1form-basis (basis->1form-basis basis))
-			 (d (cdr type)) (vector-basis (basis->vector-basis basis)))
+    (let ((u (car type))
+	  (1form-basis (basis->1form-basis basis))
+	  (d (cdr type))
+	  (vector-basis (basis->vector-basis basis)))
       (define (iterate-up count argl)
 	(if (fix:= count 0)
 	    (simplify-structure-function (apply t argl)
@@ -211,11 +178,12 @@ USA.
 (define (tensor-product t1 t2)
   (assert (and (tensor-field? t1) (tensor-field? t2))
 	  "Not tensor fields.")
-  (let ((type1 (tensor-type t1)) (type2 (tensor-type t2))
-				 (man (tensor-manifold t1)))
+  (let ((type1 (tensor-type t1))
+	(type2 (tensor-type t2))
+	(man (tensor-manifold t1)))
     (assert (eq? man (tensor-manifold t2)) "Tensors not from same manifold")
     (let ((u1 (car type1)) (d1 (cdr type1))
-			   (u2 (car type2)) (d2 (cdr type2)))
+	  (u2 (car type2)) (d2 (cdr type2)))
       (let ((u (fix:+ u1 u2)) (d (fix:+ d1 d2)))
 	(let ((n (fix:+ u d)))
 	  (define (the-product . args)
@@ -373,7 +341,7 @@ USA.
 			 `(Riemann ,(diffop-name metric-tensor))
 			 (tensor-manifold metric-tensor)))))
 
-;;; procedures to have results memoized
+;;; Tensor procedures to have results memoized
 
 (memoize-procedure! 'vf->tf 'linear generic-environment)
 
@@ -399,3 +367,4 @@ USA.
 
 (memoize-procedure! 'Riemann-tensor 'linear generic-environment)
 
+|#

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -42,17 +42,47 @@ USA.
 
 (define *last-state*)
 
-(define (ode-advancer sysder state dt local-error-tolerance)
+;;; ode-advancer returns a procedure of the form
+;;; (lambda (state dt continue) ...)
+;;;   where
+;;;     continue=(lambda (new-state dt-obtained dt-suggested) ...)
+
+
+#|
+(pe ((ode-advancer
+      (lambda (s) (up 1 (ref s 1)))
+      1.e-12
+      2)
+     (up 0 1)
+     1
+     list))
+((up 1. 2.718281828459047) 1 1.5)
+
+(pe ((ode-advance-exactly
+      (lambda (s)
+	(up 1 (ref s 1)))
+      1.e-12
+      2)
+     (up 0 1)
+     10))
+(up 10. 22026.4657948064)
+
+(exp 10)
+;Value: 22026.465794806725
+|#
+
+
+(define (ode-advancer sysder local-error-tolerance dimension)
   (case *ode-integration-method*
     ((BULIRSCH-STOER bulirsch-stoer Bulirsch-Stoer)
-     (bs-advancer sysder state dt local-error-tolerance))
+     (bs-advancer sysder local-error-tolerance dimension))
     ((QCRK4 qcrk4)
-     (qcrk4-advancer sysder state dt local-error-tolerance))
+     (qcrk4-advancer sysder local-error-tolerance))
     ((QCCTRAP2 qcctrap2)
-     (qc-ctrap-advancer sysder state dt local-error-tolerance))
+     (qc-ctrap-advancer sysder local-error-tolerance))
     ((Gear Explicit-Gear gear explicit-gear GEAR)
      ;; actually sysder here is f&df
-     (gear-advancer sysder state dt local-error-tolerance))
+     (gear-advancer sysder local-error-tolerance dimension))
     (else
      (write-line `(methods: bulirsch-stoer qcrk4 qcctrap2 explicit-gear))
      (error "Unknown ode integrator" *ode-integration-method*))))
@@ -82,56 +112,29 @@ USA.
   (set! *last-state* ns)
   ns)
 
-(define (bs-advancer sysder state dt local-error-tolerance)
-  ((advance-generator
-    (bulirsch-stoer-lisptran		;integrator
-     (system-derivative->lisptran-derivative sysder)
-     (vector-length state)
-     local-error-tolerance))
-   state
-   dt
-   (* *first-step-scale* dt)
-   dt
-   advance-monitor
-   final-step-monitor))
+(define (bs-advancer sysder local-error-tolerance dimension)
+  (bulirsch-stoer-lisptran		;integrator
+   (system-derivative->lisptran-derivative sysder)
+   dimension
+   local-error-tolerance))
 
-(define (qcrk4-advancer sysder state dt local-error-tolerance)
-  ((advance-generator
-    ((quality-control rk4 4)
-     sysder	
-     local-error-tolerance))
-   state
-   dt
-   (* *first-step-scale* dt)
-   dt
-   advance-monitor
-   final-step-monitor))
+(define (qcrk4-advancer sysder local-error-tolerance)
+  ((quality-control rk4 4)
+   sysder	
+   local-error-tolerance))
 
-(define (qc-ctrap-advancer sysder state dt local-error-tolerance)
-  ((advance-generator
-    ((quality-control c-trapezoid 2)
-     sysder			
-     local-error-tolerance 
-     (* *corrector-convergence-margin*
-	local-error-tolerance)))
-   state
-   dt 
-   (* *first-step-scale* dt)
-   dt
-   advance-monitor
-   final-step-monitor))
+(define (qc-ctrap-advancer sysder local-error-tolerance)
+  ((quality-control c-trapezoid 2)
+   sysder			
+   local-error-tolerance 
+   (* *corrector-convergence-margin*
+      local-error-tolerance)))
 
-(define (gear-advancer f&df state dt local-error-tolerance)
-  ((gear-advance-generator
-    f&df
-    (s:dimension state)			;simple dimension
-    local-error-tolerance)		;lte
-   state				;initial conditions
-   dt					;target advance
-   (* *first-step-scale* dt)		;initial step
-   dt					;max step
-   advance-monitor
-   final-step-monitor))
+(define (gear-advancer f&df local-error-tolerance dimension)
+  (gear-stepper-generator
+   f&df
+   dimension
+   local-error-tolerance))
 
 (define (gear? method)
   (memq method '(Gear Explicit-Gear gear explicit-gear GEAR)))

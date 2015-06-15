@@ -23,6 +23,13 @@ USA.
 
 |#
 
+
+(for-each cf-conditionally
+	  '("coord"))
+
+(for-each load
+	  '("coord"))
+
 (for-each cf-conditionally
 	  '(
 	    "dgutils"

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,6 +27,13 @@ USA.
 ;;; of ordinates ys = (y1 y2 ... yn), return the Lagrange interpolation
 ;;; polynomial through the points (x1, y1), (x2, y2), ... (xn, yn).
 
+;;; Edited by GJS 10Jan09
+
+;;; This version, in the file interp.scm, is numerical.  
+;;; It is loaded into scmutils-base-environment.
+;;; There is also a generic version in the file interp-generic.scm.
+(declare (usual-integrations))
+
 (define (lagrange-interpolation-function ys xs)
   (let ((n (length ys)))
     (assert (fix:= (length xs) n))
@@ -50,6 +57,9 @@ USA.
     poly))
 
 #|
+;;; If run in generic environment we can look at the kind of thing that 
+;;; this code does, by partial evaluation... an excellent aid to debugging. 
+
 (print-expression
  ((lagrange-interpolation-function '(y1 y2 y3 y4) '(x1 x2 x3 x4)) 'x1))
 y1

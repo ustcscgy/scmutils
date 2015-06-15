@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -652,7 +652,7 @@ USA.
 	  (poly/gcd p1 p2)))
     the-memoized-gcd))
 
-(define *gcd-memoizer-enabled* #t)
+(define *gcd-memoizer-enabled* #f)
 (define *gcd-hit* 0)
 (define *gcd-miss* 0)
 
@@ -916,14 +916,15 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 
 ;;; The representations of polynomials may be either sparse or dense.
 
-(define (poly? p)
+(define (pcf? p)
   (or (base? p)
-      (explicit-poly? p)))
+      (explicit-pcf? p)))
 
-(define (explicit-poly? p)
+(define (explicit-pcf? p)
   (and (pair? p)
        (or (eq? (car p) '*sparse*)
 	   (eq? (car p) '*dense*))))
+
 
 (define (poly/type p)
   (if (base? p)
@@ -1300,6 +1301,7 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 (define (poly:value p . args) (poly/horner p args))
 (define (poly:principal-value p x) (poly/horner p (list x)))
 (define poly:principal-reverse poly/principal-reverse)
+(define poly:scale poly/scale)
 (define poly:normalize-by poly/normalize)
 
 (define poly:lowest-order poly/lowest-order)
@@ -1333,12 +1335,12 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 
 ;;; For simplifier
 
-(define (poly:->expression p vars)
+(define (pcf:->expression p vars)
   (if (base? p)
       p
       (let ((arity (poly/arity p)))
 	(if (not (fix:= arity (length vars)))
-	    (error "Poly arity not = vars supplied -- POLY:->EXPRESSION"
+	    (error "Poly arity not = vars supplied -- PCF:->EXPRESSION"
 		   p vars))
 	(let ((hh (poly/horner-helper symb:+ symb:* symb:expt)))
 	  (let lp ((p p) (args vars))
@@ -1351,23 +1353,23 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 			(lambda (c)
 			  (lp c (cdr args))))))))))))
 
-(define (poly:expression-> expr cont #!optional less?)
+(define (pcf:expression-> expr cont #!optional less?)
   ;; cont = (lambda (poly vars) ... )
   (let ((evars
 	 (sort (list-difference (variables-in expr)
-				poly:operators-known)
+				pcf:operators-known)
 		(if (default-object? less?) alphaless? less?))))
     (cont ((expression-walker
 	    (pair-up evars
 		     (poly:new-variables (length evars))
-		     poly:operator-table))
+		     pcf:operator-table))
 	   expr)
 	  evars)))
 
 (define (poly:->lambda p)
   (let* ((n (poly/arity p))
 	 (vars (generate-list-of-symbols 'x n))
-	 (exp (poly:->expression p vars)))	  
+	 (exp (pcf:->expression p vars)))	  
     `(lambda ,vars ,exp)))
 
 (define +$poly
@@ -1377,7 +1379,7 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 (define *$poly
   (accumulation poly/mul poly/one))
 
-(define poly:operator-table
+(define pcf:operator-table
   `((+        ,+$poly)
     (-        ,-$poly)
     (*        ,*$poly)
@@ -1386,4 +1388,5 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
     (square   ,poly:square)
     (gcd      ,(lambda (x y) (poly:gcd x y)))))
 
-(define poly:operators-known (map car poly:operator-table))
+(define pcf:operators-known
+  (map car pcf:operator-table))

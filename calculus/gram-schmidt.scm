@@ -47,10 +47,10 @@ USA.
 
 #|
 ;;; Orthonormalizing with respect to the Lorentz metric in 2 dimensions. 
-(define R2 (rectangular 2))
-(instantiate-coordinates R2 '(t x))
-(define R2-point ((R2 '->point) (up 't0 'x0)))
-(define R2-basis (coordinate-system->basis R2))
+
+(install-coordinates R2-rect (up 't 'x))
+(define R2-point ((R2-rect '->point) (up 't0 'x0)))
+(define R2-basis (coordinate-system->basis R2-rect))
 
 (define ((L2-metric c) u v)
   (+ (* -1 c c (dt u) (dt v))
@@ -60,25 +60,34 @@ USA.
   (Gram-Schmidt (basis->vector-basis R2-basis) (L2-metric 'c)))
 
 (s:foreach (lambda (v)
-	     (pe ((v (literal-manifold-function 'f R2))
+	     (pec ((v (literal-manifold-function 'f R2-rect))
 		  R2-point)))
 	   L2-vector-basis)
+#| Result:
 (/ (((partial 0) f) (up t0 x0)) c)
+|#
+#| Result:
 (((partial 1) f) (up t0 x0))
+|#
+;Value: done
 
 (s:foreach (lambda (omega)
-	     (pe ((omega (literal-vector-field 'v R2))
+	     (pec ((omega (literal-vector-field 'v R2-rect))
 		  R2-point)))
-	   (vector-basis->dual L2-vector-basis R2))
+	   (vector-basis->dual L2-vector-basis R2-rect))
+#| Result:
 (* c (v^0 (up t0 x0)))
+|#
+#| Result:
 (v^1 (up t0 x0))
+|#
 |#
 
 #|
 ;;; 4-dimensional Lorentz metric.
 
-(define SR (rectangular 4))
-(instantiate-coordinates SR '(t x y z))
+(define SR R4-rect)
+(install-coordinates SR (up 't 'x 'y 'z))
 
 (define ((g-Lorentz c) u v)
   (+ (* (dx u) (dx v))
@@ -127,10 +136,9 @@ USA.
 |#
 
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
-(define R3-basis (coordinate-system->basis R3))
+(install-coordinates R3-rect (up 'x 'y 'z))
+(define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
+(define R3-basis (coordinate-system->basis R3-rect))
 
 (define ((g3-maker a b c d e f) v1 v2)
   (+ (* a (dx v1) (dx v2))
@@ -146,7 +154,7 @@ USA.
 (define g3 (g3-maker 'a 'b 'c 'd 'e 'f))
 
 (for-each (lambda (v)
-	    (pe ((v (R3 '->coords))
+	    (pe ((v (R3-rect '->coords))
 		 R3-point)))
 	  (ultra-flatten
 	   (Gram-Schmidt

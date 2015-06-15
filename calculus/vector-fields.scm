@@ -37,7 +37,9 @@ USA.
 ;;; operator multiplies by composition.  Like D it takes the given
 ;;; function to another function of a point.
 
-(define (procedure->vector-field vfp name)
+(define (procedure->vector-field vfp #!optional name)
+  (if (default-object? name)
+      (set! name 'unnamed-vector-field))
   (make-operator vfp name 'vector-field))
 
 
@@ -112,7 +114,7 @@ USA.
    (apply coordinate-basis-vector-field-procedure coordinate-system i)
    name))
 
-
+#|
 (define (coordinate-system->vector-basis coordinate-system)
   (s:map (lambda (chain)
 	   (apply coordinate-basis-vector-field
@@ -120,6 +122,10 @@ USA.
 		  `(e ,@chain)
 		  chain))
 	 (coordinate-system 'dual-chains)))
+|#
+
+(define (coordinate-system->vector-basis coordinate-system)
+  (coordinate-system 'coordinate-basis-vector-fields))
 
 #|
 ;;; Doesn't work.
@@ -166,11 +172,10 @@ USA.
 |#
 
 #|
-(define rectangular-3space (rectangular 3))
-(instantiate-coordinates rectangular-3space '(x y z))
+(install-coordinates R3-rect (up 'x 'y 'z))
 
 (pec (((* (expt d/dy 2) x y d/dx) (* (sin x) (cos y)))
-      ((rectangular-3space '->point)(up 'a 'b 'c))))
+      ((R3-rect '->point)(up 'a 'b 'c))))
 #| Result:
 (+ (* -1 a b (cos a) (cos b)) (* -2 a (sin b) (cos a)))
 |#
@@ -181,7 +186,7 @@ USA.
 
 (define outward (+ (* x d/dx) (* y d/dy)))
 
-(define mr ((rectangular-3space '->point) (up 'x0 'y0 'z0)))
+(define mr ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
 (pec ((counter-clockwise (sqrt (+ (square x) (square y)))) mr))
 #| Result:
@@ -204,14 +209,11 @@ USA.
 
 ;;; We apparently need cylindrical coordinates too.
 
-(define cylindrical (polar/cylindrical 3))
-(instantiate-coordinates cylindrical '(r theta zeta))
-
-(define mp ((cylindrical '->point) (up 'r0 'theta0 'zeta0)))
+(install-coordinates R3-cyl (up 'r 'theta 'zeta))
 
 (define A (+ (* 'A_r d/dr) (* 'A_theta d/dtheta) (* 'A_z d/dzeta)))
 
-(pec ((vector-field->components A rectangular-3space) (up 'x 'y 'z)))
+(pec ((vector-field->components A R3-rect) (up 'x 'y 'z)))
 #| Result:
 (up (+ (* -1 A_theta y) (/ (* A_r x) (sqrt (+ (expt x 2) (expt y 2)))))
     (+ (* A_theta x) (/ (* A_r y) (sqrt (+ (expt x 2) (expt y 2)))))
@@ -221,14 +223,14 @@ USA.
 
 
 (pec ((d/dtheta (up x y z))
-      ((rectangular-3space '->point) (up 'x 'y 'z))))
+      ((R3-rect '->point) (up 'x 'y 'z))))
 #| Result:
 (up (* -1 y) x 0)
 |#
 ;;; has length (sqrt (+ (expt x 2) (expt y 2)))
 
 (pec ((d/dr (up x y z))
-      ((rectangular-3space '->point) (up 'x 'y 'z))))
+      ((R3-rect '->point) (up 'x 'y 'z))))
 #| Result:
 (up (/ x (sqrt (+ (expt x 2) (expt y 2))))
     (/ y (sqrt (+ (expt x 2) (expt y 2))))
@@ -237,7 +239,7 @@ USA.
 ;;; has length 1
 
 (pec ((d/dz (up x y z))
-      ((rectangular-3space '->point) (up 'x 'y 'z))))
+      ((R3-rect '->point) (up 'x 'y 'z))))
 #| Result:
 (up 0 0 1)
 |#
@@ -252,7 +254,7 @@ USA.
 ;;; then
 (define A (+ (* 'A_r e-r) (* 'A_theta e-theta) (* 'A_z e-z)))
 
-(pec ((vector-field->components A rectangular-3space) (up 'x 'y 'z)))
+(pec ((vector-field->components A R3-rect) (up 'x 'y 'z)))
 #| Result:
 (up
  (+ (/ (* A_r x) (sqrt (+ (expt x 2) (expt y 2))))
@@ -265,31 +267,31 @@ USA.
 |#
 
 #|
-(pec ((vector-field->components d/dy rectangular-3space)
+(pec ((vector-field->components d/dy R3-rect)
       (up 'x0 'y0 'z0)))
 #| Result:
 (up 0 1 0)
 |#
 
-(pec ((vector-field->components d/dy rectangular-3space)
+(pec ((vector-field->components d/dy R3-rect)
       (up 'r0 'theta0 'z0)))
 #| Result:
 (up 0 1 0)
 |#
 
-(pec ((vector-field->components d/dy cylindrical)
+(pec ((vector-field->components d/dy R3-cyl)
       (up 1 pi/2 0)))
 #| Result:
 (up 1. 6.123031769111886e-17 0)
 |#
 
-(pec ((vector-field->components d/dy cylindrical)
+(pec ((vector-field->components d/dy R3-cyl)
       (up 1 0 0)))
 #| Result:
 (up 0 1 0)
 |#
 
-(pec ((vector-field->components d/dy cylindrical)
+(pec ((vector-field->components d/dy R3-cyl)
       (up 'r0 'theta0 'z)))
 #| Result:
 (up (sin theta0) (/ (cos theta0) r) 0)
@@ -297,11 +299,9 @@ USA.
 |#
 
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
+(define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
-;;; The following works only accidentally.  
+;;; The following does not work.  
 ;;;  One cannot add to a manifold point.
  
 (series:print
@@ -310,14 +310,8 @@ USA.
   R3-point)
  4)
 #|
-(f (up x0 y0 z0))
-(* x0 (((partial 1) f) (up x0 y0 z0)))
-(* 1/2
-   (expt x0 2)
-   (((partial 1) ((partial 1) f)) (up x0 y0 z0)))
-(* 1/6
-   (expt x0 3)
-   (((partial 1) ((partial 1) ((partial 1) f))) (up x0 y0 z0)))
+(f #[manifold-point 42])
+;Wrong type argument -- LITERAL-FUNCTION
 |#
 |#
 
@@ -334,7 +328,7 @@ USA.
 
 #|
 (pec
- (((coordinatize (literal-vector-field 'v R3) R3)
+ (((coordinatize (literal-vector-field 'v R3-rect) R3-rect)
    (literal-function 'f (-> (UP Real Real Real) Real)))
   (up 'x0 'y0 'z0)))
 #| Result:
@@ -351,9 +345,9 @@ USA.
 ;;; The coordinate version can be exponentiated
 
 (series:for-each print-expression
-                 (((exp (coordinatize (* 'a circular) R3))
+                 (((exp (coordinatize (* 'a circular) R3-rect))
                    identity)
-                  ((R3 '->point) (up 1 0 0)))
+                  (up 1 0 0))
                  6)
 #|
 (up 1 0 0)
@@ -380,9 +374,13 @@ USA.
     order))
 
 #|
+(install-coordinates R2-rect (up 'x 'y))
+
+(define circular (- (* x d/dy) (* y d/dx)))
+
 (pec
- ((((evolution 6) 'a circular) R2-chi)
-  ((R2 '->point) (up 1 0))))
+ ((((evolution 6) 'a circular) (R2-rect '->coords))
+  ((R2-rect '->point) (up 1 0))))
 #| Result:
 (up (+ (* -1/720 (expt a 6))
        (* 1/24 (expt a 4))

@@ -32,7 +32,9 @@ USA.
 
 ;;; A 1form field multiplies by wedge.
 
-(define (procedure->1form-field fp name)
+(define (procedure->1form-field fp #!optional name)
+  (if (default-object? name)
+      (set! name 'unnamed-1form-field))
   (make-operator fp name wedge))
 
 ;;; Dummy... forward reference so I can define dx, dy before wedge.
@@ -118,6 +120,7 @@ USA.
    (apply coordinate-basis-1form-field-procedure coordinate-system i)
    name))
 
+#|
 (define (coordinate-system->1form-basis coordinate-system)
   (s:map (lambda (chain)
 	   (apply coordinate-basis-1form-field
@@ -125,6 +128,11 @@ USA.
 		  `(w ,@chain)
 		  chain))
 	 (coordinate-system 'access-chains)))
+|#
+
+(define (coordinate-system->1form-basis coordinate-system)
+  (coordinate-system 'coordinate-basis-1form-fields))
+
 
 #|
 (define ((coordinate-system->1form-basis-procedure coordinate-system) vf)
@@ -134,8 +142,10 @@ USA.
 ;;; Given component functions defined on manifold points and a 1-form
 ;;; basis, to produce the 1-form field as a linear combination.
 
-(define ((basis-components->1form-field components 1form-basis) f)
-  (* components (1form-basis f)))
+(define (basis-components->1form-field components 1form-basis)
+  (procedure->1form-field
+   (lambda (v)
+     (* components (1form-basis v)))))
 
 (define (1form-field->basis-components w vector-basis)
   (s:map/r w vector-basis))
@@ -146,34 +156,33 @@ USA.
 ;;; The other one appears in maps.scm.
 
 (define (function->1form-field f)
+  (define (internal v)
+    (assert (vector-field? v))
+    (lambda (m) ((v f) m)))
   (procedure->1form-field
-   (lambda (v)
-     (assert (vector-field? v))
-     (lambda (m)
-       ((v f) m)))
+   (lambda (v) (s:map/r internal v))
    `(d ,(diffop-name f))))
 
 (define differential-of-function function->1form-field)
 
 #|
-(define rectangular-3space (rectangular 3))
-(instantiate-coordinates rectangular-3space '(x y z))
+(install-coordinates R3-rect (up 'x 'y 'z))
 
-(define mr ((rectangular-3space '->point) (up 'x0 'y0 'z0)))
+(define mr ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
 (define a-1form
   (components->1form-field
    (down (literal-function 'ax (-> (UP* Real) Real))
 	 (literal-function 'ay (-> (UP* Real) Real))
 	 (literal-function 'az (-> (UP* Real) Real)))
-   rectangular-3space))
+   R3-rect))
 
 (define a-vector-field
   (components->vector-field
    (up (literal-function 'vx (-> (UP* Real) Real))
        (literal-function 'vy (-> (UP* Real) Real))
        (literal-function 'vz (-> (UP* Real) Real)))
-   rectangular-3space))
+   R3-rect))
 
 (pec ((a-1form a-vector-field) mr))
 #| Result:
@@ -182,60 +191,47 @@ USA.
    (* (vz (up x0 y0 z0)) (az (up x0 y0 z0))))
 |#
 
-(pec ((1form-field->components a-1form rectangular-3space) (up 'x0 'y0 'z0)))
+(pec ((1form-field->components a-1form R3-rect) (up 'x0 'y0 'z0)))
 #| Result:
 (down (ax (up x0 y0 z0)) (ay (up x0 y0 z0)) (az (up x0 y0 z0)))
 |#
 
+(install-coordinates R3-cyl (up 'r 'theta 'zeta))
 
-(define cylindrical (polar/cylindrical 3))
-
-(instantiate-coordinates cylindrical '(r theta zeta))
-
-(pec ((1form-field->components a-1form cylindrical) (up 'r0 'theta0 'z0)))
+(pec ((1form-field->components a-1form R3-cyl) (up 'r0 'theta0 'z0)))
 #| Result:
 (down
- (+ (* (ax (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)) (cos theta0))
-    (* (ay (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)) (sin theta0)))
- (+ (* -1 r0 (ax (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)) (sin theta0))
-    (* r0 (ay (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)) (cos theta0)))
+ (+ (* (sin theta0) (ay (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)))
+    (* (cos theta0) (ax (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0))))
+ (+ (* -1 r0 (sin theta0) (ax (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)))
+    (* r0 (cos theta0) (ay (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0))))
  (az (up (* r0 (cos theta0)) (* r0 (sin theta0)) z0)))
 |#
 
 |#
 
 #|
-(define mr ((rectangular-3space '->point) (up 'x0 'y0 'z0)))
+(define mr ((R3-rect '->point) (up 'x0 'y0 'z0)))
+(define mp ((R3-cyl '->point) (up 'r0 'theta0 'z0)))
 
 ((dx d/dx) mr)
 ;Value 1
 
-(define mp ((cylindrical '->point) (up 'r0 'theta0 'z0)))
+((dx d/dx) mp)
+;Value 1
 
-(pec ((1form-field->components dr rectangular-3space) mp))
-#| Result:
-(down (cos theta0) (sin theta0) 0)
-|#
-
-(pec ((1form-field->components dr rectangular-3space) mr))
+(pec ((1form-field->components dr R3-rect) (up 'x0 'y0 'z0)))
 #| Result:
 (down (/ x0 (sqrt (+ (expt x0 2) (expt y0 2))))
       (/ y0 (sqrt (+ (expt x0 2) (expt y0 2))))
       0)
 |#
 
-(pec ((1form-field->components dtheta rectangular-3space) mp))
-#| Result:
-(down (/ (* -1 (sin theta0)) r0) (/ (cos theta0) r0) 0)
-|#
-
-(pec ((1form-field->components dtheta rectangular-3space) mr))
+(pec ((1form-field->components dtheta R3-rect) (up 'x0 'y0 'z0)))
 #| Result:
 (down (/ (* -1 y0) (+ (expt x0 2) (expt y0 2)))
-      (/ x0 (+ (expt x0 2) (expt y0 2)))
-      0)
+      (/ x0 (+ (expt x0 2) (expt y0 2))) 0)
 |#
-
 
 (pec (((+ (* 'w_0 dr) (* 'w_1 dtheta)) (+ (* 'V^0 d/dx) (* 'V^1 d/dy))) mp))
 #| Result:
@@ -248,8 +244,8 @@ USA.
 (pec
  (((components->1form-field (1form-field->components
 			     (+ (* 'w_0 dr) (* 'w_1 dtheta))
-			     rectangular-3space)
-			    rectangular-3space)
+			     R3-rect)
+			    R3-rect)
    (+ (* 'V^0 d/dx) (* 'V^1 d/dy)))
   mp))
 #| Result:
@@ -296,27 +292,22 @@ r0
 (* v x0)
 |#
 
-(pec ((dr d/dr) ((rectangular-3space '->point) (up 'x^0 'y^0 'z^0))))
+(pec ((dr d/dr) ((R3-rect '->point) (up 'x^0 'y^0 'z^0))))
 #| Result:
-(+
- (/ (expt x^0 2)
-    (sqrt (+ (expt x^0 4) (* 2 (expt x^0 2) (expt y^0 2)) (expt y^0 4))))
- (/ (expt y^0 2)
-    (sqrt (+ (expt x^0 4) (* 2 (expt x^0 2) (expt y^0 2)) (expt y^0 4)))))
- ;; = 1
+1
 |#
 
-(pec ((dr d/dtheta) ((rectangular-3space '->point) (up 'x^0 'y^0 'z^0))))
+(pec ((dr d/dtheta) ((R3-rect '->point) (up 'x^0 'y^0 'z^0))))
 #| Result:
 0
 |#
 
-(pec ((dtheta d/dr) ((rectangular-3space '->point) (up 'x^0 'y^0 'z^0))))
+(pec ((dtheta d/dr) ((R3-rect '->point) (up 'x^0 'y^0 'z^0))))
 #| Result:
 0
 |#
 
-(pec ((dtheta d/dtheta) ((rectangular-3space '->point) (up 'x^0 'y^0 'z^0))))
+(pec ((dtheta d/dtheta) ((R3-rect '->point) (up 'x^0 'y^0 'z^0))))
 #| Result:
 1
 |#

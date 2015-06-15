@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -25,7 +25,10 @@ USA.
 
 ;;;; Chebyshev polynomial routines
 
+(declare (usual-integrations))
+
 ;;;  Must be loaded into an environment where polynomial manipulations exist.
+;;; Edited by GJS 10Jan09
 ;;; 1/24/90 (gjs) converted to flush dependencies on dense list representation.
 ;;; 9/22/89 (gjs) reduce->a-reduce
 ;;; 12/23/87 (mh) modified CHEB-ECON to return original poly if not trimmed
@@ -47,7 +50,7 @@ USA.
 
 (define chebyshev-polynomials
   (let ((x poly:identity)
-	(2x (poly:scale 2 poly:identity)))
+	(2x (poly:scale poly:identity 2)))
     (cons-stream 1
 		 (cons-stream x
 			      (map-streams (lambda (p1 p2)
@@ -103,17 +106,23 @@ USA.
 ;;; Convert from polynomial form to Chebyshev expansion
 
 (define (poly->cheb-exp poly)
-  (let lp ((p poly) (c chebyshev-expansions) (s '(0)))
-    (if (equal? p poly:zero)
-	s
-	(let ((v (poly:value p 0)))
-	  (poly:divide (poly:- p v) poly:identity
-	    (lambda (q r)
-	      (if (not (equal? r poly:zero))
-		  (error "POLY->CHEB-EXP"))
-	      (lp q
-		  (tail c)
-		  (add-lists (scale-list v (head c)) s))))))))
+  (let* ((maxcoeff (apply max (map abs (poly/coefficients poly))))
+	 (zero-tolerance (* 10 maxcoeff *machine-epsilon*))
+	 (=0?
+	  (lambda (p)
+	    (and (number? p)
+		 (< (abs p) zero-tolerance)))))
+    (let lp ((p poly) (c chebyshev-expansions) (s '(0)))
+      (if (=0? p)			;(equal? p poly:zero) NO!
+	  s
+	  (let ((v (poly:value p 0)))
+	    (poly:divide (poly:- p v) poly:identity
+			 (lambda (q r)
+			   (if (not (equal? r poly:zero))
+			       (error "POLY->CHEB-EXP"))
+			   (lp q
+			       (tail c)
+			       (add-lists (scale-list v (head c)) s)))))))))
 
 
 ;;; Convert from Chebyshev expansion to polynomial form
@@ -121,7 +130,7 @@ USA.
 (define (cheb-exp->poly e)
   (let ((n (length e)))
     (let ((cheb (stream-head chebyshev-polynomials n)))
-      (a-reduce poly:+ (map poly:scale e cheb)))))
+      (a-reduce poly:+ (map poly:scale cheb e)))))
 
 
 ;;; Given a Cheb-expansion and an error criterion EPS, trim the tail of
@@ -239,3 +248,38 @@ USA.
     (let ((p (generate-cheb-exp f a b n)))
       (let ((pp (if eps (trim-cheb-exp p eps) p)))
         (poly-domain->general (cheb-exp->poly pp) a b)))))
+
+#|
+(define win (frame 0 pi/2 0 1))
+
+(define s
+  (let ((p (generate-approx-poly sin 0 pi/2 3)))
+    (lambda (x) (poly:value p x))))
+
+(plot-function win sin 0 pi/2 .01)
+(plot-function win s 0 pi/2 .01)
+
+(graphics-close win)
+
+(define win (frame 0 pi/2 -0.1 +0.1))
+
+(plot-function win (- s sin) 0 pi/2 .01)
+
+(graphics-close win)
+
+(define win (frame 0 pi/2 -0.002 +0.002))
+
+(define s1
+  (let ((p (generate-approx-poly sin 0 pi/2 5)))
+    (lambda (x) (poly:value p x))))
+
+(plot-function win (- s1 sin) 0 pi/2 .01)
+
+(define s2
+  (let ((p (generate-approx-poly sin 0 pi/2 5 .01)))
+    (lambda (x) (poly:value p x))))
+
+(plot-function win (- s2 sin) 0 pi/2 .01)
+
+(graphics-close win)
+|#

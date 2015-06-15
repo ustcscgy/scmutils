@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -88,10 +88,10 @@ USA.
 
 ;;;  Quad arithmetic -- a quad is a cons of the high and low part.
 
-(define q:high car)
-(define q:low cdr)
+(define quad:high car)
+(define quad:low cdr)
 
-(define (q:+ q1 q2)
+(define (quad:+ q1 q2)
   (let ((q1h (car q1))
 	(q1l (cdr q1))
 	(q2h (car q2))
@@ -101,7 +101,7 @@ USA.
 	  (+B s (flo:+ (flo:+ q1l q2l) e)
 	      cons)))))
 
-(define (q:- q1 q2)
+(define (quad:- q1 q2)
   (let ((q1h (car q1))
 	(q1l (cdr q1))
 	(q2h (car q2))
@@ -111,7 +111,7 @@ USA.
 	  (+B s (flo:+ (flo:- q1l q2l) e)
 	      cons)))))
 
-(define (q:* q1 q2)
+(define (quad:* q1 q2)
   (let ((q1h (car q1))
 	(q1l (cdr q1))
 	(q2h (car q2))
@@ -122,7 +122,7 @@ USA.
 	      (flo:+ (flo:+ (flo:* q1l q2h) (flo:* q1h q2l)) e)
 	      cons)))))
 
-(define (q:/ q1 q2)
+(define (quad:/ q1 q2)
   (let ((q1h (car q1))
 	(q1l (cdr q1))
 	(q2h (car q2))
@@ -135,100 +135,256 @@ USA.
 		     e)
 	      cons)))))
 
-(define (->q r)
+
+(define (quad:negate q)
+  (quad:- quad:0 q))
+
+
+(define (->quad r)
   (cons (exact->inexact r) 0.0))
 
-(define (rat->q rat)
-  (q:/ (->q (numerator rat))
-       (->q (denominator rat))))
+(define (rat->quad rat)
+  (quad:/ (->quad (numerator rat))
+	  (->quad (denominator rat))))
 
 
-(define q:0 (->q 0.0))
-(define q:1 (->q 1.0))
-(define q:2 (->q 2.0))
-(define q:3 (->q 3.0))
-(define q:4 (->q 4.0))
+(define quad:0 (->quad 0.0))
+(define quad:1 (->quad 1.0))
+(define quad:2 (->quad 2.0))
+(define quad:3 (->quad 3.0))
+(define quad:4 (->quad 4.0))
 
 (define *quad-epsilon*
   (flo:* *machine-epsilon* *machine-epsilon*))
 
 
-(define (q:sqrt x)
+(define (quad:sqrt x)
   (let ((xh (car x)))
     (if (zero? xh)
-	q:0
-	(let lp ((guess (->q (sqrt xh))))
-	  (let ((new (q:/ (q:+ guess (q:/ x guess)) q:2)))
+	quad:0
+	(let lp ((guess (->quad (sqrt xh))))
+	  (let ((new (quad:/ (quad:+ guess (quad:/ x guess)) quad:2)))
 	    (if (flo:= (car guess) (car new))
 		new
 		(lp new)))))))
 
 
-(define q:sin-bugger-factor
+(define quad:sin-bugger-factor
   (expt 2. (* -1 IEEE-p)))
 
-(define (q:sin x)
-  (let ((xh (q:high x)))
-    (if (flo:< (flo:abs xh) q:sin-bugger-factor)
+(define (quad:sin x)
+  (let ((xh (quad:high x)))
+    (if (flo:< (flo:abs xh) quad:sin-bugger-factor)
 	x
-	(let ((y (q:sin (q:/ x q:3))))
-	  (q:- (q:* q:3 y)
-	       (q:* q:4
-		    (q:* y
-			 (q:* y y))))))))
+	(let ((y (quad:sin (quad:/ x quad:3))))
+	  (quad:- (quad:* quad:3 y)
+		  (quad:* quad:4
+			  (quad:* y
+				  (quad:* y y))))))))
 
 
-(define (q:exp x)
-  (let lp ((n 1) (xp x) (f q:1) (sum q:1))
-    (let ((term (q:/ xp f)))
-      (if (< (abs (q:high term)) *quad-epsilon*)
+(define (quad:exp x)
+  (let lp ((n 1) (xp x) (f quad:1) (sum quad:1))
+    (let ((term (quad:/ xp f)))
+      (if (< (abs (quad:high term)) *quad-epsilon*)
 	  sum
-	    (lp (fix:+ n 1)
-		(q:* x xp)
-		(q:* f (->q (fix:+ n 1)))
-		(q:+ sum term))))))
+	  (lp (fix:+ n 1)
+	      (quad:* x xp)
+	      (quad:* f (->quad (fix:+ n 1)))
+	      (quad:+ sum term))))))
 
 (define (alternate-sine x)
-  (let ((xsq (q:* x x)))
-    (let lp ((n 1) (xp x) (f q:1) (sum q:0))
-      (let ((term (q:/ xp f)))
-	(if (< (abs (q:high term)) *quad-epsilon*)
+  (let ((xsq (quad:* x x)))
+    (let lp ((n 1) (xp x) (f quad:1) (sum quad:0))
+      (let ((term (quad:/ xp f)))
+	(if (< (abs (quad:high term)) *quad-epsilon*)
 	    sum
 	    (lp (fix:+ n 2)
-		(q:* (->q -1.0) (q:* xsq xp))
-		(q:* f (->q (fix:* (fix:+ n 1) (fix:+ n 2))))
-		(q:+ sum term)))))))
+		(quad:* (->quad -1.0) (quad:* xsq xp))
+		(quad:* f (->quad (fix:* (fix:+ n 1) (fix:+ n 2))))
+		(quad:+ sum term)))))))
 
 
+(define (quad:magnitude z)
+  (quad:sqrt (quad:+ (quad:* (car z) (car z)) (quad:* (cadr z) (cadr z)))))
+
+;;; some other trig functions
+
+(define (compute-quad:pi)
+  (let lp ((guess (->quad pi)))
+    (write-line guess)
+    (let ((new-guess (quad:+ guess (quad:sin guess))))
+      (if (< (abs (quad:high (quad:- new-guess guess))) *quad-epsilon*)
+	  new-guess
+	  (lp new-guess)))))
+			    
+(define quad:pi '(3.141592653589793 . 1.2246467991473535e-16))
+(define quad:pi/2 '(1.5707963267948966 . 6.123233995736767e-17))
+
+(define (quad:cos x)
+  (quad:sin (quad:+ x quad:pi/2)))
+
+(define (quad:tan x) (quad:/ (quad:sin x) (quad:cos x)))
+
+(define (quad:atan x)
+  (let ((fp (quad:+ quad:1 (quad:* x x)))
+	(guess (->quad (atan (quad:high x)))))
+    (let lp ((guess guess))
+      (let ((new-guess (quad:- guess (quad:/ (quad:- (quad:tan guess) x) fp))))
+	(if (< (abs (quad:high (quad:- new-guess guess))) *quad-epsilon*)
+	    new-guess
+	    (lp new-guess))))))
+
+
+
+(define quad-type-tag '*quad*)
+
+(define (quad? v)
+  (and (pair? v)
+       (eq? (car v) quad-type-tag)))
+
+(define (quad-quantity? v)
+  (quad? v))
+
+(define (quad:type x) quad-type-tag)
+
+(define (quad:type-predicate v) quad-quantity?)
+
+(define (make-quad x)
+  (list quad-type-tag x))
+
+(define (quad-contents x) (cadr x))
+
+(define (quad:zero-like q)
+  (make-quad quad:0))
+
+(define (quad:->quad number)
+  (cond ((real? number)
+	 (make-quad (->quad  number)))
+	((quad? number) number)
+	(else (error "Not a real" number))))
+
+(define (quad:->real quad)
+  (cond ((quad? quad)
+	 (quad:high (quad-contents quad)))
+	((real? quad) quad)
+	(else (error "Not a quad" quad))))
+
+(define ((quad-unary f) x)
+  (make-quad (f (quad-contents x))))
+
+(define ((quad-binary f) x y)
+  (make-quad (f (quad-contents x) (quad-contents y))))
+
+(define quad+quad (quad-binary quad:+))
+
+(define (real+quad x y)
+  (quad+quad (quad:->quad x) y))
+
+(define (quad+real x y)
+  (quad+quad x (quad:->quad y)))
+
+
+(define quad-quad (quad-binary quad:-))
+
+(define (real-quad x y)
+  (quad-quad (quad:->quad x) y))
+
+(define (quad-real x y)
+  (quad-quad x (quad:->quad y)))
+
+
+(define quad*quad (quad-binary quad:*))
+
+(define (real*quad x y)
+  (quad*quad (quad:->quad x) y))
+
+(define (quad*real x y)
+  (quad*quad x (quad:->quad y)))
+
+
+(define quad/quad (quad-binary quad:/))
+
+(define (real/quad x y)
+  (quad/quad (quad:->quad x) y))
+
+(define (quad/real x y)
+  (quad/quad x (quad:->quad y)))
+
+
+(define quad-atan-quad (quad-binary quad:atan))
+
+(define (real-atan-quad x y)
+  (quad-atan-quad (quad:->quad x) y))
+
+(define (quad-atan-real x y)
+  (quad-atan-quad x (quad:->quad y)))
+
+(define :quad:pi (make-quad quad:pi))
+(define :quad:0  (make-quad quad:0))
+(define :quad:1  (make-quad quad:1))
+
+
+(assign-operation 'type             quad:type           quad?)
+(assign-operation 'type-predicate   quad:type-predicate quad?)
+
+(assign-operation 'zero-like        quad:zero-like      quad?)
+
+(assign-operation 'negate (quad-unary quad:negate) quad?)
+(assign-operation 'sqrt   (quad-unary quad:sqrt)   quad?)
+(assign-operation 'sin    (quad-unary quad:sin)    quad?)
+(assign-operation 'cos    (quad-unary quad:cos)    quad?)
+(assign-operation 'tan    (quad-unary quad:tan)    quad?)
+
+(assign-operation '+      quad+quad     quad? quad?)
+(assign-operation '+      real+quad     real? quad?)
+(assign-operation '+      quad+real     quad? real?)
+
+(assign-operation '-      quad-quad     quad? quad?)
+(assign-operation '-      real-quad     real? quad?)
+(assign-operation '-      quad-real     quad? real?)
+
+(assign-operation '*      quad*quad     quad? quad?)
+(assign-operation '*      real*quad     real? quad?)
+(assign-operation '*      quad*real     quad? real?)
+
+(assign-operation '/      quad/quad     quad? quad?)
+(assign-operation '/      real/quad     real? quad?)
+(assign-operation '/      quad/real     quad? real?)
+
+(assign-operation 'atan quad-atan-quad  quad? quad?)
+(assign-operation 'atan real-atan-quad  real? quad?)
+(assign-operation 'atan quad-atan-real  quad? real?)
+
 #| probably wrong
 
 (define rat:pi 314159265358979323846264338327950288419716939937510/100000000000000000000000000000000000000000000000000)
 
-(define (q:floor x)
-  (floor (q:high x)))
+(define (quad:floor x)
+  (floor (quad:high x)))
 
-(define (q:truncate x)
-  (->q (truncate (q:high x))))  ;;; what if the error has an integer part?
+(define (quad:truncate x)
+  (->quad (truncate (quad:high x))))  ;;; what if the error has an integer part?
 
 (define continued-wallp true)
 
 (define (best-fraction-from-quad x maxint)
-  (let* ((a0 (inexact->exact (floor (q:high x))))
-	 (r0 (q:- x (q:truncate x))))
-    (if (<= (q:high r0) (* (abs (q:high x)) *quad-epsilon*))
+  (let* ((a0 (inexact->exact (floor (quad:high x))))
+	 (r0 (quad:- x (quad:truncate x))))
+    (if (<= (quad:high r0) (* (abs (quad:high x)) *quad-epsilon*))
 	a0 
-	(let* ((d (q:/ q:1 r0))
-	       (a1 (inexact->exact (truncate (q:high d)))))
+	(let* ((d (quad:/ quad:1 r0))
+	       (a1 (inexact->exact (truncate (quad:high d)))))
 	  (let lp ((s d) (last-p a0) (last-q 1) (p (+ (* a0 a1) 1)) (q a1))
 	    (if continued-wallp
 		(write-line (list s last-p last-q p q)))
 	    (if (> q maxint)
 		(/ last-p last-q)
-		(let ((r (q:- s (q:truncate s))))
-		  (if (<= (q:high r) (* (q:high s) *quad-epsilon*))
+		(let ((r (quad:- s (quad:truncate s))))
+		  (if (<= (quad:high r) (* (quad:high s) *quad-epsilon*))
 		      (/ p q)
-		      (let* ((new-d (q:/ q:1 r))
-			     (a (inexact->exact (truncate (q:high new-d)))))
+		      (let* ((new-d (quad:/ quad:1 r))
+			     (a (inexact->exact (truncate (quad:high new-d)))))
 			(lp new-d
 			    p
 			    q
@@ -237,66 +393,36 @@ USA.
 
 |#
 
-(define (cq:+ z1 z2)
-  (map q:+ z1 z2))
+(define (cquad:+ z1 z2)
+  (map quad:+ z1 z2))
 
-(define (cq:- z1 z2)
-  (map q:- z1 z2))
+(define (cquad:- z1 z2)
+  (map quad:- z1 z2))
 
-(define (cq:* z1 z2)
-  (list (q:- (q:* (car z1) (car z2))
-	     (q:* (cadr z1) (cadr z2)))
-	(q:+ (q:* (car z1) (cadr z2))
-	     (q:* (cadr z1) (car z2)))))
+(define (cquad:* z1 z2)
+  (list (quad:- (quad:* (car z1) (car z2))
+	     (quad:* (cadr z1) (cadr z2)))
+	(quad:+ (quad:* (car z1) (cadr z2))
+	     (quad:* (cadr z1) (car z2)))))
 
-(define (cq:/ z1 z2)
-  (let ((m (q:+ (q:* (car z2) (car z2))
-		(q:* (cadr z2) (cadr z2)))))
-    (list (q:/ (q:+ (q:* (car z1) (car z2))
-		    (q:* (cadr z1) (cadr z2)))
+(define (cquad:/ z1 z2)
+  (let ((m (quad:+ (quad:* (car z2) (car z2))
+		(quad:* (cadr z2) (cadr z2)))))
+    (list (quad:/ (quad:+ (quad:* (car z1) (car z2))
+		    (quad:* (cadr z1) (cadr z2)))
 	       m)
-	  (q:/ (q:- (q:* (cadr z1) (car z2))
-		    (q:* (car z1) (cadr z2)))
+	  (quad:/ (quad:- (quad:* (cadr z1) (car z2))
+		    (quad:* (car z1) (cadr z2)))
 	       m))))
 
 (define (q->cq q)
-  (list q q:0))
+  (list q quad:0))
 
 (define (c->cq c)
-  (list (->q (real-part c))
-	(->q (imag-part c))))
+  (list (->quad (real-part c))
+	(->quad (imag-part c))))
 
-(define cq:0 (q->cq q:0))
-(define cq:1 (q->cq q:1))
-(define cq:i (list q:0 q:1))
-
-(define (q:magnitude z)
-  (q:sqrt (q:+ (q:* (car z) (car z)) (q:* (cadr z) (cadr z)))))
-
-;;; some other trig functions
-
-(define (compute-q:pi)
-  (let lp ((guess (->q pi)))
-    (write-line guess)
-    (let ((new-guess (q:+ guess (q:sin guess))))
-      (if (< (abs (q:high (q:- new-guess guess))) *quad-epsilon*)
-	  new-guess
-	  (lp new-guess)))))
-			    
-(define q:pi '(3.141592653589793 . 1.2246467991473535e-16))
-(define q:pi/2 '(1.5707963267948966 . 6.123233995736767e-17))
-
-(define (q:cos x)
-  (q:sin (q:+ x q:pi/2)))
-
-(define (q:tan x) (q:/ (q:sin x) (q:cos x)))
-
-(define (q:atan x)
-  (let ((fp (q:+ q:1 (q:* x x)))
-	(guess (->q (atan (q:high x)))))
-    (let lp ((guess guess))
-      (let ((new-guess (q:- guess (q:/ (q:- (q:tan guess) x) fp))))
-	(if (< (abs (q:high (q:- new-guess guess))) *quad-epsilon*)
-	    new-guess
-	    (lp new-guess))))))
+(define cquad:0 (q->cq quad:0))
+(define cquad:1 (q->cq quad:1))
+(define cquad:i (list quad:0 quad:1))
 

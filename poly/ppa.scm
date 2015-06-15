@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,10 +23,13 @@ USA.
 
 |#
 
+;;;;        PPA:  Piecewise polynomial approximations
+
+;;; Edited by GJS 10Jan09
 ;;; Smooth versions of PPA added 5/19/89 (mh)
 ;;; bug fix 1/13/88
 
-;;;;        PPA:  Piecewise polynomial approximations
+(declare (usual-integrations))
 
 ;;;   To make a piecewise polynomial approximation of a function, f,
 ;;;   we specify the range, [low, high], the maximum order of polynomial 
@@ -40,11 +43,10 @@ USA.
          (p (car result))
          (eps (cadr result)))
     (if (< eps accuracy)
-        (ppa-make-from-poly low high 
-                            (cheb-econ p (- d) d (- accuracy eps)))
-        (let ((mid (/ (+ low high) 2)))
-          (ppa-adjoin (make-ppa f low mid max-order accuracy)
-                      (make-ppa f mid high max-order accuracy))))))
+        (ppa-make-from-poly low high
+			    (cheb-econ p (- d) d (- accuracy eps)))
+        (ppa-adjoin (make-ppa f low c max-order accuracy)
+		    (make-ppa f c high max-order accuracy)))))
 
 
 ;;; PPA-VALUE will evaluate a PPA at any given point, x.
@@ -137,3 +139,37 @@ USA.
 (define ppa-low-side caddr)
 (define ppa-high-side cdddr)
 
+#|
+(define win (frame 0 pi/2 -0.0001 +0.0001))
+
+(define s0
+  (let ((p (make-ppa sin 0 pi/2 5 .0001)))
+    (lambda (x) (ppa-value p x))))
+
+(plot-function win (- s0 sin) 0 (- pi/2 .01) .001)
+;;; S0 has a nasty discontinuity at the ppa split.
+
+(define s1
+  (let ((p (make-smooth-ppa (list sin) 0 pi/2 .0001)))
+    (lambda (x) (ppa-value p x))))
+
+(plot-function win (- s1 sin) 0 (- pi/2 .01) .001)
+;;; s1 is continuous, but otherwise horrible!
+
+(define s2
+  (let ((p (make-smooth-ppa (list sin cos) 0 pi/2 .0001)))
+    (lambda (x) (ppa-value p x))))
+
+(plot-function win (- s2 sin) 0 (- pi/2 .01) .001)
+;;; s2 is very oscillatory and not very accurate, but it is smooth.
+
+(define s3
+  (let ((p (make-smooth-ppa (list sin cos (- sin)) 0 pi/2 .0001)))
+    (lambda (x) (ppa-value p x))))
+
+(plot-function win (- s3 sin) 0 (- pi/2 .01) .001)
+;;; S3 is really better!  More smooth, accurate, and only one split.
+
+(graphics-clear win)
+(graphics-close win)
+|#

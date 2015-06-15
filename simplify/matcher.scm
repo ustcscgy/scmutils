@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -69,13 +69,13 @@ USA.
   (if (default-object? restriction?) (set! restriction? (lambda (x) #t)))
   (define (element-match data dictionary succeed)
     (and (pair? data)
+	 (restriction? (car data))
 	 (let ((vcell (match:lookup variable dictionary)))
 	   (if vcell
 	       (and (datum=? (match:value vcell) (car data))
-		    (succeed dictionary 1))
-	       (and (restriction? (car data))
-		    (succeed (match:bind variable (car data) dictionary)
-			     (cdr data)))))))
+		    (succeed dictionary (cdr data)))
+	       (succeed (match:bind variable (car data) dictionary)
+			(cdr data))))))
   element-match)
 
 (define (match:segment variable)
@@ -125,8 +125,9 @@ USA.
 			    (cdr matchers)
 			    new-dictionary))))
 		 ((pair? items) #f)
-		 (else
-		  (succeed dictionary (cdr data)))))))
+		 ((null? items)
+		  (succeed dictionary (cdr data)))
+		 (else #f)))))
   list-match)
 
 (define (match:reverse-segment variable #!optional submatch)
@@ -244,6 +245,12 @@ USA.
  '()
   (lambda (x y) `(succeed ,x ,y)))
 ;Value: #f
+
+((match:->combinators '(a ((? b) 2 3) (? b) c))
+ '((a (1 2 3) 1 c))
+ '()
+  (lambda (x y) `(succeed ,x ,y)))
+;Value: (succeed ((b . 1)) ())
 
 ((match:->combinators '(a (?? x) (?? y) (?? x) c))
  '((a b b b b b b c))

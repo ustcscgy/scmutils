@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -70,13 +70,14 @@ USA.
 	       (error:wrong-number-of-arguments operator arity arguments))
 	   (apply (or (let loop
 			  ((tree (operator-record-tree record))
-			   (args args))
+			   (args arguments))
 			(find-branch tree (car args)
 				     (if (pair? (cdr args))
 					 (lambda (branch)
 					   (loop branch (cdr args)))
 					 win-handler)))
-		      default-operation)
+		      default-operation
+		      #; (error:no-applicable-methods operator name arguments))
 		  arguments)))))
     (define (find-branch tree arg win)
       (let loop ((tree tree))
@@ -88,7 +89,7 @@ USA.
       handler)
     (set! default-operation
       (if (default-object? default-operation)
-	  (lambda arguments (no-way-known operator arguments))
+	  (lambda arguments (no-way-known operator name arguments))
 	  default-operation))
     (set-operator-record! operator record)
     ;; For backwards compatibility with previous implementation:
@@ -110,6 +111,12 @@ USA.
 (define (operator-record-tree record) (cdr record))
 (define (set-operator-record-tree! record tree) (set-cdr! record tree))
 
+(define (generic-operator-arity operator)
+  (let ((record (get-operator-record operator)))
+    (if record
+        (operator-record-arity record)
+        (error "Not an operator:" operator))))
+
 (define (assign-operation operator handler . argument-predicates)
   (let ((record
 	 (let ((record (get-operator-record operator))
@@ -120,13 +127,15 @@ USA.
 		     (error "Incorrect operator arity:" operator))
 		 record)
 	       (let ((record (make-operator-record arity)))
-		 (hash-table/put! *generic-operator-table* operator record)
+		 (set-operator-record! operator record)
 		 record)))))
     (set-operator-record-tree! record
-			       (bind-in-tree argument-predicates
-					     handler
-					     (operator-record-tree record))))
+      (bind-in-tree argument-predicates
+		    handler
+		    (operator-record-tree record))))
   operator)
+
+(define defhandler assign-operation)
 
 (define (bind-in-tree keys handler tree)
   (let loop ((keys keys) (tree tree))
@@ -152,10 +161,10 @@ USA.
 ;;; Teitelman.  Can we look at some argument as a default numerical
 ;;; expression?
 				    
-(define (no-way-known operator arguments)
+(define (no-way-known operator name arguments)
   (let ((new-arguments (map dwim arguments)))
     (if (equal? arguments new-arguments)
-	(error "Generic operator inapplicable:" operator arguments))
+	(error "Generic operator inapplicable:" operator name arguments))
     (apply operator new-arguments)))
 
 (define (dwim argument)

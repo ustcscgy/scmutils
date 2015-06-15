@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -23,14 +23,80 @@ USA.
 
 |#
 
-;;; From Hamming, gives roots of quadratic without bad roundoff.
+;;; From Hamming, roots of quadratic without bad roundoff.
+;;; a*x^2 + b*x + c = 0
 
-(define (quadratic a b c cont)
-  (let ((q (* -1/2 (+ b (* (sgn b) (sqrt (- (* b b) (* 4 a c))))))))
-    (cont (/ q a) (/ c q))))
+(define (sgn x) (if (negative? x) -1 1))
 
-(define (sgn x)
-  (if (negative? x) -1 1))
+(define (quadratic a b c
+		   ;; continuations for each case
+		   two-roots
+		   #!optional
+		   complex-roots
+		   double-root
+		   linear
+		   no-solution)
+  (if (zero? a)
+      (if (zero? b)
+	  (if (default-object? no-solution)
+	      (error "No solution -- QUADRATIC" a b c)
+	      (no-solution a b c))
+	  (if (default-object? linear)
+	      (error "Not QUADRATIC" a b c)
+	      (linear (/ (- c) b))))
+      (let ((d (- (* b b) (* 4 a c))))
+	(if (zero? d)
+	    (let ((root (/ b (* -2 a))))
+	      (if (default-object? double-root)
+		  (two-roots root root)
+		  (double-root root)))
+	    (let ((q (* -1/2 (+ b (* (sgn b) (sqrt d))))))
+	      (let ((r1 (/ q a)) (r2 (/ c q)))
+		(if (or (> d 0)
+			(default-object? complex-roots))
+		    (two-roots r1 r2)
+		    (complex-roots r1 r2))))))))
+
+#|
+(define (test-quadratic a b c)
+  (quadratic a b c
+	     (lambda (r1 r2) `(two-roots ,r1 ,r2))
+	     (lambda (r1 r2) `(complex-roots ,r1 ,r2))
+	     (lambda (r) `(double-root ,r))
+	     (lambda (r) `(linear ,r))
+	     (lambda (a b c) `(no-solution ,a ,b ,c))))
 
+;;; Examples
 
+(test-quadratic 1 0 2)
+;Value: (complex-roots -1.4142135623730951i
+;;;                    +1.414213562373095i)
 
+(test-quadratic 2 -14 20)
+;Value: (two-roots 5 2)
+
+(test-quadratic 0 1 2)
+;Value: (linear -2)
+
+(test-quadratic 1 -2 1)
+;Value: (double-root 1)
+
+(test-quadratic 0 0 0)
+;Value: (no-solution 0 0 0)
+
+(test-quadratic 0 0 1)
+;Value: (no-solution 0 0 1)
+
+(test-quadratic 0 1 0)
+;Value: (linear 0)
+
+(test-quadratic 1 0 0)
+;Value: (double-root 0)
+
+(test-quadratic 2 10 100)
+;Value: (complex-roots -5/2-6.614378277661476i
+;;;                    -2.5+6.614378277661476i)
+
+;;; Slight weirdness here.  Root 1 has exact real part, 
+;;; but root 2 has inexact real part...
+|#

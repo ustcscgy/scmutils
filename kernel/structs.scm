@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -154,6 +154,20 @@ USA.
 		(s:->vector v)
 		i xi)))
 
+(define (s:subst struct newval . chain)
+  (s:subst-internal struct newval chain))
+
+(define (s:subst-internal struct newval chain)
+  (let lp ((chain chain) (struct struct))
+    (if (null? chain)
+        newval
+        (s:generate (s:length struct)
+                    (s:same struct)
+                    (lambda (i)
+                      (if (fix:= i (car chain))
+                          (lp (cdr chain) (s:ref struct i))
+                          (s:ref struct i)))))))
+
 (define (s:generate n up/down proc)
   (s:structure up/down (v:generate n proc)))
 
@@ -265,6 +279,35 @@ USA.
 
 (define structure:elementwise s:elementwise)
 
+;;; Is there a part of thing that the predicate is true of?
+
+(define (rexists pred thing)
+  (let tlp ((thing thing))
+    (cond ((pred thing) #t)
+	  ((vector? thing)
+	   (let ((n (vector-length thing)))
+	     (let lp ((i 0))
+	       (cond ((fix:= i n) #f)
+		     ((tlp (vector-ref thing i)) #t)
+		     (else (lp (fix:+ i 1)))))))
+	  ((structure? thing)
+	   (let ((n (s:length thing)))
+	     (let lp ((i 0))
+	       (cond ((fix:= i n) #f)
+		     ((tlp (s:ref thing i)) #t)
+		     (else (lp (fix:+ i 1)))))))
+	  ((matrix? thing)
+	   (tlp (matrix->array thing)))
+	  ((pair? thing)
+	   (cond ((memq (car thing) type-tags)
+		  (let ((v (get-property thing 'expression)))
+		    (if (not v)
+			#f
+			(tlp v))))
+		 (else
+		  (there-exists? thing tlp))))
+	  (else #f))))
+
 (define (s:arity v) (v:arity (s:->vector v)))
 
 (define (s:inexact? v) (v:inexact? (s:->vector v)))
@@ -302,13 +345,37 @@ USA.
 (define (structure-structure v1 v2)
   (s:binary vector-vector v1 v2))
 
-
+#|
 (define (s:multiply v1 v2)
   (if (s:compatible-for-contraction? v1 v2)
       (v:dot-product (s:->vector v1) (s:->vector v2))
-      (s:generate (s:length v2) (s:same v2)
-		  (lambda (i)
-		    (g:* v1 (s:ref v2 i))))))
+      (begin
+	(if (not *allowing-incompatible-multiplication*)
+	    (bkpt "Incompatible multiplication" v1 v2))
+	(s:generate (s:length v2) (s:same v2)
+		    (lambda (i)
+		      (g:* v1 (s:ref v2 i)))))))
+|#
+
+;;; Want to allow matrix multiply too...
+
+(define (s:multiply v1 v2)
+  (cond ((s:compatible-for-contraction? v1 v2)
+	 (v:dot-product (s:->vector v1) (s:->vector v2)))
+	((or *allowing-incompatible-multiplication*
+	     (and (or (and (down? v1) (down? v2))
+		      (and (up? v1) (up? v2)))
+		  (s:forall (lambda (c)
+			      (s:compatible-for-contraction? v1 c))
+			    v2)))
+	 (s:generate (s:length v2) (s:same v2)
+		     (lambda (i)
+		       (g:* v1 (s:ref v2 i)))))
+	(else
+	 (bkpt "Incompatible multiplication" v1 v2))))
+
+(define *allowing-incompatible-multiplication* #t)
+
 
 
 (define (s:compatible-for-contraction? v1 v2)
@@ -750,11 +817,11 @@ USA.
 
 (define (single-layer-down? s)
   (and (down? s)
-       (not (exists structure? (vector->list (s:->vector s))))))
+       (not (there-exists? (vector->list (s:->vector s)) structure?))))
 
 (define (single-layer-up? s)
   (and (up? s)
-       (not (exists structure? (vector->list (s:->vector s))))))
+       (not (there-exists? (vector->list (s:->vector s)) structure?))))
 
 
 (define (structure->matrix s)

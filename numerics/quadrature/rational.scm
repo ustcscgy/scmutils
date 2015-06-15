@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -88,6 +88,7 @@ USA.
 ;;; The following is the core of the rational interpolation,
 ;;;   with the zero denominator fix used by BS and Henon.
 
+;;; Original version
 (define (rational-interpolation dt c dx-list dx-new eps)
   (if (null? dt) 
       '()
@@ -113,30 +114,74 @@ USA.
 					    eps)))))))
 (define zd-wallp? #f)
 
+#|
+Date: Sun, 30 Nov 2008 16:47:59 -0500
+From: Jack Wisdom <wisdom@MIT.EDU>
+To: gjs@mit.edu
+Subject: quadrature
+
+The problem seems to occur when the rational-interpolation
+gets a zero denominator.  Try setting zd-wallp? to #t.
+
+I do not yet fully understand it, but if we quit the
+rational-interpolation instead of using the "zero denominator fix of
+BS and Henon", then the quadrature seems to work, in this case.
+
+So replace rational-interpolation with
+
+(define (rational-interpolation dt c dx-list dx-new eps)
+  (if (null? dt)
+      '()
+      (let* ((dt1 (car dt))
+	     (w (flo:- c dt1))
+	     (b1 (flo:* (flo:/ (car dx-list) dx-new) dt1))
+	     (den (flo:- b1 c)))
+	(if (flo:= den 0.0)
+	    '()
+	    (let* ((b (flo:/ w den))
+		   (new-d (flo:* c b)))
+	      (cons new-d
+		    (rational-interpolation (cdr dt)
+					    (flo:* b1 b)
+					    (cdr dx-list)
+					    dx-new
+					    eps)))))))
+
+I'll keep looking at it.
+|#
+
 ;;; Utilities
 
-
+#|
 (define (sigma-flo f low high)
   (let lp ((i low) (sum 0.0))
     (if (fix:> i high)
 	sum
 	(lp (fix:+ i 1) (flo:+ sum (f i))))))
 
-#|
+;;; The following uses Kahan's compensated summation trick.
+|#
+
 (define (sigma-flo f low high)
-  (let lp ((i (fix:+ low 1)) (sum (f low)))
+  (let lp ((i low) (sum 0.0) (c 0.0))
     (if (fix:> i high)
 	sum
-	(lp (fix:+ i 1) (flo:+ sum (f i))))))
-|#
+	(let* ((y (flo:- (f i) c)) (t (flo:+ sum y)))
+	  (lp (fix:+ i 1) t (flo:- (flo:- t sum) y))))))
 
 (define (rat-square x)
   (let ((fx (exact->inexact x)))
     (flo:* fx fx)))
 
+#|
 (define *new-bs-steps* 
   (merge-streams (stream-of-iterates (lambda (x) (* 2 x)) 2)
 		 (stream-of-iterates (lambda (x) (* 2 x)) 3)))
+|#
+
+(define *new-bs-steps*
+  (merge-streams (stream-of-iterates (lambda (x) (* 2 x)) 4)
+		 (stream-of-iterates (lambda (x) (* 2 x)) 6)))
 
 (define (make-bs-intervals a b)
   (map-stream (lambda (x) (rat-square (/ (- b a) x)))

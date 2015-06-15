@@ -40,8 +40,8 @@ USA.
      basis)))
 
 #|
-(define 2-sphere (rectangular 2))
-(instantiate-coordinates 2-sphere '(theta phi))
+(define 2-sphere R2-rect)
+(install-coordinates 2-sphere (up 'theta 'phi))
 
 (define ((g-sphere R) u v)
   (* (square R)
@@ -115,18 +115,17 @@ USA.
 #|
 ;;; Test with general 2d metric
 
-(define R2 (rectangular 2))
-(instantiate-coordinates R2 '(x y))
+(install-coordinates R2-rect (up 'x 'y))
 
 (define fa
   (compose (literal-function 'a (-> (UP Real Real) Real))
-	   (R2 '->coords)))
+	   (R2-rect '->coords)))
 (define fb
   (compose (literal-function 'b (-> (UP Real Real) Real))
-	   (R2 '->coords)))
+	   (R2-rect '->coords)))
 (define fc
   (compose (literal-function 'c (-> (UP Real Real) Real))
-	   (R2 '->coords)))
+	   (R2-rect '->coords)))
 
 (define ((g-R2 g_00 g_01 g_11) u v)
   (+ (* g_00 (dx u) (dx v))
@@ -134,9 +133,9 @@ USA.
      (* g_11 (dy u) (dy v))))
 
 (pec (((g-R2 fa fb fc)
-       (literal-vector-field 'u R2)
-       (literal-vector-field 'v R2))
-      ((R2 '->point) (up 'x0 'y0))))
+       (literal-vector-field 'u R2-rect)
+       (literal-vector-field 'v R2-rect))
+      ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (+ (* (v^1 (up x0 y0)) (u^1 (up x0 y0)) (c (up x0 y0)))
    (* (v^0 (up x0 y0)) (b (up x0 y0)) (u^1 (up x0 y0)))
@@ -144,11 +143,11 @@ USA.
    (* (a (up x0 y0)) (u^0 (up x0 y0)) (v^0 (up x0 y0))))
 |#
 
-(define R2-basis (coordinate-system->basis R2))
+(define R2-basis (coordinate-system->basis R2-rect))
 
 (pec ((Christoffel->symbols
        (metric->Christoffel-1 (g-R2 fa fb fc) R2-basis))
-      ((R2 '->point) (up 'x0 'y0))))
+      ((R2-rect '->point) (up 'x0 'y0))))
 #| Result:
 (down
  (down
@@ -202,59 +201,60 @@ USA.
 
 ;;; Symbolic metrics are often useful for testing.
 
-(define (gij i j)
-  (if (<= i j)
-      (literal-function (string->symbol
-			 (string-append "g"
-					"_"
-					(number->string i)
-					(number->string j)))
-			(-> (UP* Real) Real))
-      (gij j i)))
+(define (make-metric coordinate-system)
+  (define (gij i j)
+    (if (<= i j)
+	(literal-manifold-function
+	 (string->symbol
+	  (string-append "g"
+			 "_"
+			 (number->string i)
+			 (number->string j)))
+	 coordinate-system)
+	(gij j i)))
+  gij)
 				    
-(define (literal-metric basis)
+(define (literal-metric coordinate-system)
   ;; Flat coordinate systems here only.
-  (let ((1form-basis (basis->1form-basis basis)))
-    (let ((n (s:dimension 1form-basis)))
-      (let ((gcoeffs
-	     (s:generate n 'down
-			 (lambda (i)
-			   (s:generate n 'down
-				       (lambda (j)
-					 (gij i j)))))))
-	(lambda (v1 v2)
-	  (* (* gcoeffs (1form-basis v1))
-	     (1form-basis v2)))))))
+  (let ((basis (coordinate-system->basis coordinate-system)))
+    (let ((1form-basis (basis->1form-basis basis))
+	  (gij (make-metric coordinate-system)))
+      (let ((n (s:dimension 1form-basis)))
+	(let ((gcoeffs
+	       (s:generate n 'down
+			   (lambda (i)
+			     (s:generate n 'down
+					 (lambda (j)
+					   (gij i j)))))))
+	  (lambda (v1 v2)
+	    (* (* gcoeffs (1form-basis v1))
+	       (1form-basis v2))))))))
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
+(install-coordinates R3-rect (up 'x 'y 'z))
 
 (set! *factoring* #f)
 
-(pec (((literal-metric (coordinate-system->basis R3))
-       (literal-vector-field 'u R3)
-       (literal-vector-field 'v R3))
-      ((R3 '->point) (up 'x0 'y0 'z0))))
+(pec (((literal-metric R3-rect)
+       (literal-vector-field 'u R3-rect)
+       (literal-vector-field 'v R3-rect))
+      ((R3-rect '->point) (up 'x0 'y0 'z0))))
 #| Result:
-(+ (* (g_00 (up x0 y0 z0)) (v^0 (up x0 y0 z0)) (u^0 (up x0 y0 z0)))
+(+ (* (v^0 (up x0 y0 z0)) (u^0 (up x0 y0 z0)) (g_00 (up x0 y0 z0)))
    (* (v^0 (up x0 y0 z0)) (g_01 (up x0 y0 z0)) (u^1 (up x0 y0 z0)))
    (* (v^0 (up x0 y0 z0)) (g_02 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
-   (* (g_01 (up x0 y0 z0)) (v^1 (up x0 y0 z0)) (u^0 (up x0 y0 z0)))
-   (* (g_11 (up x0 y0 z0)) (v^1 (up x0 y0 z0)) (u^1 (up x0 y0 z0)))
+   (* (u^0 (up x0 y0 z0)) (v^1 (up x0 y0 z0)) (g_01 (up x0 y0 z0)))
+   (* (u^0 (up x0 y0 z0)) (v^2 (up x0 y0 z0)) (g_02 (up x0 y0 z0)))
+   (* (v^1 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_11 (up x0 y0 z0)))
    (* (v^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)) (u^2 (up x0 y0 z0)))
-   (* (g_02 (up x0 y0 z0)) (u^0 (up x0 y0 z0)) (v^2 (up x0 y0 z0)))
-   (* (g_12 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (v^2 (up x0 y0 z0)))
-   (* (g_22 (up x0 y0 z0)) (v^2 (up x0 y0 z0)) (u^2 (up x0 y0 z0))))
+   (* (v^2 (up x0 y0 z0)) (u^1 (up x0 y0 z0)) (g_12 (up x0 y0 z0)))
+   (* (v^2 (up x0 y0 z0)) (u^2 (up x0 y0 z0)) (g_22 (up x0 y0 z0))))
 |#
 |#
 
 #|
-;;; Runs out of memory trying to print foo, below if we use the following
-;;; (define polar (polar/cylindrical 2))
-;;; Not anymore!  Now it works.
+(define polar R2-polar)
 
-(define polar (rectangular 2))
-(instantiate-coordinates polar '(r theta))
+(install-coordinates polar (up 'r 'theta))
 
 (define polar-point 
   ((polar '->point) (up 'r 'theta)))
@@ -281,7 +281,14 @@ USA.
        (up (* -1 r) 0)))
 |#
 
-;;; Thus, make simplified version.
+;;; Faster, a simplified version.
+
+(define polar R2-rect)
+
+(install-coordinates polar (up 'r 'theta))
+
+(define polar-point 
+  ((polar '->point) (up 'r 'theta)))
 
 (define polar-Gamma
   (make-Christoffel
@@ -294,29 +301,30 @@ USA.
    (coordinate-system->basis polar)))
 
 ;;; Now look at curvature
-(for-each
- (lambda (alpha)
-   (for-each
-    (lambda (beta)
-      (for-each
-       (lambda (gamma)
-	 (for-each
-	  (lambda (delta)
-	    (newline)
-	    (pe `(,alpha ,beta ,gamma ,delta))
-	    (pe (((Riemann (Christoffel->Cartan polar-Gamma))
-		  alpha beta gamma delta)
-		 polar-point)))
-	  (list d/dr d/dtheta)))
-       (list d/dr d/dtheta)))
-    (list d/dr d/dtheta)))
- (list dr dtheta))
+(let* ((nabla
+	(covariant-derivative (Christoffel->Cartan polar-Gamma)))
+       (curvature (Riemann nabla)))
+  (for-each
+   (lambda (alpha)
+     (for-each
+      (lambda (beta)
+	(for-each
+	 (lambda (gamma)
+	   (for-each
+	    (lambda (delta)
+	      (newline)
+	      (pe `(,alpha ,beta ,gamma ,delta))
+	      (pe ((curvature alpha beta gamma delta) polar-point)))
+	    (list d/dr d/dtheta)))
+	 (list d/dr d/dtheta)))
+      (list d/dr d/dtheta)))
+   (list dr dtheta)))
 ;;; 16 zeros
 |#
 
 #|
-(define spherical (rectangular 3))
-(instantiate-coordinates spherical '(r theta phi))
+(define spherical R3-rect)
+(install-coordinates spherical (up 'r 'theta 'phi))
 
 (define spherical-point 
   ((spherical '->point) (up 'r 'theta 'phi)))
@@ -360,23 +368,26 @@ USA.
    (coordinate-system->basis spherical)))
 
 ;;; Now look at curvature
-(for-each
- (lambda (alpha)
-   (for-each
-    (lambda (beta)
-      (for-each
-       (lambda (gamma)
-	 (for-each
-	  (lambda (delta)
-	    (newline)
-	    (pe `(,alpha ,beta ,gamma ,delta))
-	    (pe (((Riemann (Christoffel->Cartan spherical-Gamma))
-		  alpha beta gamma delta)
-		 spherical-point)))
-	  (list d/dr d/dtheta d/dphi)))
-       (list d/dr d/dtheta d/dphi)))
-    (list d/dr d/dtheta d/dphi)))
- (list dr dtheta dphi))
+
+(let* ((nabla
+	(covariant-derivative (Christoffel->Cartan spherical-Gamma)))
+       (curvature (Riemann nabla)))
+  (for-each
+   (lambda (alpha)
+     (for-each
+      (lambda (beta)
+	(for-each
+	 (lambda (gamma)
+	   (for-each
+	    (lambda (delta)
+	      (newline)
+	      (pe `(,alpha ,beta ,gamma ,delta))
+	      (pe ((curvature alpha beta gamma delta)
+		   spherical-point)))
+	    (list d/dr d/dtheta d/dphi)))
+	 (list d/dr d/dtheta d/dphi)))
+      (list d/dr d/dtheta d/dphi)))
+   (list dr dtheta dphi)))
 ;;; 81 zeros
 |#
 
@@ -442,8 +453,8 @@ USA.
 #|
 ;;; MTW p205 spherical flat lorentz
 
-(define spherical-Lorentz (rectangular 4))
-(instantiate-coordinates spherical-Lorentz '(t r theta phi))
+(define spherical-Lorentz R4-rect)
+(install-coordinates spherical-Lorentz (up 't 'r 'theta 'phi))
 
 (define spherical-Lorentz-basis
   (coordinate-system->basis spherical-Lorentz))
@@ -530,10 +541,12 @@ USA.
 |#
 
 (define foo
-  ((Christoffel->symbols
-    (metric->connection-2 (spherical-Lorentz-metric 'c^2)
-			  (orthonormal-spherical-Lorentz-basis 'c^2)))
-   spherical-Lorentz-point))
+  (show-time
+   (lambda ()
+     ((Christoffel->symbols
+       (metric->connection-2 (spherical-Lorentz-metric 'c^2)
+			     (orthonormal-spherical-Lorentz-basis 'c^2)))
+      spherical-Lorentz-point))))
 
 (pec foo)
 #| Result:

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -39,17 +39,6 @@ USA.
 
 (define generate-list make-initialized-list)
 (define list:generate make-initialized-list)
-
-(define (iota to #!optional from increment)
-  (define (step where)
-    (if (>= where to)
-	'()
-	(cons where (step (+ where increment)))))
-  (if (default-object? from) (set! from 0))
-  (if (default-object? increment) (set! increment 1))
-  (step from))
-
-
 
 (define (list-with-substituted-coord lst i x)
   (append (list-head lst i)

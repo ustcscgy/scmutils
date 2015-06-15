@@ -23,11 +23,16 @@ USA.
 
 |#
 
+
+(environment-define system-global-environment 'SO3-environment
+  (extend-top-level-environment
+   (access generic-environment scmutils-base-environment)))
+
 (with-working-directory-pathname (directory-pathname (current-load-pathname))
   (lambda () 
+    (load "coord" scmutils-base-environment)
     (load "dgutils" generic-environment)
 
-    (load "coordinates" generic-environment)
     (load "manifold" generic-environment)
     (load "vector-fields" generic-environment)
     (load "form-fields" generic-environment)
@@ -37,23 +42,27 @@ USA.
     (load "exterior-derivative" generic-environment)
     (load "Lie" generic-environment)
     (load "interior-product" generic-environment)
-
     (load "ode" generic-environment)
 
     (load "maps" generic-environment)
     (load "covariant-derivative" generic-environment)
-
     (load "curvature" generic-environment)
-
     (load "metric" generic-environment)
     ;; Connection derived from metric
     (load "connection" generic-environment)
+
     ;; Hodge star depends on metric
     (load "gram-schmidt" generic-environment)
+    ;; gram-schmidt runs very slowly!
     (load "hodge-star" generic-environment)
+
     (load "tensor" generic-environment)
 
-    (load "special-relativity" generic-environment)
+    (load "so3" SO3-environment)
 
-    (load "speedup" generic-environment)
+    ;; Updated files to here...
+
+    ;;(load "special-relativity" generic-environment)
+
+    ;;(load "speedup" generic-environment)
     ))

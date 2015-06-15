@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -56,9 +56,16 @@ USA.
 	     *frame-y-position*
 	     frame-y-position))
 	(frame-width
-	 (if (default-object? frame-width) *frame-width* frame-width))
+	 (if (default-object? frame-width)
+	     *frame-width*
+	     frame-width))
 	(frame-height
-	 (if (default-object? frame-height) *frame-height* frame-height)))
+	 (if (default-object? frame-height)
+	     *frame-height*
+	     frame-height)))
+    (if (not (and (integer? frame-width) (> frame-width 0)
+		  (integer? frame-height) (> frame-height 0)))
+	(error "Bad frame width or height"))
     (let ((window
 	   (if (default-object? display)
 	       (make-window frame-width frame-height frame-x frame-y)
@@ -109,7 +116,8 @@ USA.
 			       (x-geometry-string x y width height)
 			       true)))
     ;; Prevent this window from receiving the keyboard focus.
-    (x-graphics/disable-keyboard-focus window)
+    (if (not (string-ci=? "MacOSX" microcode-id/operating-system-variant))
+	(x-graphics/disable-keyboard-focus window))
     ;; Inform the window manager that this window does not do any
     ;; keyboard input.
     (x-graphics/set-input-hint window false)
@@ -159,7 +167,7 @@ USA.
 ;;; Mouse stuff
 
 (define standard-mouse-shape 34)
-(define requesting-input-mouse-shape 29)
+(define requesting-input-mouse-shape 11)
 
 
 ;;; Needs to be generalized for OS/2
@@ -403,10 +411,10 @@ USA.
     (list minx maxx miny maxy)))
 
 #|
-(define xs (iota 7 0 .01))
+(define xs (iota 700 0.0 0.01))
 
 (length xs)
-;Value: 701
+;Value: 700
 
 (define ys (map sin xs))
 

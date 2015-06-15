@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -170,9 +170,9 @@ USA.
   (assert (and (not (null? rows)) (list? (car rows))))
   (let ((nrows (length rows)))
     (let ((ncols (length (car rows))))
-      (assert (forall (lambda (row)
-			(and (list? row) (fix:= ncols (length row))))
-		      (cdr rows)))
+      (assert (for-all? (cdr rows)
+		(lambda (row)
+		  (and (list? row) (fix:= ncols (length row))))))
       (m:generate nrows ncols
 		  (lambda (i j)
 		    (list-ref (list-ref rows i) j))))))
@@ -185,9 +185,9 @@ USA.
   (assert (and (not (null? cols)) (list (car cols))))
   (let ((ncols (length cols)))
     (let ((nrows (length (car cols))))
-      (assert (forall (lambda (col)
-			(and (list? col) (fix:= nrows (length col))))
-		      (cdr cols)))
+      (assert (for-all? (cdr cols)
+		(lambda (col)
+		  (and (list? col) (fix:= nrows (length col))))))
       (m:generate nrows ncols
 		  (lambda (i j)
 		    (list-ref (list-ref cols j) i))))))
@@ -216,13 +216,13 @@ USA.
 
 (define ((m:elementwise f) . matrices)
   (assert (and (not (null? matrices))
-	       (forall matrix? matrices)))
+	       (for-all? matrices matrix?)))
   (let ((nrows (m:num-rows (car matrices)))
 	(ncols (m:num-cols (car matrices))))
-    (assert (forall (lambda (m)
-		      (and (fix:= (m:num-rows m) nrows)
-			   (fix:= (m:num-cols m) ncols)))
-		    (cdr matrices)))
+    (assert (for-all? (cdr matrices)
+	      (lambda (m)
+		(and (fix:= (m:num-rows m) nrows)
+		     (fix:= (m:num-cols m) ncols)))))
     (m:generate nrows ncols
 		(lambda (i j)
 		  (g:apply f
@@ -707,7 +707,7 @@ USA.
 (define (m:partial-derivative matrix varspecs)
   ((m:elementwise
     (lambda (f)
-      (apply g:partial-derivative f varspecs)))
+      (generic:partial-derivative f varspecs)))
    matrix))
 
 (define (m:inexact? m)

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -78,26 +78,6 @@ USA.
 
 ;;; Euler Angles
 
-(define (rotate-z-matrix angle)
-  (matrix-by-rows
-    (list (cos angle) (- (sin angle))               0)
-    (list (sin angle)     (cos angle)               0)
-    (list           0               0               1)))
-
-(define (rotate-x-matrix angle)
-  (matrix-by-rows 
-    (list           1               0               0)
-    (list           0     (cos angle) (- (sin angle)))
-    (list           0     (sin angle)     (cos angle))))
-
-;;; Not used for Euler.
-(define (rotate-y-matrix angle)
-  (matrix-by-rows 
-    (list     (cos angle)     0  (sin angle))
-    (list               0     1            0)
-    (list (- (sin angle))     0  (cos angle))))
-
-
 (define (Euler->M angles)
   (let ((theta (ref angles 0))
 	(phi (ref angles 1))
@@ -121,9 +101,9 @@ USA.
 #|
 (show-expression
   ((Euler->omega-body
-    (coordinate-tuple (literal-function 'theta)
-		      (literal-function 'phi)
-		      (literal-function 'psi)))
+    (up (literal-function 'theta)
+	(literal-function 'phi)
+	(literal-function 'psi)))
    't))
 (matrix-by-rows
  (list
@@ -138,9 +118,9 @@ USA.
 #|
 (show-expression
  (((M-of-q->omega-body-of-t Euler->M)
-   (coordinate-tuple (literal-function 'theta)
-		     (literal-function 'phi)
-		     (literal-function 'psi)))
+   (up (literal-function 'theta)
+       (literal-function 'phi)
+       (literal-function 'psi)))
   't))
 (matrix-by-rows
  (list
@@ -153,9 +133,9 @@ USA.
 
 (show-expression
  ((M->omega-body Euler->M)
-  (->local 't 
-           (coordinate-tuple 'theta 'phi 'psi)
-           (velocity-tuple 'thetadot 'phidot 'psidot))))
+  (up 't 
+      (up 'theta 'phi 'psi)
+      (up 'thetadot 'phidot 'psidot))))
 (matrix-by-rows
  (list (+ (* phidot (sin psi) (sin theta)) (* thetadot (cos psi))))
  (list (+ (* phidot (sin theta) (cos psi)) (* -1 thetadot (sin psi))))
@@ -201,9 +181,9 @@ USA.
 
 #|
 (define an-Euler-state
-  (->local 't
-           (coordinate-tuple 'theta 'phi 'psi)
-           (velocity-tuple 'thetadot 'phidot 'psidot)))
+  (up 't
+      (up 'theta 'phi 'psi)
+      (up 'thetadot 'phidot 'psidot)))
 
 (show-expression
  (ref
@@ -278,9 +258,9 @@ USA.
 #|
 (show-expression
  ((T-rigid-body 'A 'A 'C) 
-   (->local 't 
-            (coordinate-tuple 'theta 'phi 'psi)
-            (velocity-tuple 'thetadot 'phidot 'psidot))))
+   (up 't 
+       (up 'theta 'phi 'psi)
+       (up 'thetadot 'phidot 'psidot))))
 (+ (* 1/2 A (expt phidot 2) (expt (sin theta) 2))
    (* 1/2 C (expt phidot 2) (expt (cos theta) 2))
    (* C phidot psidot (cos theta))
@@ -291,8 +271,8 @@ USA.
 ;;;  M^T A(Mv) M = A(v) for arbitrary v orthogonal M
 
 (print-expression
-  (let ((Euler (coordinate-tuple 'theta 'phi 'psi))
-	(v (coordinate-tuple 'x 'y 'z)))
+  (let ((Euler (up 'theta 'phi 'psi))
+	(v (up 'x 'y 'z)))
     (let ((M (Euler->M Euler)))
       (- (* (3vector-components->antisymmetric (* M v))
 	    M)
@@ -305,7 +285,7 @@ USA.
 ;;; Configuration equations for Euler's equations with Euler angles
    
 (print-expression
-  (let ((Euler (coordinate-tuple (literal-function 'theta)
+  (let ((Euler (up (literal-function 'theta)
 				 (literal-function 'phi)
 				 (literal-function 'psi))))
     (antisymmetric->column-matrix 

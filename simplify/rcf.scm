@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -60,7 +60,7 @@ USA.
   (cond ((ratform? q)
 	 (check-same-arity (ratform-numerator q)
 			   (ratform-denominator q)))
-	((poly? q) (poly:arity q))
+	((pcf? q) (poly:arity q))
 	(else (error "Wrong type -- RCF:ARITY" q))))
 
 (define (make-rcf n d)
@@ -77,21 +77,21 @@ USA.
 
 
 (define (rcf:rcf? object)
-  (or (ratform? object) (poly? object)))
+  (or (ratform? object) (pcf? object)))
 
 (define (rcf:pcf? object)
-  (and (not (ratform? object)) (poly? object)))
+  (and (not (ratform? object)) (pcf? object)))
 
 (define (rcf:= q r)
   (if (ratform? q)
       (if (ratform? r)
 	  (and (poly:= (ratform-numerator q) (ratform-numerator r))
 	       (poly:= (ratform-denominator q) (ratform-denominator r)))
-	  (if (poly? r)
+	  (if (pcf? r)
 	      #f
 	      (error "Wrong type -- RCF:=" r)))
       (if (ratform? r)
-	  (if (poly? q)
+	  (if (pcf? q)
 	      #f
 	      (error "Wrong type -- RCF:=" q))
 	  (poly:= q r))))
@@ -259,12 +259,12 @@ USA.
 
 (define (rcf:numerator q)
   (cond ((ratform? q) (ratform-numerator q))
-	((poly? q) q)
+	((pcf? q) q)
 	(else (error "Wrong type -- NUMERATOR" q))))
 
 (define (rcf:denominator q)
   (cond ((ratform? q) (ratform-denominator q))
-	((poly? q) poly:one)
+	((pcf? q) poly:one)
 	(else (error "Wrong type -- DENOMINATOR" q))))
 
 
@@ -379,10 +379,10 @@ USA.
 ;;; For simplifier
 
 (define (rcf:->expression p vars)
-  (if (poly? p)
-      (poly:->expression p vars)
-      (symb:/ (poly:->expression (ratform-numerator p) vars)
-	      (poly:->expression (ratform-denominator p) vars))))
+  (if (pcf? p)
+      (pcf:->expression p vars)
+      (symb:/ (pcf:->expression (ratform-numerator p) vars)
+	      (pcf:->expression (ratform-denominator p) vars))))
 
 (define (rcf:expression-> expr cont #!optional less?)
   ;; cont = (lambda (ratp vars) ... )
@@ -398,7 +398,7 @@ USA.
 	  evars)))
 
 (define (rcf:->lambda p)
-  (if (poly? p)
+  (if (pcf? p)
       (poly->function p)
       (let* ((n (rcf:arity p))
 	     (vars (generate-list-of-symbols 'x n))

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,21 +35,25 @@ USA.
 
 (define cons-unique
   ;; I don't want to cons if unnecessary.
-  (let ((the-pair (cons #f #f)))  
+  (let ((the-test-pair (cons #f #f)))  
     (define (hashcons x y)
-      (set-car! the-pair x)
-      (set-cdr! the-pair y)
-      (let ((canonical-pair
-	     (hash-table/get the-cons-table the-pair #f)))
-	(if canonical-pair
-	    (begin
-	      (set-car! the-pair #f)
-	      (set-cdr! the-pair #f)
-	      canonical-pair)
-	    (let ((new the-pair))
-	      (hash-table/put! the-cons-table new new)
-	      (set! the-pair (cons #f #f))
-	      new))))
+      (set-car! the-test-pair x)
+      (set-cdr! the-test-pair y)
+      (let ((weak-pair
+	     (hash-table/intern! the-cons-table
+				 the-test-pair
+				 (lambda ()
+				   (weak-cons the-test-pair
+					      #f)))))
+	(let ((the-canonical-pair (weak-car weak-pair)))
+	  (cond ((eq? the-canonical-pair the-test-pair)
+		 ;; test pair used, make a new one
+		 (set! the-test-pair (cons #f #f)))
+		(else
+		 ;; clear test pair for next try.
+		 (set-car! the-test-pair #f)
+		 (set-cdr! the-test-pair #f)))
+	  the-canonical-pair)))
     hashcons))
 
 
@@ -57,12 +61,17 @@ USA.
 ;;; list structure.  Must canonicalize and share all substructure.
 	    
 (define (canonical-copy x)
+  (define (recurse)
+    (cons-unique (canonical-copy (car x))
+		 (canonical-copy (cdr x))))
   (if (pair? x)
-      (let ((canonical-pair		; already canonical?
+      (let ((seen		; already canonical?
 	     (hash-table/get the-cons-table x #f)))
-	(or canonical-pair
-	    (cons-unique (canonical-copy (car x))
-			 (canonical-copy (cdr x)))))
+	(if seen
+	    (or (weak-car seen)
+		(and (not (weak-pair/car? seen))
+		     (recurse)))
+	    (recurse)))
       x))
 
 
@@ -71,16 +80,24 @@ USA.
       (cons-unique (p (car lst))
 		   (map-unique p (cdr lst)))
       lst))
-
+
 ;;; Support for the hashcons system.
 
-(define (pair-eq? u v)
-  (and (eq? (car u) (car v))
-       (eq? (cdr u) (cdr v))))
+(define (pair-eqv? u v)
+  (and (eqv? (car u) (car v))
+       (eqv? (cdr u) (cdr v))))
+
+(define (pair-eqv-hash-mod key modulus)
+  (int:remainder (pair-eqv-hash key)
+		 modulus))
+
+(define (pair-eqv-hash pair)
+  (int:+ (eqv-hash (car pair))
+	 (eqv-hash (cdr pair))))
 
 (define the-cons-table
-  ((weak-hash-table/constructor equal-hash-mod
-				pair-eq?
+  ((weak-hash-table/constructor pair-eqv-hash-mod
+				pair-eqv?
 				#t)))
 
 #|
@@ -135,7 +152,7 @@ baz
 (define mum (caddr (caddr (caddr (car (cddddr (caddr (caddr cbar))))))))
 ;Value: mum
 
-;Value: mum
+mum
 ;Value: (hash-table/put! the-cons-table new new)
 
 (eq? baz mum)

@@ -50,9 +50,9 @@ USA.
 					  (apply form2 a2)))))
 			       perms)))))
 	  (procedure->nform-field the-wedge
+				  n
 				  `(wedge ,(diffop-name form1)
-					  ,(diffop-name form2))
-				  n)))))
+					  ,(diffop-name form2)))))))
 
 (define (wedge . args)
   (reduce-right wedge2 (constant 1) args))
@@ -77,24 +77,26 @@ USA.
 (define (rank->arity n)
   (cons n n))
 
-(define (procedure->nform-field proc name n)
+(define (procedure->nform-field proc n #!optional name)
+  (if (default-object? name)
+      (set! name 'unnamed-nform-field))
   (if (= n 0)
       (proc)
       (make-operator proc name wedge (rank->arity n))))
 
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
+(install-coordinates R3-rect (up 'x 'y 'z))
 
-(define w (literal-1form-field 'w R3))
-(define u (literal-1form-field 'u R3))
-(define v (literal-1form-field 'v R3))
+(define R3-point ((R3-rect '->point) (up 'x0 'y0 'z0)))
 
-(define X (literal-vector-field 'X R3))
-(define Y (literal-vector-field 'Y R3))
-(define Z (literal-vector-field 'Z R3))
-(define W (literal-vector-field 'W R3))
+(define w (literal-1form-field 'w R3-rect))
+(define u (literal-1form-field 'u R3-rect))
+(define v (literal-1form-field 'v R3-rect))
+
+(define X (literal-vector-field 'X R3-rect))
+(define Y (literal-vector-field 'Y R3-rect))
+(define Z (literal-vector-field 'Z R3-rect))
+(define W (literal-vector-field 'W R3-rect))
 
 ;;; Just checking that everything is working...
 
@@ -129,10 +131,6 @@ USA.
 |#
 
 #|
-(define R3 (rectangular 3))
-(instantiate-coordinates R3 '(x y z))
-(define R3-point ((R3 '->point) (up 'x0 'y0 'z0)))
-
 (define dx^dy (wedge dx dy))
 
 ((dx^dy d/dx d/dy) R3-point)
@@ -165,8 +163,8 @@ USA.
 					  (apply form pargs)))))
 			       perms)))))
 	  (procedure->nform-field the-alternation
-				  `(Alt ,(diffop-name form))
-				  n)))))
+				  n
+				  `(Alt ,(diffop-name form)))))))
 
 (define (tensor-product2 t1 t2)
   (let ((n1 (get-rank t1)) (n2 (get-rank t2)))
@@ -179,9 +177,9 @@ USA.
 	    (* (apply t1 (list-head args n1))
 	       (apply t2 (list-tail args n1))))
 	  (procedure->nform-field the-product
+				  n
 				  `(tensor-product ,(diffop-name t1)
-						   ,(diffop-name t2))
-				  n)))))
+						   ,(diffop-name t2)))))))
 
 (define (w2 form1 form2)
   (let ((n1 (get-rank form1)) (n2 (get-rank form2)))

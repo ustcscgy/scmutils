@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -314,7 +314,7 @@ USA.
 	     (apply (eval `(lambda ,evars ,ex) symbolic-environment)
 		    (map (lambda (x) (random 10000)) evars))))))
     (if (and (not (condition? val)) (exact-zero? val))
-	(exact-zero? (new-simplify ex))
+	(exact-zero? (simplify ex))
 	#f)))
 
 (define (an:one? x)
@@ -324,3 +324,52 @@ USA.
 ;;; (assign-operation '=          an:=            abstract-number? abstract-number?)
 ;;; (assign-operation 'zero?      an:zero?        abstract-number?)
 ;;; (assign-operation 'one?       an:one?         abstract-number?)
+
+(define *known-reals* '())
+
+(define (known-real? z)
+  (cond ((structure? z)
+	 (s:forall known-real? z))
+	((matrix? z)
+	 (let ((m (m:num-rows matrix))
+	       (n (m:num-cols matrix))
+	       (mat (matrix->array z)))
+	   (let rowlp ((i 0))
+	     (if (fix:= i m)
+		 #t
+		 (let collp ((j 0))
+		   (if (fix:= j n)
+		       (rowlp (fix:+ i 1))
+		       (if (known-real? (array-ref mat i j))
+			   (collp (fix:+ j 1))
+			   #f)))))))
+	((differential? z)
+	 (for-all? (differential->terms z)
+	   (lambda (term)
+	     (known-real? (differential-coefficient term)))))
+	(else
+	 (there-exists? *known-reals*
+	   (lambda (w)
+	     (or (equal? w z)
+		 (let ((diff
+			(ignore-errors
+			 (lambda ()
+			   (simplify (g:- w z))))))
+		   (and (not (condition? diff))
+			(exact-zero? diff)))))))))
+
+;;; Permanent declaration
+
+(define (declare-known-reals . stuff)
+  (set! *known-reals* (list-union stuff *known-reals*)))
+
+(define (declare-unknown-reals . stuff)
+  (set! *known-reals* (list-difference *known-reals* stuff)))
+
+
+;;; Temporary declaration
+
+(define (with-known-reals stuff thunk)
+  (fluid-let ((*known-reals* (list-union stuff *known-reals*)))
+    (thunk)))
+    

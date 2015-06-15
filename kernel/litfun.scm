@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -133,17 +133,20 @@ USA.
   (starify rest 'DOWN* DOWN))
 
 
-(define Any 'Any)
-
 (define (-> domain range)
   `(-> ,domain ,range))
+
+(define Any 'Any)
 
 (define (default-function-type n #!optional type)
-  (-> (X* Real n) Real))
+  (if (= n 1)
+      '(-> Real Real)
+      (-> (X* Real n) Real)))
 
 (define (permissive-function-type n)
   (-> (X* Any n) Real))
-
+
+
 ;;; Some useful types
 
 (define (Lagrangian #!optional n)	;n = #degrees-of-freedom
@@ -155,8 +158,7 @@ USA.
   (if (default-object? n)
       (-> (UP* Real (UP* Real) (DOWN* Real)) Real)
       (-> (UP* Real (UP* Real n) (DOWN* Real n)) Real)))
-
-
+
 #| ;;; For example
 
 (define L (literal-function 'L (Lagrangian)))
@@ -259,34 +261,6 @@ USA.
 	      (lambda (datum)
 		(and (down? datum)
 		     (all-satisfied type-predicates datum)))))
-	   #|
-	   ((X*)
-	    (let ((type-predicate
-		   (type-expression->predicate
-		    (cadr type-expression))))
-	      (lambda (datum)
-		(or (and (vector? datum)
-			 (s:forall type-predicate datum))
-		    (type-predicate datum)))))
-	   ((UP*)
-	    (let ((type-predicate
-		   (type-expression->predicate
-		    (cadr type-expression))))
-	      (lambda (datum)
-		(or (and (up? datum)
-			 (s:forall type-predicate datum))
-		    (and (not (structure? datum))
-			 (type-predicate datum))))))
-	   ((DOWN*)
-	    (let ((type-predicate
-		   (type-expression->predicate
-		    (cadr type-expression))))
-	      (lambda (datum)
-		(or (and (down? datum)
-			 (s:forall type-predicate datum))
-		    (and (not (structure? datum))
-			 (type-predicate datum))))))
-	   |#
 	   ((X*)
 	    (let ((type-predicates
 		   (map type-expression->predicate
@@ -326,16 +300,11 @@ USA.
 			    (null? (cdr type-predicates)))
 		       ((car type-predicates) datum))
 		      (else #f)))))
-	   ((->)
-	    function?)
-	   (else
-	    (error "Unknown type combinator" type-expression))))
-	((eq? type-expression Real)
-	 numerical-quantity?)
-	((eq? type-expression Any)
-	 any?)
-	(else
-	 (error "Unknown primitive type" type-expression))))
+	   ((->) function?)
+	   (else (error "Unknown type combinator" type-expression))))
+	((eq? type-expression Real) numerical-quantity?)
+	((eq? type-expression Any) any?)
+	(else (error "Unknown primitive type" type-expression))))
 
 (define (all-satisfied type-preds structure)
   (let ((n (length type-preds)))
@@ -417,12 +386,34 @@ USA.
 (define (literal-function fexp #!optional descriptor)
   (if (default-object? descriptor)
       (set! descriptor (default-function-type 1)))
-  (litfun fexp 
-	  (type->arity descriptor)
-	  (type->range-type descriptor)
-	  (type->domain-types descriptor)
-	  `(literal-function ',fexp
-			     ,descriptor)))
+  (let ((arity (type->arity descriptor))
+	(range-type (type->range-type descriptor)))
+    (cond ((or (eq? Real range-type)
+	       (eq? '*function* (type-expression->type-tag range-type)))
+	   (litfun fexp arity range-type (type->domain-types descriptor)
+		   `(literal-function ',fexp ,descriptor)))
+	  ((not (symbol? fexp))
+	   (error "Cannot handle this function expression: LITERAL-FUNCTION"
+		  fexp
+		  descriptor))
+	  ((eq? (car range-type) 'UP)
+	   (let ((n (length (cdr range-type))))
+	     (s:generate n 'up
+			 (lambda (i)
+			   (literal-function (symbol fexp '^ i)
+					     (-> (type->domain descriptor)
+						 (list-ref (cdr range-type) i)))))))
+	  ((eq? (car range-type) 'DOWN)
+	   (let ((n (length (cdr range-type))))
+	     (s:generate n 'down
+			 (lambda (i)
+			   (literal-function (symbol fexp '_ i)
+					     (-> (type->domain descriptor)
+						 (list-ref (cdr range-type) i)))))))
+	  (else
+	   (error "Cannot handle this range type: LITERAL-FUNCTION"
+		  fexp
+		  descriptor)))))
 
 (define (litfun fexp arity range-type domain-types call)
   (assert (exactly-n? arity)
@@ -430,20 +421,15 @@ USA.
   (let ((apply-hook (make-apply-hook #f #f)))
     (let ((litf
 	   (cond ((equal? arity *exactly-zero*)
-		  (lambda ()
-		    (literal-apply apply-hook '())))
+		  (lambda () (literal-apply apply-hook '())))
 		 ((equal? arity *exactly-one*)
-		  (lambda (x)
-		    (literal-apply apply-hook (list x))))
+		  (lambda (x) (literal-apply apply-hook (list x))))
 		 ((equal? arity *exactly-two*)
-		  (lambda (x y)
-		    (literal-apply apply-hook (list x y))))
+		  (lambda (x y) (literal-apply apply-hook (list x y))))
 		 ((equal? arity *exactly-three*)
-		  (lambda (x y z)
-		    (literal-apply apply-hook (list x y z))))
+		  (lambda (x y z) (literal-apply apply-hook (list x y z))))
 		 (else
-		  (lambda args
-		    (literal-apply apply-hook args))))))
+		  (lambda args (literal-apply apply-hook args))))))
       (set-apply-hook-procedure! apply-hook litf)
       (set-apply-hook-extra! apply-hook
         (list '*function* domain-types range-type fexp call))
@@ -469,33 +455,6 @@ USA.
 		(add-property! ans 'type-expression rtype)
 		ans))))))
 
-(define (rexists pred thing)
-  (cond ((pred thing) #t)
-	((vector? thing)
-	 (let ((n (vector-length thing)))
-	   (let lp ((i 0))
-	     (cond ((fix:= i n) #f)
-		   ((rexists pred (vector-ref thing i)) #t)
-		   (else (lp (fix:+ i 1)))))))
-	((structure? thing)
-	 (let ((n (s:length thing)))
-	   (let lp ((i 0))
-	     (cond ((fix:= i n) #f)
-		   ((rexists pred (s:ref thing i)) #t)
-		   (else (lp (fix:+ i 1)))))))
-	((matrix? thing)
-	 (rexists pred (matrix->array thing)))
-	((pair? thing)
-	 (cond ((memq (car thing) type-tags)
-		(let ((v (get-property thing 'expression)))
-		  (if (not v)
-		      #f
-		      (rexists pred v))))
-	       (else
-		(exists (lambda (x) (rexists pred x))
-			thing))))
-	(else #f)))
-
 (define (litderiv apply-hook args)
   (let ((v (list->up-structure args)))
     (let ((maxtag (apply max-order-tag (s:fringe v))))
@@ -510,7 +469,7 @@ USA.
 			      (d:* (apply partialx ev) dx))
 			    (s:fringe (make-partials apply-hook v))  
 			    (s:fringe dv))))))))
-
+
 (define (make-partials apply-hook v)
   (define (fd indices vv)
     (cond ((structure? vv)

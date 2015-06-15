@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,15 +26,6 @@ USA.
 ;;;;           Variational Mechanics
   
 ;;; Caution... This file is case sensitive!
-
-(if (and (not
-	  (lexical-unreferenceable? user-initial-environment
-				    '*parser-canonicalize-symbols?*))
-	 (not *parser-canonicalize-symbols?*))
-    (local-assignment (the-environment)
-		      'Lagrange-interpolation-function
-		      lagrange-interpolation-function))
-
 
 ;;; However, there are alternative names for the actual data types.
 
@@ -376,6 +367,47 @@ USA.
  (+ (* (expt b 2) m_2 (((expt D 2) theta) t))
     (* b g m_2 (sin (theta t)))
     (* b m_2 (((expt D 2) x) t) (cos (theta t)))))
+
+
+;;; Nicer treatment
+
+(define ((F-sliding-pend l) state)
+  (let ((q (coordinate state)))
+    (let ((x (ref q 0))
+	  (theta (ref q 1)))
+      (up (up x 0)
+	  (up (+ x (* l (sin theta)))
+	      (* -1 l (cos theta)))))))
+
+(define ((2-free m1 m2 g) state)
+  (let ((v1 (ref (velocity state) 0))
+	(v2 (ref (velocity state) 1))
+	(h1 (ref (coordinate state) 0 1))
+	(h2 (ref (coordinate state) 1 1)))
+    (- (+ (* 1/2 m1 (square v1))
+	  (* 1/2 m2 (square v2)))
+       (+ (* m1 g h1)
+	  (* m2 g h2)))))
+
+(define (L-sliding-pend m1 m2 l g)
+  (compose (2-free m1 m2 g)
+	   (F->C (F-sliding-pend l))))
+
+
+(show-expression
+ (((Lagrange-equations
+    (L-sliding-pend 'm_1 'm_2 'b 'g))
+   (up (literal-function 'x)
+       (literal-function 'theta)))
+  't))
+(down
+ (+ (* -1 b m_2 (sin (theta t)) (expt ((D theta) t) 2))
+    (* b m_2 (((expt D 2) theta) t) (cos (theta t)))
+    (* m_1 (((expt D 2) x) t))
+    (* m_2 (((expt D 2) x) t)))
+ (+ (* (expt b 2) m_2 (((expt D 2) theta) t))
+    (* b g m_2 (sin (theta t)))
+    (* b m_2 (cos (theta t)) (((expt D 2) x) t))))
 |# 
 
 #|

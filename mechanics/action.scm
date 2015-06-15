@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -171,4 +171,48 @@ USA.
 
 (graphics-clear win2)
 (graphics-close win2)
+|#
+
+#|
+(define ((L-Kepler-polar GM m) local)
+  (let ((q (coordinate local))
+        (qdot (velocity local)))
+    (let ((r (ref q 0))
+          (phi (ref q 1))
+          (rdot (ref qdot 0))
+          (phidot (ref qdot 1)))
+      (+ (* 1/2 m
+           (+ (square rdot)
+              (square (* r phidot))) )
+         (/ (* GM m) r)))))
+
+
+(define win2 (frame -1.5 +1.5 -1.5 +1.5))
+
+(define ((parametric-path-action Lagrangian t0 q0 t1 q1) 
+         intermediate-qs)
+    (let ((path (make-path t0 q0 t1 q1 intermediate-qs)))
+      ;; display path
+      (graphics-clear win2)
+      (plot-parametric-fill win2
+			    (lambda (t)
+			      (let ((rt (path t)))
+				(cons (* (vector-ref rt 0)
+					 (cos (vector-ref rt 1)))
+				      (* (vector-ref rt 0)
+					 (sin (vector-ref rt 1))))))
+			    0.0
+			    1.0
+			    (plane-near? .001))
+      ;; compute action
+      (Lagrangian-action Lagrangian path t0 t1)))
+
+(graphics-clear win2)
+
+(set! *definite-integral-allowable-error* 1e-8)
+
+(set! *quadrature-neighborhood-width* #f)
+
+(define q
+  (find-path (L-Kepler-polar 1.0 1.0) 0. #(1. 0.) 1 #(1. 2.) 3))
 |#

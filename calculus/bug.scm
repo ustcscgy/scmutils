@@ -24,6 +24,57 @@ USA.
 |#
 
 
-(define ex (extend d/dtheta SO3))
+(define bar
+  '(+ (* x0 z0 (((partial 1) ((partial 2) g)) #(x0 y0 z0)))
+      (* -1 x0 z0 (((partial 2) ((partial 1) g)) #(x0 y0 z0)))))
+;Value: bar
 
-(pe ((ex (compose square chi)) (chiinv (up 1 2 3))))
+(pp
+ ((access new-simplify rule-environment)
+  bar))
+(+ (* x0 z0 (((partial 1) ((partial 2) g)) #(x0 y0 z0)))
+   (* -1 x0 z0 (((partial 1) ((partial 2) g)) #(x0 y0 z0))))
+;Unspecified return value
+
+(pp (((access simplify-and-canonicalize rule-environment)
+      (access canonicalize-partials rule-environment)
+      (access simplify-and-flatten rule-environment))
+     bar))
+0
+;Unspecified return value
+
+(pp ((lambda (exp)
+       ((compose ((access only-if rule-environment)
+		  (memq 'partial (variables-in exp))
+		  ((access simplify-and-canonicalize rule-environment)
+		   (access canonicalize-partials rule-environment)
+		   (access simplify-and-flatten rule-environment)))
+		 (access simplify-and-flatten rule-environment))
+	exp))
+     bar))
+0
+;Unspecified return value
+
+(ge rule-environment)
+;Value: #[environment 20]
+
+(pp ((lambda (exp)
+       ((compose (only-if (memq 'partial (variables-in exp))
+			  (simplify-and-canonicalize canonicalize-partials
+						     simplify-and-flatten))
+		 simplify-and-flatten)
+	exp))
+     (access bar generic-environment)))
+0
+;Unspecified return value
+
+(pp (new-simplify (access bar generic-environment)))
+(+ (* x0 z0 (((partial 1) ((partial 2) g)) #(x0 y0 z0)))
+   (* -1 x0 z0 (((partial 1) ((partial 2) g)) #(x0 y0 z0))))
+;Unspecified return value
+
+;Value: new-simplify
+
+(pp (new-simplify (access bar generic-environment)))
+0
+;Unspecified return value

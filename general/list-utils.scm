@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -94,12 +94,13 @@ USA.
 		    (loop (cdr left))))))))
 
 (define (for-each-distinct-pair proc list)
-  (if list
+  (if (not (null? list))
       (let loop ((first (car list)) (rest (cdr list)))
 	(for-each (lambda (other-element)
 		    (proc first other-element))
 		  rest)
-	(if rest (loop (car rest) (cdr rest))))))
+	(if (not (null? rest))
+	    (loop (car rest) (cdr rest))))))
 
 
 (define ((fringe-smaller-than? n) expr)

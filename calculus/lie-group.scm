@@ -61,7 +61,7 @@ USA.
 	   (error "Unknown message: Lie-group" group-name m))))
       (if (environment-bound? generic-environment group-name)
 	  (write-line `(clobbering ,group-name)))
-      (environment-define generic-environment group-name the-group)))
+      (environment-define user-generic-environment group-name the-group)))
   group-name)
 
 #|

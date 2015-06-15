@@ -79,16 +79,9 @@ USA.
 
 (assign-operation 'zero? tf:zero? tensor-field?)
 
-(define (vector-field->tensor-field vf #!optional manifold)
+(define (vector-field->tensor-field vf)
   (assert (vector-field? vf) "Not a vector field.")
-  (if (has-tensor-manifold? vf)
-      (if (default-object? manifold)
-	  (set! manifold (tensor-manifold vf))
-	  (assert (eq? (tensor-manifold vf) manifold)
-		  "Wrong manifold specified for vector field"))
-      (if (default-object? manifold)
-	  (error "Unknown manifold for vector field")))
-  (vf->tf vf manifold))
+  (vf->tf vf (tensor-manifold vf)))
 
 (define (vf->tf vf manifold)
   (make-tensor-field 1 0
@@ -99,14 +92,7 @@ USA.
 (define (1form-field->tensor-field ff #!optional manifold)
   (assert (and (form-field? ff) (fix:= (get-rank ff) 1))
 	  "Not a 1form field.")
-  (if (has-tensor-manifold? ff)
-      (if (default-object? manifold)
-	  (set! manifold (tensor-manifold ff))
-	  (assert (eq? (tensor-manifold ff) manifold)
-		  "Wrong manifold for 1form field"))
-      (if (default-object? manifold)
-	  (error "Unknown manifold for 1form field")))
-  (ff->tf ff manifold))
+  (ff->tf ff (tensor-manifold ff)))
 
 (define (ff->tf ff manifold)
   (make-tensor-field 0 1 ff
@@ -115,7 +101,7 @@ USA.
 
 
 ;;; Manifold must be given here, since a function has no 
-;;; structure giving the manifold.
+;;; structure giving the manifold.  Perhaps this should be fixed?
 
 (define (manifold-function->tensor-field f manifold)
   (make-tensor-field 0 0 (lambda () f)
@@ -427,44 +413,17 @@ USA.
 ;;; Perhaps suppress coordinate system?
 
 #|
-(define-manifold 'S2M Real 2 (up Real Real Real))
+(install-coordinates S2-spherical (up 'theta 'phi))
 
-(define-coordinate-system S2M 'colatitude-longitude (up 'theta 'phi)
-  (lambda (coords)			;coordinates->point
-    (if (and (up? coords) (fix:= (s:dimension coords) 2))
-	(let ((theta (ref coords 0))
-	      (phi   (ref coords 1)))
-	  (up (* (sin theta) (cos phi)) ;x
-	      (* (sin theta) (sin phi)) ;y
-	      (cos theta)))		;z
-	(error "Bad coordinates: S2M" coords)))
-  (lambda (point)			;point->coordinates 
-    (if (and (up? point) (fix:= (s:dimension point) 3))
-	(let ((x (ref point 0))
-	      (y (ref point 1))
-	      (z (ref point 2)))
-	  ;;(assert (= 1
-	  ;;           (+ (square x) (square y) (square z))))
-	  (up (acos z)			;theta
-	      (atan y x)))		;phi
-	(error "Bad point: S2M" point))))
+(define ms ((S2-spherical '->point) (up 'theta0 'phi0)))
 
-
-(define spherical-coordinates (S2M 'colatitude-longitude))
-
-(install-coordinates spherical-coordinates)
-
-(define ms (((S2M 'colatitude-longitude) '->point) (up 'theta0 'phi0)))
-
-(define S2M-metric
+(define S2-metric
   (let ((dt (1form-field->tensor-field dtheta))
 	(dp (1form-field->tensor-field dphi)))
     (+ (* dt dt)
        (* (square (compose sin theta))
 	  dp dp))))
-|#
-
-#|
+
 ;; Linux zohar 2.6.12.2pm0 #2 Fri Jul 8 16:45:59 EDT 2005 i686 GNU/Linux
 ;; 1800 MIPS, 2048 kB cache, edwin -constant 2000 -heap 6000 
 ;;Image saved on Saturday December 10, 2005 at 1:47:21 AM
@@ -475,8 +434,8 @@ USA.
 (show-time
  (lambda ()
    (pec ((tensor-field->coefficient-structure
-	  (Riemann-tensor S2M-metric spherical-coordinates)
-	  spherical-coordinates)
+	  (Riemann-tensor S2-metric S2-spherical)
+	  S2-spherical)
 	 ms))))
 #| Result:
 (down
@@ -484,79 +443,57 @@ USA.
        (down (up 0 1) (up (* -1 (expt (sin theta0) 2)) 0)))
  (down (down (up 0 -1) (up (expt (sin theta0) 2) 0))
        (down (up 0 0) (up 0 0))))
-;; No memoizer: garbage-collecting itself to death!
-;; process time: 2555260 (466710 RUN + 2088550 GC); real time: 2564412
-;; now...
-;; process time: 1960 (1860 RUN + 100 GC); real time: 1989
+;; Binah: 9 December 2009 with memoizing derivative.
+;; process time: 21430 (20830 RUN + 600 GC); real time: 21444
+;; (Repeat!) process time: 15980 (15150 RUN + 830 GC); real time: 15978
+;; Binah: 9 December 2009 without memoizing derivative.
+;; process time: 24750 (23190 RUN + 1560 GC); real time: 24778
+;; 9 May 2009, 64-bit scheme-c on Binah
+;; process time: 91100 (91040 RUN + 60 GC); real time: 91272
+;; Earlier
+;; process time: 75520 (71070 RUN + 4450 GC); real time: 75542
 |#
 
 (show-time
  (lambda ()
    (pec ((tensor-field->coefficient-structure
-	  (Ricci-tensor S2M-metric spherical-coordinates)
-	  spherical-coordinates)
+	  (Ricci-tensor S2-metric S2-spherical)
+	  S2-spherical)
 	 ms))))
 #| Result:
 (down (down 1 0) (down 0 (expt (sin theta0) 2)))
-;; process time: 1220 (1170 RUN + 50 GC); real time: 1231
+;; Binah: 9 December 2009 with memoizing derivative.
+;; process time: 17100 (16590 RUN + 510 GC); real time: 17118
+;; (Repeat!) process time: 4510 (4510 RUN + 0 GC); real time: 4520
+;; Binah: 9 December 2009 without memoizing derivative.
+;; process time: 12090 (11650 RUN + 440 GC); real time: 12089
+;; 9 May 2009, 64-bit scheme-c on Binah
+;; process time: 43540 (43540 RUN + 0 GC); real time: 43623
+;; Earlier
+;; process time: 37500 (35790 RUN + 1710 GC); real time: 37507
 |#
 
 (show-time
  (lambda ()
-   (pec (((Ricci-scalar S2M-metric spherical-coordinates))
+   (pec (((Ricci-scalar S2-metric S2-spherical))
 	 ms))))
 #| Result:
 2
-;; process time: 1220 (1170 RUN + 50 GC); real time: 1216
+;; Binah: 9 December 2009 with memoizing derivative.
+;; process time: 5230 (4780 RUN + 450 GC); real time: 5240
+;; 9 May 2009, 64-bit scheme-c on Binah
+;; process time: 44460 (44420 RUN + 40 GC); real time: 44549
+;; Earlier
+;; process time: 37970 (36250 RUN + 1720 GC); real time: 38004
 |#
 |#
 
 #|
-(define-manifold 'spacetime Real 4 (up Real Real Real Real))
+(install-coordinates spacetime-rect (up 't 'x 'y 'z))
+(install-coordinates spacetime-spher (up 't 'r 'theta 'phi))
 
-(define-coordinate-system spacetime 'rectangular (up 't 'x 'y 'z)
-  (lambda (coords)
-    (if (and (up? coords) (fix:= (s:dimension coords) 4))
-	coords
-	(error "Bad coordinates: spacetime-rectangular" coords)))
-  (lambda (point)
-    (if (and (up? point) (fix:= (s:dimension point) 4))
-	point
-	(error "Bad point: spacetime-rectangular" point))))
-
-(define-coordinate-system spacetime 'spherical (up 't 'r 'theta 'phi)
-  (lambda (coords)
-    (if (and (up? coords) (fix:= (s:dimension coords) 4))
-	(let ((t (ref coords 0))
-	      (r (ref coords 1))
-	      (theta (ref coords 2))
-	      (phi   (ref coords 3)))
-	  (up t
-	      (* r (sin theta) (cos phi)) 
-	      (* r (sin theta) (sin phi)) 
-	      (* r (cos theta))))
-  	(error "Bad coordinates: spacetime-spherical" coords)))
-  (lambda (point)
-    (if (and (up? point) (fix:= (s:dimension point) 4))
-	(let ((t (ref point 0))
-	      (x (ref point 1))
-	      (y (ref point 2))
-	      (z (ref point 3)))
-	  (let ((r (sqrt (+ (square x) (square y) (square z)))))
-	    (up t
-		r
-		(acos (/ z r))
-		(atan y x))))
-	(error "Bad point: spacetime-spherical" point))))
-
-(define spacetime-rectangular (spacetime 'rectangular))
-(define spacetime-spherical (spacetime 'spherical))
-
-(install-coordinates spacetime-rectangular)
-(install-coordinates spacetime-spherical)
-
-(define r-event ((spacetime-rectangular '->point) (up 't0 'x0 'y0 'z0)))
-(define s-event ((spacetime-spherical '->point) (up 't0 'r0 'theta0 'phi0)))
+(define r-event ((spacetime-rect '->point) (up 't0 'x0 'y0 'z0)))
+(define s-event ((spacetime-spher '->point) (up 't0 'r0 'theta0 'phi0)))
 
 (define dT (1form-field->tensor-field dt))
 
@@ -567,19 +504,17 @@ USA.
 (define dR (1form-field->tensor-field dr))
 (define dTheta (1form-field->tensor-field dtheta))
 (define dPhi (1form-field->tensor-field dphi))
-|#
-
-#|
+
 (define (Minkowski-metric c)
   (+ (* -1 (square c) (square dT)) (square dX) (square dY) (square dZ)))
 
 (define M-metric (Minkowski-metric 'c))
 
-(define V (literal-vector-field 'V spacetime-rectangular))
+(define V (literal-vector-field 'V spacetime-rect))
 
 (pec ((M-metric V V) r-event))
 #| Result:
-(+ (* -1 (expt (V^0 (up t0 x0 y0 z0)) 2))
+(+ (* -1 (expt c 2) (expt (V^0 (up t0 x0 y0 z0)) 2))
    (expt (V^1 (up t0 x0 y0 z0)) 2)
    (expt (V^2 (up t0 x0 y0 z0)) 2)
    (expt (V^3 (up t0 x0 y0 z0)) 2))
@@ -588,11 +523,14 @@ USA.
 (show-time
  (lambda ()
    (pec ((tensor-field->coefficient-structure
-	  (Ricci-tensor M-metric spacetime-rectangular)
-	  spacetime-rectangular)
+	  (Ricci-tensor M-metric spacetime-rect)
+	  spacetime-rect)
 	 r-event))))
 #| Result:
 (down (down 0 0 0 0) (down 0 0 0 0) (down 0 0 0 0) (down 0 0 0 0))
+;; Binah: 9 December 2009 with memoizing derivative.
+;; process time: 4120850 (2988820 RUN + 1132030 GC); real time: 4425409
+;; Runs out of memory! 11 November 2008.  Needs some memoizing.
 ;; derivative hack 
 ;; process time: 7216060 (6861050 RUN + 355010 GC); real time: 7272926
 ;; Alternate definition of Riemann-tensor
@@ -602,7 +540,7 @@ USA.
 
 (show-time
  (lambda ()
-   (pec (((Ricci-scalar M-metric spacetime-rectangular)) r-event))))
+   (pec (((Ricci-scalar M-metric spacetime-rect)) r-event))))
 
 #| Result:
 0
@@ -629,12 +567,12 @@ USA.
 (show-time
  (lambda ()
    (pec ((tensor-field->coefficient-structure
-	  (Ricci-tensor S-metric spacetime-spherical)
-	  spacetime-spherical)
+	  (Ricci-tensor S-metric spacetime-spher)
+	  spacetime-spher)
 	 s-event))))
 
 (show-time
  (lambda ()
-   (pec (((Ricci-scalar S-metric spacetime-spherical)) s-event))))
+   (pec (((Ricci-scalar S-metric spacetime-spher)) s-event))))
 ;;; Did not converge after 756 minutes!  No memory problem...
 |#

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,34 +26,62 @@ USA.
 (declare (usual-integrations))
 
 (define (make-line-prefix-port port prefix)
-  (make-port line-prefix-port-type
-	     (vector port prefix #t)))
+ (make-port line-prefix-port-type
+            (vector port prefix #t)))
 
 (define line-prefix-port-type
   (make-port-type
    `((write-char
       ,(lambda (port char)
 	 (let ((v (port/state port)))
-	   (let ((port (vector-ref v 0))
-		 (prefix (vector-ref v 1)))
+	   (let ((port* (vector-ref v 0)))
 	     (if (vector-ref v 2)
-		 (write-string prefix port))
-	     (write-char char port)
-	     (vector-set! v 2 (char=? char #\newline)))))))
+		 (write-string (vector-ref v 1) port*))
+	     (let ((n (output-port/write-char port* char)))
+	       (vector-set! v 2 (char=? char #\newline))
+	       n)))))
+     (x-size
+      ,(lambda (port)
+	 (let ((v (port/state port)))
+	   (let ((port* (vector-ref v 0)))
+	     (let ((op (port/operation port* 'X-SIZE)))
+	       (and op
+		    (let ((n (op port*)))
+		      (and n
+			   (max (- n (string-length (vector-ref v 1)))
+				0)))))))))
+     (column
+      ,(lambda (port)
+	 (let ((v (port/state port)))
+	   (let ((port* (vector-ref v 0)))
+	     (let ((op (port/operation port* 'COLUMN)))
+	       (and op
+		    (let ((n (op port*)))
+		      (and n
+			   (max (- n (string-length (vector-ref v 1)))
+				0)))))))))
+     (flush-output
+      ,(lambda (port)
+	 (let ((v (port/state port)))
+	   (output-port/flush-output (vector-ref v 0)))))
+     (discretionary-flush-output
+      ,(lambda (port)
+	 (let ((v (port/state port)))
+	   (output-port/discretionary-flush (vector-ref v 0))))))
    #f))
 
-
 (define ((pp-line-prefix prefix) object #!optional port . rest)
-  (let ((port
-	 (make-line-prefix-port
-	  (if (default-object? port)
-	      (current-output-port)
-	      port)
-	  prefix)))
-    (apply pp (cons object (cons port rest)))))
-
+  (apply pp
+	 object
+	 (make-line-prefix-port (if (default-object? port)
+				    (current-output-port)
+				    port)
+				prefix)
+	 rest))
 
 (define pp-comment (pp-line-prefix ";"))
+
+
 
 (set! repl:write-result-hash-numbers? #f)
 

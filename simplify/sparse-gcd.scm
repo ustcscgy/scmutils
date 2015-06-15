@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -39,15 +39,15 @@ USA.
 ;;; The purpose of sparse-gcd is to remove and replace the content, so
 ;;; as to present the sparse-multivariate-gcd program with primitive
 ;;; polynomials.  The sparse-content is defined to include the largest
-;;; monomial factor, as well, thus lowering the degree as much as
-;;; possible.
+;;; monomial factor, thus lowering the degree as much as possible.
 
-;;; This code is only called from pcf-fpf.scm, which ensures that the
+;;; This code is called only from pcf-fpf.scm, which ensures that the
 ;;; arguments to sparse-gcd are of the same arity.
 
 (define (sparse-gcd u v)
   (cond ((null? u) v)
 	((null? v) u)
+	((sparse-univariate? u) (sparse-univariate-gcd u v))
 	((equal? u v) u)
 	((sparse-one? u) u)
 	((sparse-one? v) v)
@@ -79,11 +79,11 @@ USA.
     (cond ((null? p) ans)
 	  ((sparse-one-term? ans) ans)
 	  (else (lp (cdr p) (sparse-monomial-gcd (car p) ans))))))
+
 
 ;;; Given a GCD algorithm, this makes a conservative heuristic algorithm.
 
-;;; Idea: let P,Q be polynomials, and let x0 be 
-;;;  random numerical arguments.
+;;; Idea: let P,Q be polynomials, and let x0 be random numerical arguments.
 
 ;;;                 gcd
 ;;;  P(x),  Q(x) |------------> G(x)
@@ -102,28 +102,37 @@ USA.
 (define *heuristic-sparse-gcd-enabled* #t)
 (define *heuristic-sparse-gcd-win* 0)
 (define *heuristic-sparse-gcd-lose* 0)
+(define *heuristic-sparse-gcd-trials* 2)
+
+;;; This is a quick-and-dirty test for GCD=1 before trying something
+;;; more general.  If the more general code fails the default is
+;;; sparse-one of the arity.  It is assumed that the arities are the
+;;; same and at least one.  It is also assumed that these polys have
+;;; no content.
 
 (define (sparse-heuristic-gcd p1 p2)
-  (if *heuristic-sparse-gcd-enabled*
-      (let ((n (length (sparse-exponents (car p1)))))
-	(assert (fix:= n (length (sparse-exponents (car p2)))))
-	(let ((args (generate-list n interpolate-random)))
-	  (let ((v1 (sparse-evaluate p1 args))
-		(v2 (sparse-evaluate p2 args)))
-	    (cond ((= (base/gcd v1 v2) 1)
-		   (set! *heuristic-sparse-gcd-win*
-			 (fix:+ *heuristic-sparse-gcd-win* 1))
-		   (sparse-one n))
-		  (else
-		   (set! *heuristic-sparse-gcd-lose*
-			 (fix:+ *heuristic-sparse-gcd-lose* 1))
-		   (sparse-multivariate-gcd p1 p2))))))
-      (sparse-multivariate-gcd p1 p2)))
-
-
+  (let ((n (length (sparse-exponents (car p1)))))
+    (if *heuristic-sparse-gcd-enabled*
+	(let lp ((trials 0)
+		 (args (generate-list n interpolate-random)))
+	  (if (fix:> trials *heuristic-sparse-gcd-trials*)
+	      (begin (set! *heuristic-sparse-gcd-win*
+			   (fix:+ *heuristic-sparse-gcd-win* 1))
+		     (sparse-one n))
+	      (let ((v1 (sparse-evaluate p1 args))
+		    (v2 (sparse-evaluate p2 args)))
+		(cond ((= (base/gcd v1 v2) 1)
+		       (lp (fix:+ trials 1)
+			   (generate-list n interpolate-random)))
+		      (else
+		       (set! *heuristic-sparse-gcd-lose*
+			     (fix:+ *heuristic-sparse-gcd-lose* 1))
+		       (sparse-multivariate-gcd p1 p2))))))
+	(sparse-multivariate-gcd p1 p2))))
+
 ;;; sparse-multivariate-gcd determines the maximum possible degree of
 ;;; the gcd in each variable -- the minimum of the max in each input
-;;; polynomial.
+;;; polynomial.  This code returns sparse one if if fails.
 
 (define (sparse-multivariate-gcd P Q)
   (let ((n (length (sparse-exponents (car P))))
@@ -131,101 +140,159 @@ USA.
 		  (list-transpose (map car P))))
 	(dQs (map (lambda (l) (apply max l))
 		  (list-transpose (map car Q)))))
-    (assert (fix:= n (length (sparse-exponents (car Q)))))
     (let ((ds (map min dPs dQs)))
-      (sparse-multivariate-gcd-helper P Q n ds))))
+      (let ((g (sparse-multivariate-gcd-helper P Q n ds)))
+	(if g
+	    (if (not (null? g))
+		(sparse-normalize g
+		  (sparse-constant-term n
+		    (sparse-base-content g)))
+		(sparse-one n))
+	    (sparse-one n))))))
 
-
 (define (sparse-multivariate-gcd-helper P Q n ds)
+  ;; P, Q of arity n (They have n indeterminates.)  ds is the n-long list of
+  ;; maximum degrees for each of the indeterminates.
+  (if *sgcd-wallp* (pp `(sparse-gcd: (P ,P) (Q ,Q) (n ,n) (ds ,ds))))
+  ;; The following is a piece of shit and a bad idea...
   (reset-interpolation-args! ds
 			     (apply max (map sparse-coefficient P))
 			     (apply max (map sparse-coefficient Q)))
-  (let restart ((time0 (runtime)))
-    (if *sgcd-wallp* (pp 'restart))
-    (let* ((rargs1 (make-interpolation-args (- n 1)))
-	   (P1 (sparse-evaluate> P rargs1))
-	   (Q1 (sparse-evaluate> Q rargs1))
-	   (g1 (univariate-gcd P1 Q1)))
-      (let stagelp ((k 1) (g g1) (rargs rargs1))	
-	;; g has k vars interpolated to make it arity k.
-	(cond ((fix:= k n) g)
-	      ((sparse-zero? g)
-	       (if *sgcd-wallp* (pp `(sparse-gcd: zero!)))
-	       (restart time0))
-	      (else
-	       (let* ((skeleton (map sparse-exponents g))
-		      (nterms (length skeleton))
-		      (trial-arglists
-		       (begin
-			 (if *sgcd-wallp*
-			     (pp `(sparse-gcd:
-				   (k ,k)
-				   (nterms ,nterms)
-				   (skeleton ,skeleton)
-				   (time ,(- (runtime) time0)))))
-			 (generate-list nterms
-					(lambda (i)
-					  (make-interpolation-args k)))))
-		      (Pk (sparse-evaluate> P (cdr rargs)))
-		      (Qk (sparse-evaluate> Q (cdr rargs)))
-		      (Gks (map (lambda (arglist)
-				  (univariate-gcd
+
+  ;; Now for the real stuff
+  (let restart ((count 0))
+    (if *sgcd-wallp* (pp `(restart ,count)))
+    (if (fix:> count 200)
+	#f 				;failed!
+	(let* ((rargs1 (make-interpolation-args (- n 1)))
+	       (P0 (sparse-evaluate> P rargs1))
+	       (Q0 (sparse-evaluate> Q rargs1))
+	       (g0 (sparse-univariate-gcd P0 Q0)))
+	  ;; P0&Q0 are univariate polys obtained from P&Q by replacing the
+	  ;; rightmost arguments with n-1 random numbers.  Thus the argument
+	  ;; with index 0 is an indeterminate.  g0 is their univariate GCD.
+	  ;; These will be used to start the process.  In the kth stage we
+	  ;; determine the GCD of Pk&Qk, where the arguments [0,k] are
+	  ;; indeterminates.  When k=n-1 Pk and Qk are P and Q.  The g resulting
+	  ;; from that will then be the GCD of P&Q.  To avoid interpolating all
+	  ;; possible terms we use the skeleton of g_k-1 to guide which terms
+	  ;; may appear in g_k that we need to determine.
+	  (if *sgcd-wallp*
+	      (pp `(restarted (rargs1 ,rargs1) (P0 ,P0) (Q0 ,Q0) (g0 ,g0))))
+
+	  (let stagelp ((k 1) (g g0) (rargs rargs1))	
+	    (cond ((fix:= k n) g)
+		  ((sparse-zero? g)	;if P/=0 and Q/=0 then g/=0
+		   (if *sgcd-wallp* (pp `(g=zero! ,k ,rargs)))
+		   (restart (fix:+ count 1)))
+		  (else
+		   (let* (;; g=g_k-1 has k indeterminates and nterms terms.  We
+			  ;; can solve for the coefficients of those terms if we
+			  ;; have values for gk, at a suitable number of sample
+			  ;; points, by solving the linear equations resulting
+			  ;; from substituting each of n sets of k numbers for
+			  ;; the k indeterminates with the corresponding RHS
+			  ;; being the value of gk for that set of k arguments.
+			  (skeleton (map sparse-exponents g))
+			  (nterms (length skeleton))
+			  (trial-arglists
+			   (generate-list nterms
+			     (lambda (i)
+			       (make-interpolation-args k))))
+			  (M (matrix-by-row-list
+			      (map (lambda (arguments)
+				     (map (lambda (exponents)
+					    (apply *
+						   (map expt arguments exponents)))
+					  skeleton))
+				   trial-arglists)))
+			  ;; But the undetermined coefficients of the nterms of
+			  ;; the skeleton of g are polynomials of arity n-k.  We
+			  ;; can solve only for univariate stuff, so we make
+			  ;; Pk,Qk have arity k+1, by evaluating for the
+			  ;; rightmost n-(k+1) arguments.  Then, by evaluating
+			  ;; these for the first k arguments with the arglist
+			  ;; arguments, and getting the GCDs of those, we get
+			  ;; univariate Gks.  All of these must be values of the
+			  ;; same Gk, so the skeletons must be the same to
+			  ;; proceed.
+			  (Pk (sparse-evaluate> P (cdr rargs)))
+			  (Qk (sparse-evaluate> Q (cdr rargs)))
+			  (Gks (map
+				(lambda (arglist)
+				  (sparse-univariate-gcd
 				   (sparse-evaluate< Pk arglist)
 				   (sparse-evaluate< Qk arglist)))
 				trial-arglists))
-		      (GkSkels (map (lambda (Gk)
-				      (map sparse-exponents Gk))
-				    Gks)))
+			  (GkSkels (map (lambda (Gk)
+					  (map sparse-exponents Gk))
+					Gks))
+			  (nGkTerms (length (car GkSkels)))
+			  (maxGkTerms (fix:+ (list-ref ds k) 1)))
+		     (if *sgcd-wallp*
+			 (pp `(stage (k ,k) (g ,g) (rargs ,rargs)
+			       (skeleton ,skeleton)
+			       (Pk ,Pk) (Qk ,Qk)
+			       (trial-arglists ,trial-arglists)
+			       (M ,M)
+			       (Gks ,Gks) (GkSkels ,GkSkels))))
 
-		 (if (not (all-equal? GkSkels))
-		     (begin (if *sgcd-wallp*
-				(pp `(sparse-gcd: GkSkels-not-same ,GkSkels)))
+		     ;; If the interpolation skeletons are not all equal, the
+		     ;; random numbers were probably not good enough.  Once we
+		     ;; have good enough Gks, we can be sure that the order of
+		     ;; Gk is not greater than the min of the max orders of the
+		     ;; kth variable in the initial P and Q.  This tells us m,
+		     ;; the number of terms we need to get for Gk, and thus for
+		     ;; each of the coefficients of the skeleton of g=g_k-1.  So
+		     ;; we have a two layer interpolation.  We invert M and get
+		     ;; solutions for the coefficients of the g skeleton for
+		     ;; each of m random values for the kth argument of gk.  We
+		     ;; then univariate interpolate for each of the coefficients
+		     ;; of gk.  This gk is a candidate for the gcd of Pk&Qk.  If
+		     ;; it works, we go to the next stage.
+		     (cond ((not (all-equal? GkSkels))
+			    (if *sgcd-wallp* (pp '(GkSkels not all the same)))
 			    (stagelp k g rargs))
-		     (let ((xk+1s
-			    (generate-list (fix:+ (list-ref ds k) 1)
-					   interpolate-random)))
-		       (lu-decompose
-			(matrix-by-row-list
-			 (map (lambda (arguments)
-				(map (lambda (exponents)
-				       (apply *
-					      (map expt
-						   arguments
-						   exponents)))
-				     skeleton))
-			      trial-arglists))
-			(lambda (lu-matrix lu-permutation lu-sign)
-			  (let ((coeffs
-				 (map (lambda (xk+1)
-					(let ((values
-					       (map (lambda (Gk)
-						      (sparse-evaluate Gk
-								       (list xk+1)))
-						    Gks)))
-					  (vector->list
-					   (lu-backsubstitute lu-matrix
-							      lu-permutation
-							      (list->vector values)))))
-				      xk+1s)))
-			    (let clp ((css (list-transpose coeffs)) (cps '()))
-			      (if (null? css)
-				  (let ((new-g (expand-poly g (reverse! cps))))
-				    (if (and (sparse-divisible? Pk new-g)
-					     (sparse-divisible? Qk new-g))
-					(stagelp (fix:+ k 1) new-g (cdr rargs))
-					(begin (if *sgcd-wallp*
-						   (pp `(sparse-gcd: division)))
-					       (restart time0))))
-				  (univariate-interpolate-values
-				   xk+1s (car css)
-				   (lambda (cp) (clp (cdr css) (cons cp cps)))
-				   (lambda ()
-				     (if *sgcd-wallp*
-					 (pp `(sparse-gcd: interpolation)))
-				     (restart time0)))))))
-			(lambda (x)
-			  (if *sgcd-wallp* (pp `(sparse-gcd: singular)))
-			  (restart time0))))))))))))
+			   ((not (fix:<= nGkTerms maxGkTerms))
+			    (if *sgcd-wallp* (pp '(Too many GkTerms)))
+			    (restart (fix:+ count 1)))
+			   (else
+			    (lu-decompose M
+			      (lambda (matrix permutation sign)
+				(let* ((xk+1s
+					(make-interpolation-args maxGkTerms))
+				       (coeffs
+					(map (lambda (xk+1)
+					       (let ((values
+						      (map (lambda (Gk)
+							     (sparse-evaluate
+							      Gk (list xk+1)))
+							   Gks)))
+						 (vector->list
+						  (lu-backsubstitute matrix permutation
+						     (list->vector values)))))
+					     xk+1s)))
+				  (if *sgcd-wallp*
+				      (pp `(after-lu (xk+1s ,xk+1s) (coeffs ,coeffs))))
+				  (let clp ((css (list-transpose coeffs)) (cps '()))
+				    (if *sgcd-wallp* (pp `(clp (css ,css) (cps ,cps))))
+				    (if (null? css)
+					(let ((gk (expand-poly g (reverse! cps))))
+					  (if *sgcd-wallp* (pp `(gk ,gk)))
+					  (if (and (sparse-divisible? Pk gk)
+						   (sparse-divisible? Qk gk))
+					      (begin (if *sgcd-wallp* (pp '(divide won)))
+						     (stagelp (fix:+ k 1) gk (cdr rargs)))
+					      (begin (if *sgcd-wallp* (pp '(divide lost)))
+						     (restart (fix:+ count 1)))))
+					(univariate-interpolate-values xk+1s (car css)
+				          (lambda (cp) (clp (cdr css) (cons cp cps)))
+					  (lambda ()
+					    (if *sgcd-wallp* (pp '(interpolation failed)))
+					    (restart (fix:+ count 1))))))))
+			      (lambda (x)
+				(if *sgcd-wallp* (pp `(singular)))
+				(restart (fix:+ count 1))))))))))))))
 
 (define *sgcd-wallp* #f)
 
@@ -245,7 +312,7 @@ USA.
 	(begin (set! *interpolate-primes-stream* s)
 	       args)
 	(lp (fix:+ i 1) (tail s) (cons (head s) args)))))
-
+
 #|
 ;;; This is trying to be a good boy, using the formula from Zippel for
 ;;; the mod prime, but I think it is not really necessary.  Timings at
@@ -304,91 +371,93 @@ USA.
 	      (try-again (random *interpolate-size*)))))))
 |#
 
-(define (univariate-gcd u v)		;Euclid's Algorithm is OK here.
+(define (sparse-univariate-gcd u v)		;Euclid's Algorithm is OK here.
   (define (pgcd ppu ppv)
     (if *ugcd-wallp* (pp `((ppu: ,ppu) (ppv: ,ppv))))
     (cond ((null? ppv) ppu)		;v=0      => u
 	  ((sparse-constant? ppv)	;deg(v)=0 => 1
-	   univariate-one)
+	   sparse-univariate-one)
 	  (else
 	   (pgcd ppv
-		 (univariate-primitive-part
-		  (univariate-pseudo-remainder ppu ppv))))))
+		 (sparse-univariate-primitive-part
+		  (sparse-univariate-pseudo-remainder ppu ppv))))))
   (cond ((null? u) v)
 	((null? v) u)
 	((sparse-constant? u)
-	 (univariate-constant
+	 (sparse-univariate-constant
 	  (base/gcd (sparse-coefficient (car u))
-		    (univariate-content v))))
+			(sparse-base-content v))))
 	((sparse-constant? v)
-	 (univariate-constant
-	  (base/gcd (univariate-content u)
-		    (sparse-coefficient (car v)))))
+	 (sparse-univariate-constant
+	  (base/gcd (sparse-base-content u)
+			(sparse-coefficient (car v)))))
 	(else
-	 (let ((uc (univariate-content u))
-	       (vc (univariate-content v)))
+	 (let ((uc (sparse-base-content u))
+	       (vc (sparse-base-content v)))
 	   (let ((ans
 		  (if (= uc 1)
 		      (if (= vc 1)
 			  (pgcd u v)
-			  (pgcd u (univariate-normalize v vc)))
+			  (pgcd u (sparse-univariate-normalize v vc)))
 		      (if (= vc 1)
-			  (pgcd (univariate-normalize u uc) v)
+			  (pgcd (sparse-univariate-normalize u uc) v)
 			  (let ((c (base/gcd uc vc)))
 			    (if (= c 1)
-				(pgcd (univariate-normalize u uc)
-				      (univariate-normalize v vc))
-				(univariate-scale
-				 (pgcd (univariate-normalize u uc)
-				       (univariate-normalize v vc))
+				(pgcd (sparse-univariate-normalize u uc)
+				      (sparse-univariate-normalize v vc))
+				(sparse-univariate-scale
+				 (pgcd (sparse-univariate-normalize u uc)
+				       (sparse-univariate-normalize v vc))
 				 c)))))))
 	     (sparse-abs ans))))))
 
 (define *ugcd-wallp* #f)
 
-(define (univariate-content poly)
+(define (sparse-base-content poly)
   (let lp ((p (cdr poly)) (ans (sparse-coefficient (car poly))))
     (cond ((null? p) ans)
 	  ((= ans 1) 1)
 	  (else
 	   (lp (cdr p)
-	       (base/gcd (sparse-coefficient (car p))
-			 ans))))))
+	       (base/gcd (sparse-coefficient (car p)) ans))))))
 
-(define (univariate-primitive-part poly)
+(define (sparse-univariate-primitive-part poly)
   (if (null? poly)
       '()
-      (univariate-normalize poly (univariate-content poly))))
+      (sparse-univariate-normalize poly (sparse-base-content poly))))
 
-(define (univariate-pseudo-remainder u v)
-  (let ((cvn (sparse-coefficient (car v)))            ;leading coefficient of v
-	(n (car (sparse-exponents (car v)))))         ;degree v
+(define (sparse-univariate-pseudo-remainder u v)
+  (let ((cvn	                               ;leading coefficient of v
+	 (sparse-coefficient (car v)))
+	(n                                     ;degree v
+	 (car (sparse-exponents (car v)))))
     (let lp ((u u) )
       (if (null? u)
 	  '()
-	  (let ((cum (sparse-coefficient (car u)))    ;leading coefficient of u
-		(m (car (sparse-exponents (car u))))) ;degree u
+	  (let ((cum                           ;leading coefficient of u
+		 (sparse-coefficient (car u)))
+		(m			       ;degree u
+		 (car (sparse-exponents (car u)))))
 	    (if (< m n)
 		u
-		(lp (sparse-add
-		     (univariate-scale u cvn)
-		     (sparse-multiply-term
-		      (sparse-term (list (- m n)) (- cum))
-		      v)))))))))
+		(lp (sparse-add (sparse-univariate-scale u cvn)
+				(sparse-multiply-term
+				 (sparse-term (list (- m n)) (- cum))
+				 v)))))))))
 
-(define (univariate-constant coeff)
+(define (sparse-univariate-constant coeff)
   (list (sparse-term '(0) coeff)))
 
-(define univariate-one
-  (univariate-constant 1))
+(define sparse-univariate-one
+  (sparse-univariate-constant 1))
 
-(define (univariate-scale p c)
+(define (sparse-univariate-scale p c)
   (map (lambda (term)
 	 (sparse-term (sparse-exponents term)
 		      (* c (sparse-coefficient term))))
        p))
 
-(define (univariate-normalize p c)
+(define (sparse-univariate-normalize p c)
   (map (lambda (term)
 	 (sparse-term (sparse-exponents term)
 		      (/ (sparse-coefficient term) c)))
@@ -396,8 +465,9 @@ USA.
 
 #|
 ;;; Knuth's test
-(univariate-gcd '(((8) . 1) ((6) . 1) ((4) . -3) ((3) . -3) ((2) . 8) ((1) . 2) ((0) . -5))
-		'(((6) . 3) ((4) . 5) ((2) . -4) ((1) . -9) ((0) . 21)))
+(sparse-univariate-gcd
+ '(((8) . 1) ((6) . 1) ((4) . -3) ((3) . -3) ((2) . 8) ((1) . 2) ((0) . -5))
+ '(((6) . 3) ((4) . 5) ((2) . -4) ((1) . -9) ((0) . 21)))
 
 ((ppu: (((8) . 1) ((6) . 1) ((4) . -3) ((3) . -3) ((2) . 8) ((1) . 2) ((0) . -5)))
  (ppv: (((6) . 3) ((4) . 5) ((2) . -4) ((1) . -9) ((0) . 21))))
@@ -411,6 +481,49 @@ USA.
  (ppv: (((0) . 1))))
 ;Value: (((0) . 1))
 |#
+
+(define (sparse-gcd-test n-trials arity max-order max-coeff max-terms)
+  (define (random-sign)
+    (if (= (random 2) 0) 1 -1))
+  (define (random-monomial)
+    (sparse-term (generate-list arity
+				(lambda (_)
+				  (random (+ max-order 1))))
+		 (* (random-sign)
+		    (+ (random max-coeff) 1))))
+  (define (random-polynomial)
+    (reduce sparse-add '()
+	    (map list 
+		 (generate-list max-terms
+				(lambda (_) (random-monomial))))))
+  (fluid-let ((*heuristic-sparse-gcd-enabled* #f))
+    (let loop ((i 0))
+      (if (> i n-trials)
+	  #t
+	  (let ((A (random-polynomial))
+		(B (random-polynomial))
+		(C (random-polynomial)))
+	    (let ((A (sparse-abs (sparse-normalize A (sparse-content A)))))
+	      (let ((AB (sparse-multiply A B))
+		    (AC (sparse-multiply A C))
+		    (gBC (sparse-gcd B C)))
+		(let* ((AgBC (sparse-multiply A gBC))
+		       (gABAC (sparse-gcd AB AC)))
+		  (cond ((or (not (sparse-divisible? B gBC))
+			     (not (sparse-divisible? C gBC)))
+			 (pp `(gcd-failed1 ,i ,B ,C ,gBC))
+			 (error "bad")
+			 #f)
+			((or (not (sparse-divisible? AB gABAC))
+			     (not (sparse-divisible? AC gABAC)))
+			 (pp `(gcd-failed2 ,i ,AB ,AC ,gABAC))
+			 (error "bad")
+			 #f)
+			((not (equal? AgBC gABAC))
+			 (pp (list 'not-gcd i A B C AB AC gBC AgBC gABAC))
+			 #f)
+			(else (loop (fix:+ i 1))))))))))))
+
 
 #|
 (define (gcd-test d f g)
@@ -719,7 +832,7 @@ process time: 2540 (2540 RUN + 0 GC); real time: 2534
   the-gcd)
 
 (define saved-sparse-multivariate-gcd sparse-multivariate-gcd)
-
+
 #|
 (set! sparse-multivariate-gcd
       (heuristic-sparse-gcd-test saved-sparse-multivariate-gcd))

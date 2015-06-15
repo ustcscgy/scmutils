@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -141,12 +141,10 @@ USA.
     (declare (integrate i))
     (fix:< i n)))
 
-
 (define *max-tableau-depth*)
 (define *max-tableau-width*)
 (define bulirsch-stoer-steps)
 (define bulirsch-stoer-magic-vectors)
-
 
 (define (bulirsch-stoer-setup max-depth max-width)
   (define (bsi n)
@@ -269,6 +267,8 @@ USA.
 				    (make-vector *max-tableau-width* 0.0)))))
     (lambda (state delta-t-suggested continuation)
       ;; continuation = (lambda (new-state actual-delta-t suggested-delta-t) ...)
+      (if bulirsch-stoer-state-wallp
+	  (pp `(bulirsch-stoer-state ,state ,delta-t-suggested)))
       (let outside ((delta-t delta-t-suggested))
 	(let ((modified-midpoint (mm state delta-t)))
 	  (modified-midpoint 2 state-estimate1)
@@ -306,16 +306,16 @@ USA.
 			   (vector-set! new-state-estimate i yb))))
 
 		  (let ((verr (error-measure new-state-estimate old-state-estimate)))
-		    (if bulirsch-stoer-wallp
-			(pp `(bulirsch-stoer level: ,m error: ,verr h: ,delta-t)))
+		    (if bulirsch-stoer-error-wallp
+			(pp `(bulirsch-stoer-error level: ,m error: ,verr h: ,delta-t)))
 		    ;; In Jack's C program the first two conditions
 		    ;; below are interchanged and the minimum number
 		    ;; of iterations is set to (fix:< m 4)
 		    (cond ((< verr 2.0)
 			   (continuation (vector-copy new-state-estimate)
 					 delta-t
-					 (* (* delta-t 1.5)
-					    (expt 0.6
+					 (* (* delta-t bulirsch-stoer-magic-multiplier)
+					    (expt bulirsch-stoer-magic-base
 						  (exact->inexact (fix:- m m1))))))
 			  ((fix:< m 2)
 			   (m-loop (fix:1+ m) verr
@@ -330,7 +330,11 @@ USA.
 
 		(outside (* 0.5 delta-t)))))))))
 
-(define bulirsch-stoer-wallp false)
+(define bulirsch-stoer-magic-multiplier 1.5)
+(define bulirsch-stoer-magic-base 0.6)
+
+(define bulirsch-stoer-error-wallp false)
+(define bulirsch-stoer-state-wallp false)
 
 (add-integrator!
  'bulirsch-stoer-lisptran

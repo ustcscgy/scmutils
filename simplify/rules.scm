@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -33,27 +33,33 @@ USA.
 
 ;;; allows (log (exp x)) => x 
 ;;;  can confuse x=(x0+n*2pi)i with x0
-
 (define log-exp-simplify? true)
 
 ;;; allows (sqrt (square x)) => x
 ;;;  not good if x is negative.
 (define sqrt-expt-simplify? true)
 
+;;; allows (atan y x) => (atan (/ y d) (/ x d)) where d=(gcd x y)
+;;; OK if d is a number (gcd is always positive) but may
+;;; lose quadrant if gcd can be negative for some values of
+;;; its variables.
+(define aggressive-atan-simplify? true)
+
 ;;; allows (asin (sin x)) => x, etc
 ;;;  loses multivalue info, as in log-exp
 (define inverse-simplify? true)
+
+;;; Allows reduction of sin, cos of rational multiples of :pi
+(define sin-cos-simplify? true)
 
 ;;; wierd case: ((d magnitude) (square x)) => 1
 (define ignore-zero? true)
 
 ;;; allows commutation of partial derivatives.
-;;;  only ok if components selected by partials are unstructured (e.g. real)
+;;;  only ok if components selected by partials are unstructured 
+;;;  (e.g. real)
 (define commute-partials? true)
-
-;;; allows reduction of sin, cos of rational multiples of :pi
-(define sin-cos-simplify? false)
-
+
 ;;; however, we have control over the defaults
 
 (define (log-exp-simplify doit?)
@@ -89,7 +95,7 @@ USA.
 ;;; The following predicates are used in trig rules.
 
 (define (negative-number? x)
-  (and (number? x) (negative? x)))
+  (and (number? x) (real? x) (negative? x)))
 
 (define (complex-number? z)
   (and (complex? z)
@@ -117,49 +123,28 @@ USA.
 (define (odd-integer? x)
   (and (integer? x) (odd? x) (fix:> x 1)))
 
-;;; for simplifying sine and cosine stuff
+(define (universal-reductions exp)
+  (let ((vars (variables-in exp)))
+    (let ((logexp? (occurs-in? '(log exp) vars))
+	  (sincos? (occurs-in? '(sin cos) vars))
+	  (invtrig? (occurs-in? '(asin acos atan) vars))
+	  (sqrt? (memq 'sqrt vars))
+	  (mag? (memq 'magnitude vars)))
+      (let* ((e0 (miscsimp exp))
+	     (e1 (if logexp? (logexp e0) e0))
+	     (e2 (if magnitude? (magsimp e1) e1))
+	     (e3 (if
+		  (and sincos? (symbol? :pi) sin-cos-simplify?)
+		  (special-trig e2)
+		  e2)))
+	(cond ((and sincos? invtrig?)
+	       (simsqrt (triginv e3)))
+	      (sqrt? (simsqrt e3))
+	      (else e3))))))
 
-(define (zero-mod-pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer? (rcf:simplify (expression (g:/ x :pi))))))
-
-(define (pi/2-mod-2pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer?
-	(rcf:simplify
-	 (expression (g:/ (g:- x (g:/ :pi 2)) (g:* 2 :pi)))))))
-
-(define (-pi/2-mod-2pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer?
-	(rcf:simplify
-	 (expression (g:/ (g:+ x (g:/ :pi 2)) (g:* 2 :pi)))))))
-
-(define (pi/2-mod-pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer?
-	(rcf:simplify
-	 (expression (g:/ (g:- x (g:/ :pi 2)) :pi))))))
-
-(define (zero-mod-2pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer?
-	(rcf:simplify (expression (g:/ x (g:* 2 :pi)))))))
-
-(define (pi-mod-2pi? x)
-  (and sin-cos-simplify?
-       (symbol? :pi)
-       (integer?
-	(rcf:simplify
-	 (expression (g:/ (g:- x :pi) (g:* 2 :pi)))))))
-
-(define universal-reductions
+(define logexp
   (rule-system
+
    ( (exp (* (? n integer?) (log (? x))))
      none
      (expt (: x) (: n)) )
@@ -167,6 +152,61 @@ USA.
    ( (exp (log (? x))) none (: x) )
    ( (log (exp (? x))) log-exp-simplify? (: x) )
 
+   ( (sqrt (exp (? x)))
+     sqrt-expt-simplify?
+     (exp (/ (: x) 2)) )
+
+   ( (log (sqrt (? x)))
+     none
+     (* 1/2 (log (: x))) )
+   ))
+
+(define magsimp
+  (rule-system
+
+   ( (magnitude (* (? x) (? y) (?? ys)))
+     none
+     (* (magnitude (: x)) (magnitude (* (: y) (:: ys)))) )
+
+   ( (magnitude (expt (? x) (? n even-integer?)))
+     none
+     (expt (: x) (: n)) )
+
+   ;; where does this nonsense come from?
+   ( ((derivative magnitude) (expt (? x) (? n even-integer?)))
+     (lambda (x)
+       (error "Who ordered this?" x)
+       ignore-zero?)
+     1 )
+
+   ))
+
+(define miscsimp  
+  (rule-system
+
+   ( (expt (? x) 0) none 1 )
+
+   ( (expt (? x) 1) none (: x) )
+
+   ( (expt (expt (? x) (? p/q)) (? m*q))
+     (integer? (rcf:simplify (symb:* p/q m*q)))
+     (expt (: x) (: (symb:* p/q m*q))) )
+
+   ( (* (?? fs1)			; a rare, expensive luxury
+	(expt (? x) (? y1))
+	(?? fs2)
+	(expt (? x) (? y2))
+	(?? fs3))
+     none
+     (* (:: fs1)
+	(expt (: x) (+ (: y1) (: y2)))
+	(:: fs2)
+	(:: fs3)) )
+   ))
+
+(define simsqrt
+  (rule-system
+   
    ( (expt (sqrt (? x)) (? n even-integer?))
      none
      (expt (: x) (: (quotient n 2))) )
@@ -180,21 +220,6 @@ USA.
    ( (sqrt (expt (? x) (? n odd-integer?)))
      none
      (* (sqrt (: x)) (expt (: x) (: (quotient (fix:- n 1) 2)))) )
-
-#|
-   ( (* (?? x) (? y) (?? z) (expt (? y) (? n)) (?? w))
-     none
-     (* (:: x) (:: z) (expt (: y) (+ (: n) 1)) (:: w)) )
-|#
-
-   ( (sqrt (exp (? x)))
-     sqrt-expt-simplify?
-     (exp (/ (: x) 2)) )
-
-   ( (log (sqrt (? x)))
-     none
-     (* 1/2 (log (: x))) )
-
    
    ( (/ (? x) (sqrt (? x)))
      none
@@ -231,84 +256,78 @@ USA.
      none
      (/ (* (:: p) (:: q))
 	(* (:: u) (sqrt (: x)) (:: v))) )
+   ))
+
+(define triginv
+  (rule-system
 
+   ( (atan (/ (? y) (? x))) none (atan (: y) (: x)) )
+   ( (atan (? y)) none (atan (: y) 1) )
+   ( (atan (? y) (? x))
+     (and aggressive-atan-simplify?
+	  (let ((s (rcf:simplify `(gcd ,(rcf:simplify y) ,(rcf:simplify x)))))
+	    (if (equal? s 1) #f s)))
+     (atan (: (rcf:simplify `(/ ,y ,predicate-value)))
+	   (: (rcf:simplify `(/ ,x ,predicate-value)))) )
 
-   ( (expt (expt (? x) (? p/q)) (? m*q))
-     (integer? (g:* p/q m*q))
-     (expt (: x) (: (g:* p/q m*q))) )
-     
    ( (sin (asin (? x))) none (: x) )
+   ( (asin (sin (? x))) inverse-simplify? (: x) )
+
    ( (cos (acos (? x))) none (: x) )
+   ( (acos (cos (? x))) inverse-simplify? (: x) )
+
    ( (tan (atan (? x))) none (: x) )
+   ( (atan (tan (? x))) inverse-simplify? (: x) )
+
    ( (sin (acos (? x))) none (sqrt (- 1 (expt (: x) 2))) )
    ( (cos (asin (? y))) none (sqrt (- 1 (expt (: y) 2))) )
    ( (tan (asin (? y))) none (/ (: y) (sqrt (- 1 (expt (: y) 2)))) )
    ( (tan (acos (? x))) none (/ (sqrt (- 1 (expt (: x) 2))) (: x)) )
 
-   ;; sin atan, cos atan below
-
-   ( (asin (sin (? x))) inverse-simplify? (: x) )
-   ( (asin (cos (? x))) inverse-simplify? (- (* 1/2 :pi) (: x)) )
-   ( (acos (cos (? x))) inverse-simplify? (: x) )
-   ( (acos (sin (? x))) inverse-simplify? (- (* 1/2 :pi) (: x)) )
-   ( (atan (tan (? x))) inverse-simplify? (: x) )
-
-   #|
-   ( (atan (? y) (? x)) none (atan (/ (: y) (: x))) )
-
-   ( (atan (/ (sin (? x)) (cos (? x)))) inverse-simplify? (: x) )
-
-   ( (sin (atan (/ (? a) (? b))))
-     none
-     (/ (: a) (sqrt (+ (expt (: a) 2) (expt (: b) 2)))) )
-
-    ( (cos (atan (/ (? a) (? b))))
-     none
-     (/ (: b) (sqrt (+ (expt (: a) 2) (expt (: b) 2)))) )
-
-   ( (sin (atan (? a)))
-     none
-     (/ (: a) (sqrt (+ 1 (expt (: a) 2)))) )
-
-   ( (cos (atan (? a)))
-     none
-     (/ 1 (sqrt (+ 1 (expt (: a) 2)))) )
-   |#
-
-   ( (atan (? y) (? x))
-     (let ((s (rcf:simplify `(gcd ,(rcf:simplify y) ,(rcf:simplify x)))))
-       (if (equal? s 1) #f s))
-     (atan (: (rcf:simplify `(/ ,y ,predicate-value)))
-	   (: (rcf:simplify `(/ ,x ,predicate-value)))) )
-
-   ( (atan (/ (? y) (? x))) none (atan (: y) (: x)) )
-
-   ( (atan (? y)) none (atan (: y) 1) )
-
    ( (atan (sin (? x)) (cos (? x))) inverse-simplify? (: x) )
+
+   ( (asin (cos (? x))) inverse-simplify? (- (* 1/2 :pi) (: x)) )
+   ( (acos (sin (? x))) inverse-simplify? (- (* 1/2 :pi) (: x)) )
 
    ( (sin (atan (? a) (? b)))
      none
      (/ (: a) (sqrt (+ (expt (: a) 2) (expt (: b) 2)))) )
 
-    ( (cos (atan (? a) (? b)))
+   ( (cos (atan (? a) (? b)))
      none
      (/ (: b) (sqrt (+ (expt (: a) 2) (expt (: b) 2)))) )
 
-
-   ( (magnitude (* (? x) (? y) (?? ys)))
-     none
-     (* (magnitude (: x)) (magnitude (* (: y) (:: ys)))) )
-
-   ( (magnitude (expt (? x) (? n even-integer?)))
-     none
-     (expt (: x) (: n)) )
-
-   ( ((derivative magnitude) (expt (? x) (? n even-integer?)))
-     ignore-zero?
-     1 )
-   ))
+    ))
 
+;;; Rules when :pi is symbolic.
+
+(define (zero-mod-pi? x)
+  (integer? (rcf:simplify (symb:/ x :pi))))
+
+(define (pi/2-mod-2pi? x)
+  (integer?
+   (rcf:simplify (symb:/ (symb:- x (symb:/ :pi 2)) (symb:* 2 :pi)))))
+
+(define (-pi/2-mod-2pi? x)
+  (integer?
+   (rcf:simplify (symb:/ (symb:+ x (symb:/ :pi 2)) (symb:* 2 :pi)))))
+
+(define (pi/2-mod-pi? x)
+  (integer? (rcf:simplify (symb:/ (symb:- x (symb:/ :pi 2)) :pi))))
+
+(define (zero-mod-2pi? x)
+  (integer? (rcf:simplify (symb:/ x (symb:* 2 :pi)))))
+
+(define (pi-mod-2pi? x)
+  (integer? (rcf:simplify (symb:/ (symb:- x :pi) (symb:* 2 :pi)))))
+
+(define (pi/4-mod-pi? x)
+  (integer? (rcf:simplify (symb:/ (symb:- x (symb:/ :pi 4)) :pi))))
+
+(define (-pi/4-mod-pi? x)
+  (integer? (rcf:simplify (symb:/ (symb:+ x (symb:/ :pi 4)) :pi))))
+
+
 (define special-trig
   (rule-system
 
@@ -320,8 +339,12 @@ USA.
    ( (cos (? x zero-mod-2pi?))  none +1 )
    ( (cos (? x pi-mod-2pi?))    none -1 )
 
-   ))
+   ( (tan (? x zero-mod-pi?))   none  0 )
+   ( (tan (? x pi/4-mod-pi?))   none +1 )
+   ( (tan (? x -pi/4-mod-pi?))  none -1 )
 
+   ))
+
 (define sqrt-expand
   (rule-system
 		     
@@ -365,6 +388,10 @@ USA.
      none
      (/ (* (:: a) (:: b) (sqrt (/ (: x) (: y))))
 	(* (:: c) (:: d))) )
+   
+   ( (expt (? x) 1/2)
+     none
+     (sqrt (: x)) )
    ))
 
 (define specfun->logexp
@@ -453,7 +480,7 @@ USA.
 (define reals?
   (let ((s (string->symbol "Real")))
     (lambda (r) (eq? r s))))
-  
+  
 (define canonicalize-partials
   (rule-system
 
@@ -626,8 +653,6 @@ USA.
    ))
 
 
-;;; sincos.scm has code for sin^2 x + cos^2 x => 1,
-;;; however, sometimes we want a few other rules to help:
 
 (define (at-least-two? n)
   (and (number? n) (>= n 2)))
@@ -777,9 +802,7 @@ USA.
 	(?? a2)
 	(* (?? b1) (expt (cos (? x)) (? n at-least-two?)) (?? b2))
 	(?? a3))
-     (exact-zero?
-      (rcf:simplify
-       `(+ (* ,@b1 ,@b2 (expt (cos ,x) ,(- n 2))) ,a))) 
+     (exact-zero? (rcf:simplify `(+ (* ,@b1 ,@b2 (expt (cos ,x) ,(- n 2))) ,a))) 
      (+ (:: a1) (:: a2) (:: a3) (* (: a) (expt (sin (: x)) 2))) )
      
    ( (+ (?? a1)
@@ -787,9 +810,7 @@ USA.
 	(?? a2)
 	(* (?? b1) (expt (sin (? x)) (? n at-least-two?)) (?? b2))
 	(?? a3))
-     (exact-zero?
-      (rcf:simplify
-       `(+ (* ,@b1 ,@b2 (expt (sin ,x) ,(- n 2))) ,a))) 
+     (exact-zero? (rcf:simplify `(+ (* ,@b1 ,@b2 (expt (sin ,x) ,(- n 2))) ,a))) 
      (+ (:: a1) (:: a2) (:: a3) (* (: a) (expt (cos (: x)) 2))) )
 
 
@@ -798,9 +819,7 @@ USA.
 	(?? a2)
 	(? a)
 	(?? a3))
-     (exact-zero?
-      (rcf:simplify
-       `(+ (* ,@b1 ,@b2 (expt (cos ,x) ,(- n 2))) ,a)))
+     (exact-zero? (rcf:simplify `(+ (* ,@b1 ,@b2 (expt (cos ,x) ,(- n 2))) ,a)))
      (+ (:: a1) (:: a2) (:: a3) (* (: a) (expt (sin (: x)) 2))) )
      
    ( (+ (?? a1)
@@ -808,9 +827,7 @@ USA.
 	(?? a2)
 	(? a)
 	(?? a3))
-     (exact-zero?
-      (rcf:simplify
-       `(+ (* ,@b1 ,@b2 (expt (sin ,x) ,(- n 2))) ,a)))
+     (exact-zero? (rcf:simplify `(+ (* ,@b1 ,@b2 (expt (sin ,x) ,(- n 2))) ,a)))
      (+ (:: a1) (:: a2) (:: a3) (* (: a) (expt (cos (: x)) 2))) )
 
    ))
@@ -842,8 +859,7 @@ USA.
      (/ (+ (exp (* +i (: x))) (/ 1 (exp (* +i (: x)))))
 	2) )
    ))
-
-
+
 ;;; under favorable conditions, we can replace the trig functions.
 
 (define exp->sincos
@@ -918,8 +934,7 @@ USA.
      (/ (* (:: x1) (:: x2) (exp (- (: x) (: y))))
 	(* (:: y1) (:: y2))) )
    ))
-
-
+
 (define exp-expand
   (rule-system
    ( (exp (- (? x1)))
@@ -960,8 +975,7 @@ USA.
      (* (exp (* (: (n:real-part x)) (:: factors)))
 	(exp (* (: (n:* (n:imag-part x) +i)) (:: factors)))) )
    ))
-
-
+
 (define complex-rules
   (rule-system
    ( (make-rectangular (cos (? theta)) (sin (? theta)))
@@ -996,9 +1010,7 @@ USA.
    ( (angle (make-polar (? m) (? a)))
      none
      (: a) )
-
    ))
-
 
 ;;;; simplifiers defined using these rule sets
 
@@ -1012,12 +1024,26 @@ USA.
 	  (simp (canonicalize newexp)))))
   simp)
 
+(define (simplify-and-canonicalize rule-simplify canonicalize)
+  (define (simp exp)
+    (let ((newexp (rule-simplify exp)))
+      (if (equal? exp newexp)
+	  exp
+	  (canonicalize newexp))))
+  simp)
+
 
 ;;; the usual canonicalizer is
 
 (define simplify-and-flatten
   (compose fpf:simplify rcf:simplify))
 
+
+
+(define (only-if p? do)
+  (lambda (exp)
+    (if (p? exp) (do exp) exp)))
+
 (define ->poisson-form
   (compose simplify-and-flatten
 	   angular-parity
@@ -1096,7 +1122,7 @@ USA.
 	    rcf:simplify
 	    )
    exp))
-
+
 (define (oe-simplify exp)
   ((compose (simplify-until-stable universal-reductions
 				   simplify-and-flatten)
@@ -1131,7 +1157,7 @@ USA.
 	    canonicalize-partials
 	    )
    exp))
-
+
 (define (easy-simplify exp)
   ((compose (simplify-until-stable (compose universal-reductions sqrt-expand)
 				   simplify-and-flatten)
@@ -1165,56 +1191,69 @@ USA.
 	    canonicalize-partials
 	    )
    exp))
-
-(define (only-if p? do)
-  (lambda (exp)
-    (if p? (do exp) exp)))
-
+
 (define (new-simplify exp)
-  (let ((vars (variables-in exp)))
-    (let ((logexp? (occurs-in? '(log exp) vars))
-	  (sincos? (occurs-in? '(sin cos) vars))
-	  (sqrt? (memq 'sqrt vars))
-	  (partials? (memq 'partial vars)))
-
-      ((compose simplify-and-flatten
-		(only-if sqrt?
-			 (compose
-			  universal-reductions
-			  root-out-squares
-			  (simplify-until-stable (compose universal-reductions
-							  sqrt-expand)
+  (define (sqrt? exp)
+    (occurs-in? '(sqrt) exp))
+  (define (logexp? exp)
+    (occurs-in? '(log exp) exp))
+  (define (sincos? exp)
+    (occurs-in? '(sin cos) exp))
+  (define (partials? exp)
+    (occurs-in? '(partial) exp))
+  ((compose (only-if sqrt?
+		     (compose
+		      (simplify-and-canonicalize (compose universal-reductions
+							  root-out-squares)
 						 simplify-and-flatten)
-			  simplify-and-flatten
-			  universal-reductions
-			  root-out-squares
-			  (simplify-until-stable sqrt-contract
-						 simplify-and-flatten)))
-		(only-if sincos?
-			 (compose sincos->trig
-				  (simplify-until-stable sincos-random
+		      (simplify-until-stable (compose universal-reductions
+						      sqrt-expand)
+					     simplify-and-flatten)
+		      (simplify-and-canonicalize (compose universal-reductions
+							  root-out-squares)
+						 simplify-and-flatten)
+		      (simplify-until-stable sqrt-contract
+					     simplify-and-flatten)))
+	    (only-if sincos?
+		     (compose (simplify-and-canonicalize
+			       (compose universal-reductions sincos->trig)
+			       simplify-and-flatten)
+			      (simplify-until-stable sincos-random
+						     simplify-and-flatten)
+			      (simplify-and-canonicalize sin^2->cos^2
 							 simplify-and-flatten)
-				  simplify-and-flatten
-				  sin^2->cos^2
-				  simplify-and-flatten
-				  sincos-flush-ones))
+			      (simplify-and-canonicalize sincos-flush-ones
+							 simplify-and-flatten)
+			      (simplify-and-canonicalize universal-reductions
+							 simplify-and-flatten)
+			      (simplify-until-stable sincos-random
+						     simplify-and-flatten)
+			      (simplify-and-canonicalize sin^2->cos^2
+							 simplify-and-flatten)
+			      (simplify-and-canonicalize sincos-flush-ones
+							 simplify-and-flatten)))
+	    (only-if logexp?
+		     (compose
+		      (simplify-and-canonicalize universal-reductions
+						 simplify-and-flatten)
+		      (simplify-until-stable (compose log-expand exp-expand)
+					     simplify-and-flatten)	
+		      (simplify-until-stable (compose log-contract exp-contract)
+					     simplify-and-flatten)))
 
-		(only-if logexp?
-			 (compose 
-			  (simplify-until-stable (compose log-expand exp-expand)
-						 simplify-and-flatten)	
-			  (simplify-until-stable (compose log-contract exp-contract)
-						 simplify-and-flatten)))
+	    (simplify-until-stable (compose universal-reductions
+					    (only-if sincos? angular-parity)
+					    (only-if logexp?
+						     (compose log-expand
+							      exp-expand))
+					    (only-if sqrt? sqrt-expand))
+				   simplify-and-flatten)
+	    (simplify-and-canonicalize trig->sincos simplify-and-flatten)
+	    (only-if partials?
+		     (simplify-and-canonicalize canonicalize-partials
+						simplify-and-flatten))
+	    simplify-and-flatten
+	    )
+   exp))
 
-		(simplify-until-stable (compose universal-reductions
-						(only-if sincos? angular-parity)
-						(only-if logexp?
-							 (compose log-expand
-								  exp-expand))
-						(only-if sqrt? sqrt-expand))
-				       simplify-and-flatten)
-		simplify-and-flatten
-		trig->sincos
-		(only-if partials? canonicalize-partials)
-		)
-       exp))))
+

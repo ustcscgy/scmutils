@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -255,49 +255,49 @@ USA.
        (case upper-limit
 	 ((:+infinity)
 	  (integrate-open-open new-integrand
-			       :-pi/2 :+pi/2
+			       -pi/2 +pi/2
 			       allowable-error))
 	 ((:-infinity) 0.0)
 	 (else
 	  (if (memq method '(open-open closed-open))
 	      (integrate-open-open new-integrand
-				   :-pi/2 (atan upper-limit)
+				   -pi/2 (atan upper-limit)
 				   allowable-error)
 	      (integrate-open-closed new-integrand
-				     :-pi/2 (atan upper-limit)
+				     -pi/2 (atan upper-limit)
 				     allowable-error)))))
       ((:+infinity)
        (case upper-limit
 	 ((:+infinity) 0.0)
 	 ((:-infinity)
 	  (- (integrate-open-open new-integrand
-				  :-pi/2 :+pi/2
+				  -pi/2 +pi/2
 				  allowable-error)))
 	 (else
 	  (if (memq method '(open-open open-closed))
 	      (- (integrate-open-open new-integrand
-				      (atan upper-limit) :+pi/2
+				      (atan upper-limit) +pi/2
 				      allowable-error))
 	      (- (integrate-closed-open new-integrand
-					(atan upper-limit) :+pi/2
+					(atan upper-limit) +pi/2
 					allowable-error))))))
       (else
        (case upper-limit
 	 ((:+infinity)
 	  (if (memq method '(open-open open-closed))
 	      (integrate-open-open new-integrand
-				   (atan lower-limit) :+pi/2
+				   (atan lower-limit) +pi/2
 				   allowable-error)
 	      (integrate-closed-open new-integrand
-				     (atan lower-limit) :+pi/2
+				     (atan lower-limit) +pi/2
 				     allowable-error)))
 	 ((:-infinity)
 	  (if (memq method '(open-open open-closed))
 	      (- (integrate-open-open new-integrand
-				      :-pi/2 (atan lower-limit)
+				      -pi/2 (atan lower-limit)
 				      allowable-error))
 	      (- (integrate-closed-open new-integrand
-					:-pi/2 (atan lower-limit)
+					-pi/2 (atan lower-limit)
 					allowable-error)))))))))
 |#
 

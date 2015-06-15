@@ -23,6 +23,54 @@ USA.
 
 |#
 
+;;; Experimental definitions of torsion and Riemann...
+
+#|
+;;; Old version takes Cartan forms
+
+;;; Hawking and Ellis page 34.
+
+(define ((torsion Cartan) X Y)
+  (let ((nabla (covariant-derivative Cartan)))
+    (+ ((nabla X) Y)
+       (* -1 ((nabla Y) X))
+       (* -1 (commutator X Y)))))
+
+
+;;; Hawking and Ellis equation 2.18, page 35.
+
+(define ((Riemann-curvature Cartan) u v)
+  (let ((nabla (covariant-derivative Cartan)))
+    (- (commutator (nabla u) (nabla v))
+       (nabla (commutator u v)))))
+|#
+
+;;; This version takes nabla, allowing use over the map, etc.
+
+(define ((torsion nabla) X Y)
+  (+ ((nabla X) Y)
+     (* -1 ((nabla Y) X))
+     (* -1 (commutator X Y))))
+
+
+;;; Hawking and Ellis equation 2.18, page 35.
+
+(define ((Riemann-curvature nabla) u v)
+  (- (commutator (nabla u) (nabla v))
+     (nabla (commutator u v))))
+
+
+;;; Riemann tensor now takes the nabla too.
+
+(define ((Riemann nabla) w x u v)
+  (assert (and (form-field? w)
+	       (vector-field? u)
+	       (vector-field? v)
+	       (vector-field? x)))
+  (w (((Riemann-curvature nabla) u v) x)))
+
+
+
 ;;; use the connection derived from Lagrange equations on a sphere
 ;;; compute torsion for the non-symmetrized connection
 ;;; compute curvature to see if different from the symmetrized connection
@@ -32,6 +80,9 @@ USA.
 (define ((Lfree m) s)
   (* 1/2 m (square (velocity s))))
 
+
+;;; constraint to be on the sphere
+
 (define ((F R) s)
   (let ((q (coordinate s)))
     (let ((theta (ref q 0))
@@ -39,6 +90,9 @@ USA.
       (up (* R (sin theta) (cos phi))
 	  (* R (sin theta) (sin phi))
 	  (* R (cos theta))))))
+
+
+;;; Thus the Lagrangian is:
 
 (define (Lsphere m R)
   (compose (Lfree m) (F->C (F R))))
@@ -58,18 +112,24 @@ USA.
 
 solving for the highest order terms...
 
-(up
- (+ (((expt D 2) theta) t)
-    (* -1  (cos (theta t)) (sin (theta t)) (expt ((D phi) t) 2)))
- (+ (((expt D 2) phi) t)
-    (/ (* 2 (cos (theta t)) ((D theta) t) ((D phi) t)) (sin (theta t)))))
+(up (+ (((expt D 2) theta) t)
+       (* -1  (cos (theta t)) (sin (theta t)) (expt ((D phi) t) 2)))
+    (+ (((expt D 2) phi) t)
+       (/ (* 2 (cos (theta t)) ((D theta) t) ((D phi) t)) (sin (theta t)))))
 |#
 
 #|
-(instantiate-coordinates the-real-line 't)
-(define M (rectangular 2))
-(instantiate-coordinates M '(theta phi))
+
+(define-coordinates t the-real-line)
+
+(define M R2-rect)
+
+(define-coordinates (up theta phi) M)
+
 (define M-basis (coordinate-system->basis M))
+
+
+;;; Unsymmetrized Christoffel symbols. 
 
 (define Gamma-sphere
   (make-Christoffel
@@ -80,6 +140,44 @@ solving for the highest order terms...
 		 (up (- (* (sin theta) (cos theta))) zero))))
    M-basis))
 
+(define sphere-Cartan (Christoffel->Cartan Gamma-sphere))
+
+
+(define v (literal-vector-field 'v M))
+(define w (literal-vector-field 'w M))
+(define f (literal-manifold-function 'f M))
+
+(set! *divide-out-terms* #f)
+
+
+(pec ((((torsion (covariant-derivative sphere-Cartan)) v w) f)
+      ((M '->point) (up 'theta 'phi))))
+#| Result:
+(/ (+ (* 2
+	 (cos theta)
+	 (((partial 1) f) (up theta phi))
+	 (w^1 (up theta phi))
+	 (v^0 (up theta phi)))
+      (* -2
+	 (cos theta)
+	 (((partial 1) f) (up theta phi))
+	 (w^0 (up theta phi))
+	 (v^1 (up theta phi))))
+   (sin theta))
+
+;;; Hand simplified
+(* 2
+   (/ (cos theta) (sin theta))
+   (((partial 1) f) (up theta phi))
+   (- (* (w^1 (up theta phi)) (v^0 (up theta phi)))
+      (* (w^0 (up theta phi)) (v^1 (up theta phi)))))
+|#
+;;; So the torsion is certainly not zero.
+
+
+
+;;; An arbitrary path on the sphere.
+
 (define gamma
   (compose (M '->point)
 	   (up (literal-function 'theta)
@@ -89,24 +187,18 @@ solving for the highest order terms...
 (define basis-over-gamma
   (basis->basis-over-map gamma M-basis))
 
-(define sphere-Cartan-over-gamma
-  (Christoffel->Cartan-over-map Gamma-sphere gamma))
-(define sphere-Cartan
-  (Christoffel->Cartan Gamma-sphere))
-
 ;;; geodesic equations
 
 (pe
- (((((covariant-derivative sphere-Cartan-over-gamma) d/dt)
+ (((((covariant-derivative-over-map sphere-Cartan gamma) d/dt)
     ((differential gamma) d/dt))
    (M '->coords))
   ((the-real-line '->point) 't)))
-(up
- (+ (((expt D 2) theta) t)
-    (* -1 (sin (theta t)) (cos (theta t)) (expt ((D phi) t) 2)))
- (+ (((expt D 2) phi) t)
-    (/ (* 2 ((D theta) t) (cos (theta t)) ((D phi) t))
-       (sin (theta t)))))
+(up (+ (((expt D 2) theta) t)
+       (* -1 (sin (theta t)) (cos (theta t)) (expt ((D phi) t) 2)))
+    (+ (((expt D 2) phi) t)
+       (/ (* 2 ((D theta) t) (cos (theta t)) ((D phi) t))
+	  (sin (theta t)))))
 
 agrees with the Lagrange equations.
 |#
@@ -115,16 +207,15 @@ agrees with the Lagrange equations.
 torsion for this connection
 
 (define a-function
-  (compose
-   (literal-function 'f (-> (UP Real Real) Real))
-   (M '->coords)))
+  (compose (literal-function 'f (-> (UP Real Real) Real))
+	   (M '->coords)))
 
 (for-each
  (lambda (x)
    (for-each
     (lambda (y)
       (pe
-       ((((torsion sphere-Cartan) x y) a-function)
+       ((((torsion (covariant-derivative sphere-Cartan)) x y) a-function)
 	((M '->point) (up 'theta 'phi)))))
     (list d/dtheta d/dphi)))
  (list d/dtheta d/dphi))
@@ -134,20 +225,40 @@ torsion for this connection
 0
 
 nonzero torsion
-
 |#
-
 
-
 #|
 
 now compute curvature
 
-(pe
- (((Riemann sphere-Cartan) dphi d/dtheta d/dphi d/dtheta)
-  ((M '->point) (up 'theta 'phi))))
+(pec (((Riemann (covariant-derivative sphere-Cartan)) dphi d/dtheta d/dphi d/dtheta)
+      ((M '->point) (up 'theta 'phi))))
+#| Result:
 0
-is one for the symmetric connection
+|#
+
+;;; But the symmetrized connection is
+
+(define G-S2-1
+  (make-Christoffel
+   (let ((zero  (lambda (point) 0))) 
+     (down (down (up zero zero)
+                 (up zero (/ 1 (tan theta))))
+           (down (up zero (/ 1 (tan theta)))
+                 (up (- (* (sin theta) (cos theta))) zero))))
+   M-basis))
+
+(define symmetrized-Cartan (Christoffel->Cartan G-S2-1))
+
+(pec (((Riemann (covariant-derivative symmetrized-Cartan)) dphi d/dtheta d/dphi d/dtheta)
+      ((M '->point) (up 'theta 'phi))))
+#| Result:
+1
+|#
+
+Note that the curvature is different for the 
+symmetrized (torsion-free) connection.
+
 
 
 (for-each
@@ -160,7 +271,7 @@ is one for the symmetric connection
 	  (lambda (delta)
 	    (newline)
 	    (pe `(,alpha ,beta ,gamma ,delta))
-	    (pe (((Riemann sphere-Cartan) 
+	    (pe (((Riemann (covariant-derivative sphere-Cartan)) 
 		  alpha beta gamma delta)
 		 ((M '->point) (up 'theta 'phi)))))
 	  (list d/dtheta d/dphi)))
@@ -182,20 +293,6 @@ is one for the symmetric connection
 
 check with usual connection...
 
-(define symmetric-Gamma-sphere
-  (make-Christoffel
-   (let ((zero (lambda (point) 0)))
-     (down (down (up zero zero)
-		 (up zero (/ 1 (tan theta))))
-	   (down (up zero (/ 1 (tan theta)))
-		 (up (- (* (sin theta) (cos theta))) zero))))
-   M-basis))
-
-(define symmetric-sphere-Cartan-over-gamma
-  (Christoffel->Cartan-over-map symmetric-Gamma-sphere gamma))
-(define symmetric-sphere-Cartan
-  (Christoffel->Cartan symmetric-Gamma-sphere))
-
 (for-each
  (lambda (alpha)
    (for-each
@@ -206,7 +303,7 @@ check with usual connection...
 	  (lambda (delta)
 	    (newline)
 	    (pe `(,alpha ,beta ,gamma ,delta))
-	    (pe (((Riemann symmetric-sphere-Cartan) 
+	    (pe (((Riemann (covariant-derivative symmetrized-Cartan)) 
 		  alpha beta gamma delta)
 		 ((M '->point) (up 'theta 'phi)))))
 	  (list d/dtheta d/dphi)))
@@ -233,18 +330,19 @@ check with usual connection...
 
 modified from ricci.scm
 
-(define ((Ricci Cartan) u v)
-  (let ((R (Riemann-curvature Cartan)))
+(define ((Ricci nabla basis) u v)
+  (let ((R (Riemann-curvature nabla)))
     (contract-2 
      (lambda (d/dx dx) (dx ((R d/dx v) u)))
-     (Cartan->basis Cartan))))
+     basis)))
 
 (for-each
  (lambda (alpha)
    (for-each
     (lambda (beta)
       (pe `(,alpha ,beta))
-      (pe (((Ricci symmetric-sphere-Cartan) 
+      (pe (((Ricci (covariant-derivative symmetrized-Cartan)
+		   M-basis) 
 		  alpha beta)
 	   ((M '->point) (up 'theta 'phi)))))
     (list d/dtheta d/dphi)))
@@ -264,7 +362,8 @@ modified from ricci.scm
    (for-each
     (lambda (beta)
       (pe `(,alpha ,beta))
-      (pe (((Ricci sphere-Cartan) 
+      (pe (((Ricci (covariant-derivative sphere-Cartan)
+		   M-basis) 
 		  alpha beta)
 	   ((M '->point) (up 'theta 'phi)))))
     (list d/dtheta d/dphi)))
@@ -282,132 +381,95 @@ modified from ricci.scm
 
 ;;; to get the scalar curvature we need to raise one index 
 ;;; and then contract =>  so need a metric
-
-
 |#
 
-
+;;; investigate relation between geodesic deviation
+;;; and variational evolution equations
+
 #|
-Derive equations of parallel transport so we can go around loops 
-and compare to the Riemann tensor ...
 
-(define w
-  (basis-components->vector-field
-   (up (compose (literal-function 'w0)
-		(the-real-line '->coords))
-       (compose (literal-function 'w1)
-		(the-real-line '->coords)))
-   (basis->vector-basis basis-over-gamma)))
+(define (F-sphere-evolution state)
+  (let ((theta (ref state 0))
+	(phi (ref state 1))
+	(theta-dot (ref state 2))
+	(phi-dot (ref state 3)))
+    (up theta-dot
+	phi-dot
+	(* (cos theta) (sin theta) (expt phi-dot 2))
+	(* -1 (/ (* 2 (cos theta) theta-dot phi-dot) (sin theta))))))
 
-(pe 
- (s:map/r
-  (lambda (omega)
-    ((omega 
-      (((covariant-derivative sphere-Cartan-over-gamma)
-	d/dt)
-       w))
-      ((the-real-line '->point) 'tau)))
-  (basis->1form-basis basis-over-gamma)))
+(pe (* ((D F-sphere-evolution) 
+	(up 'theta 'phi 'theta-dot 'phi-dot))
+       (up 'dtheta 'dphi 'dtheta-dot 'dphi-dot)))
 (up
- (+ (* -1 (sin (theta tau)) (cos (theta tau)) ((D phi) tau) (w1 tau))
-    ((D w0) tau))
- (+ (/ (* 2 ((D theta) tau) (cos (theta tau)) (w1 tau))
-       (sin (theta tau)))
-    ((D w1) tau)))
+ dtheta-dot
+ dphi-dot
+ (+ (* 2 dtheta (expt phi-dot 2) (expt (cos theta) 2))
+    (* 2 dphi-dot phi-dot (cos theta) (sin theta))
+    (* -1 dtheta (expt phi-dot 2)))
+ (/
+  (+ (* -2 dphi-dot theta-dot (cos theta) (sin theta))
+     (* -2 dtheta-dot phi-dot (cos theta) (sin theta))
+     (* 2 dtheta phi-dot theta-dot))
+  (expt (sin theta) 2)))
 
-(define states (rectangular 4))
-(instantiate-coordinates states '(Theta Phi w0 w1))
+(define (variational-sphere-evolution vstate)
+  (let ((theta (ref state 0))
+	(phi (ref state 1))
+	(theta-dot (ref state 2))
+	(phi-dot (ref state 3))
+	(dtheta (ref state 4))
+	(dphi (ref state 5))
+	(dtheta-dot (ref state 6))
+	(dphi-dot (ref state 7)))
+    (up theta-dot
+	phi-dot
+	(* (cos theta) (sin theta) (expt phi-dot 2))
+	(* -1 (/ (* 2 (cos theta) theta-dot phi-dot) (sin theta)))
+	dtheta-dot
+	dphi-dot
+	(+ (* 2 dtheta (expt phi-dot 2) (expt (cos theta) 2))
+	   (* 2 dphi-dot phi-dot (cos theta) (sin theta))
+	   (* -1 dtheta (expt phi-dot 2)))
+	(/
+	 (+ (* -2 dphi-dot theta-dot (cos theta) (sin theta))
+	    (* -2 dtheta-dot phi-dot (cos theta) (sin theta))
+	    (* 2 dtheta phi-dot theta-dot))
+	 (expt (sin theta) 2)))))
 
-(define (G v)
-  (let ((adot (dTheta v))
-	(bdot (dPhi v)))
-    (+ v 
-       (* (compose (* sin cos) Theta) bdot w1 d/dw0)
-       (* -1 
-	  (compose (/ cos sin) Theta)
-	  (* 2 w1 adot)
-	  d/dw1))))
-	  
-(define Gu (G d/dTheta))
-(define Gv (G d/dPhi))
-
-(define (initial-state initial-coords w)
-  (let ((Theta0 (ref initial-coords 0))
-	(Phi0 (ref initial-coords 1)))
-    (let ((m ((M '->point) (up Theta0 Phi0))))
-      ((states '->point)
-       (up Theta0 Phi0 ((dtheta w) m) ((dphi w) m))))))
-
-(pe
- ((dw0 (commutator Gu Gv))
-  (initial-state (up 'Theta0 'Phi0) d/dphi)))
--1
-
-(pe
- ((dw0 (commutator Gv Gu))
-  (initial-state (up 'Theta0 'Phi0) d/dphi)))
-1
-
-(pe
- ((dw1 (commutator Gu Gv))
-  (initial-state (up 'Theta0 'Phi0) d/dtheta)))
+(pe (((((Riemann-curvature
+	 (covariant-derivative-over-map sphere-Cartan gamma))
+	d/dt d/dt)
+       ((differential gamma) d/dt))
+      (literal-manifold-function 'f M))
+     ((the-real-line '->point) 't)))
 0
 
-(pe
- ((dw1 (commutator Gv Gu))
-  (initial-state (up 'Theta0 'Phi0) d/dtheta)))
-0
+(define ((geodesic-deviation nabla) gamma n w)
+  (let ((u ((differential gamma) d/dt)))
+    (- (w ((nabla d/dt) ((nabla d/dt) n)))
+       ((Riemann nabla) w u n u))))
 
-|#
+(define (n basis gamma)
+  (procedure->vector-field
+   (lambda (f)
+     (lambda (mt)
+       (* (((basis->vector-basis basis) f) (gamma mt))
+	  (up ((literal-function 'n0) ((the-real-line '->coords) mt))
+	      ((literal-function 'n1) ((the-real-line '->coords) mt))))))))
 
-
-
-#|
-;;; redo transport for symmetric case to compare
-
-(define (Gs v)
-  (let ((adot (dTheta v))
-	(bdot (dPhi v)))
-    (+ v 
-       (* (compose (* sin cos) Theta) bdot w1 d/dw0)
-       (* -1 
-	  (compose (/ cos sin) Theta)
-	  (+ (* w0 bdot) (* w1 adot))
-	  d/dw1))))
-	  
-(define Gsu (Gs d/dTheta))
-(define Gsv (Gs d/dPhi))
-
-(define (initial-state initial-coords w)
-  (let ((Theta0 (ref initial-coords 0))
-	(Phi0 (ref initial-coords 1)))
-    (let ((m ((M '->point) (up Theta0 Phi0))))
-      ((states '->point)
-       (up Theta0 Phi0 ((dtheta w) m) ((dphi w) m))))))
-
-(pe
- ((dw0 (commutator Gsu Gsv))
-  (initial-state (up 'Theta0 'Phi0) d/dphi)))
-(* -1 (expt (sin Theta0) 2))
-;;; nonsymmetric = -1
-
-(pe
- ((dw0 (commutator Gsv Gsu))
-  (initial-state (up 'Theta0 'Phi0) d/dphi)))
-(expt (sin Theta0) 2)
-;;; nonsymmetric = 1
-
-(pe
- ((dw1 (commutator Gsu Gsv))
-  (initial-state (up 'Theta0 'Phi0) d/dtheta)))
-1
-;;; nonsymmetric = 0
-
-(pe
- ((dw1 (commutator Gsv Gsu))
-  (initial-state (up 'Theta0 'Phi0) d/dtheta)))
--1
-;;; nonsymmetric = 0
-
+ 
+(pe (((n M-basis gamma) (literal-manifold-function 'f M))
+     ((the-real-line '->point) 't)))
+(+ (* (n0 t) (((partial 0) f) (up (theta t) (phi t))))
+   (* (n1 t) (((partial 1) f) (up (theta t) (phi t)))))
+  
+(pe (((geodesic-deviation
+       (covariant-derivative-over-map sphere-Cartan gamma))
+      gamma
+      (n M-basis gamma) 
+      ((form-field->form-field-over-map gamma)
+       (literal-1form-field 'w M)))
+     ((the-real-line '->point) 't)))
 
 |#

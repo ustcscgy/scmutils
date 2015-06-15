@@ -71,6 +71,32 @@ USA.
 (+ (((partial 1) f) (up x0 y0)) (((partial 0) f) (up x0 y0)))
 |#
 |#
+
+;;; Sometimes we need to simplify an internal result.  
+
+(define memoized-simplify
+  (hash-memoize-1arg 
+   (lambda (expr)
+     (default-simplify expr))))
+
+(define (simplify-numerical-expression expr)
+  (cond ((and (pair? expr) (eq? (car expr) '*number*))
+	 (let ((result
+		(make-numerical-literal
+		 (memoized-simplify expr))))
+	   ;; copy extra properties, if any
+	   (set-cdr! (cdr result) (cddr expr))
+	   result))
+	(else expr)))
 
 
+(define (with-incremental-simplifier thunk)
+  (fluid-let ((incremental-simplifier default-simplify)
+	      (enable-constructor-simplifications #t))
+    (thunk)))
 
+#|
+(pp (simplify-numerical-expression
+     (/ 1 (+ (/ 1 'r1) (/ 1 'r2)))))
+(*number* (expression (/ (* r1 r2) (+ r1 r2))))
+|#

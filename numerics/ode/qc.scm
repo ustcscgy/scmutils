@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -52,12 +52,16 @@ USA.
 
 (define (quality-control method order)
   (let ((2^order (expt 2.0 order))
-	(error-scale (/ -1.0 (+ (exact->inexact order) 1.0))))
+	(error-scale-down (/ -1.0 (+ (exact->inexact order) 1.0)))
+	(error-scale-up (/ -1.0 (exact->inexact order))))
     (let ((halfweight (v:scale (/ 2^order (- 2^order 1.0))))
 	  (fullweight (v:scale (/ 1.0 (- 2^order 1.0))))
-	  (h-adjust
+	  (h-adjust-down
 	    (lambda (h err)
-	      (* qc-damping h (expt (max err qc-zero-protect) error-scale)))))
+	      (* qc-damping h (expt (max err qc-zero-protect) error-scale-down))))
+	  (h-adjust-up
+	    (lambda (h err)
+	      (* qc-damping h (expt (max err qc-zero-protect) error-scale-up)))))
       (define (qc-stepper-maker der tolerance . others)
 	(let ((error-measure (parse-error-measure tolerance))
 	      (mder (apply method der tolerance others)))
@@ -79,12 +83,12 @@ USA.
 			   (let ((err (error-measure 2halfsteps fullstep)))
 			     (if qc-wallp?
 				 (write-line `(qc fullstep err: ,err ,nh ,n2h ,nf)))
-			     (if (> err 2.0) ; 2.0 to make dead zone around 1.0 -- GJS
-				 (loop (h-adjust h err))
+			     (if (> err *qc-trigger-point*) 
+				 (loop (h-adjust-up h err))
 				 (continue (vector-vector (halfweight 2halfsteps)
 							  (fullweight fullstep))
 					   h
-					   (h-adjust h err)))))
+					   (h-adjust-down h err)))))
 			 (lambda ()	;fullstep failed
 			   (if qc-wallp? (write-line `(qc: fullstep failed)))
 			   (loop (* *qc-fullstep-reduction-factor* h)))))
@@ -97,6 +101,7 @@ USA.
 	  qc-stepper))
       qc-stepper-maker)))
 
+(define *qc-trigger-point* 1.5)	; to make dead zone around 1.0 -- GJS
 (define *qc-halfstep-reduction-factor* 0.3) ;must be less than .5
 (define *qc-2halfsteps-reduction-factor* 0.5)
 (define *qc-fullstep-reduction-factor* 0.5)

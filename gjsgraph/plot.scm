@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -29,35 +29,35 @@ USA.
 
 #|
 ;;; For standalone applications, uncomment these
-(define :ln2 (log 2.0))
-(define :ln10 (log 10.0))
+(define ln2 (log 2.0))
+(define ln10 (log 10.0))
 
-(define :+pi  (* 4.0 (atan 1.0 1.0)))
-(define :-pi (- :+pi))
-(define :+2pi (* 2.0 :+pi))
+(define +pi  (* 4.0 (atan 1.0 1.0)))
+(define -pi (- +pi))
+(define +2pi (* 2.0 +pi))
 
 
-(define :minlog -1000.0)
+(define minlog -1000.0)
 
 (define (safelog x)
   (if (and (real? x) (> x 0))
-      (max (log x) :minlog)
+      (max (log x) minlog)
       (error "Out of range -- SAFELOG" x)))
 
 
 (define (principal-value cuthigh)
-  (let ((cutlow (- cuthigh :+2pi)))
+  (let ((cutlow (- cuthigh +2pi)))
     (define (the-principal-value x)
       (if (and (<= cutlow x) (< x cuthigh))
 	  x
-	  (let ((y (- x (* :+2pi (floor (/ x :+2pi))))))
+	  (let ((y (- x (* +2pi (floor (/ x +2pi))))))
 	    (if (< y cuthigh) 
 		y
-		(- y :+2pi)))))
+		(- y +2pi)))))
     the-principal-value))
 
 (define principal-value-minus-pi-to-pi
-  (principal-value :+pi))
+  (principal-value +pi))
 |#
 
 #|
@@ -166,14 +166,14 @@ Need to define angle ranges to have principal values
   (let ((x (case (abscissa-type d)
 	     ((LINEAR) x1)
 	     ((LN) (safelog x1))
-	     ((LOG10) (/ (safelog x1) :ln10))
-	     ((LOG2) (/ (safelog x1) :ln2))
+	     ((LOG10) (/ (safelog x1) ln10))
+	     ((LOG2) (/ (safelog x1) ln2))
 	     ((ANGLE) ((principal-value (abscissa-max d)) x1))))
 	(y (case (ordinate-type d)
 	     ((LINEAR) x2)
 	     ((LN) (safelog x2))
-	     ((LOG10) (/ (safelog x2) :ln10))
-	     ((LOG2) (/ (safelog x2) :ln2))
+	     ((LOG10) (/ (safelog x2) ln10))
+	     ((LOG2) (/ (safelog x2) ln2))
 	     ((ANGLE) ((principal-value (ordinate-max d)) x2)))))
     (case (plot-type d)
       ((X-Y)
@@ -491,8 +491,8 @@ Need to define angle ranges to have principal values
 			    (let ((d (descriptor trace)))
 			      (if (eq? x 'POLAR)
 				  (begin (set-ordinate-type! d 'ANGLE)
-					 (set-ordinate-min! d :-pi)
-					 (set-ordinate-max! d :+pi)))
+					 (set-ordinate-min! d -pi)
+					 (set-ordinate-max! d +pi)))
 			      (set-plot-type! d x))))))
 
 	  ((ABSCISSA-TYPE) 
@@ -508,8 +508,8 @@ Need to define angle ranges to have principal values
 			    (let ((d (descriptor trace)))
 			      (set-abscissa-type! (descriptor trace) x)
 			      (if (eq? x 'ANGLE)
-				  (begin (set-abscissa-min! d :-pi)
-					 (set-abscissa-max! d :+pi))))))))
+				  (begin (set-abscissa-min! d -pi)
+					 (set-abscissa-max! d +pi))))))))
 
 	  ((ORDINATE-TYPE) 
 	   (with-traces rest-of-arguments
@@ -524,8 +524,8 @@ Need to define angle ranges to have principal values
 			    (let ((d (descriptor trace)))
 			      (set-ordinate-type! (descriptor trace) x)
 			      (if (eq? x 'ANGLE)
-				  (begin (set-ordinate-min! d :-pi)
-					 (set-ordinate-max! d :+pi))))))))
+				  (begin (set-ordinate-min! d -pi)
+					 (set-ordinate-max! d +pi))))))))
 
 	  ((ABSCISSA-MIN)
 	   (with-traces rest-of-arguments
@@ -539,7 +539,7 @@ Need to define angle ranges to have principal values
 			    (set-abscissa-min! (descriptor trace) x)
 			    (if (eq? (abscissa-type (descriptor trace)) 'angle)
 				(set-abscissa-max! (descriptor trace)
-						   (+ x :+2pi)))))))
+						   (+ x +2pi)))))))
 	  ((ABSCISSA-MAX)
 	   (with-traces rest-of-arguments
 			(lambda (trace) (abscissa-max (descriptor trace)))))
@@ -552,7 +552,7 @@ Need to define angle ranges to have principal values
 			    (set-abscissa-max! (descriptor trace) x)
 			    (if (eq? (abscissa-type (descriptor trace)) 'angle)
 				(set-abscissa-min! (descriptor trace)
-						   (- x :+2pi)))))))
+						   (- x +2pi)))))))
 
 	  ((ORDINATE-MIN)
 	   (with-traces rest-of-arguments
@@ -566,7 +566,7 @@ Need to define angle ranges to have principal values
 			    (set-ordinate-min! (descriptor trace) x)
 			    (if (eq? (ordinate-type (descriptor trace)) 'angle)
 				(set-ordinate-max! (descriptor trace)
-						   (+ x :+2pi)))))))
+						   (+ x +2pi)))))))
 	  ((ORDINATE-MAX)
 	   (with-traces rest-of-arguments
 			(lambda (trace) (ordinate-max (descriptor trace)))))
@@ -579,7 +579,7 @@ Need to define angle ranges to have principal values
 			    (set-ordinate-max! (descriptor trace) x)
 			    (if (eq? (ordinate-type (descriptor trace)) 'angle)
 				(set-ordinate-min! (descriptor trace)
-						   (- x :+2pi)))))))
+						   (- x +2pi)))))))
 
 	  ((LIMITS)
 	   (with-traces rest-of-arguments

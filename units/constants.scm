@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -29,7 +29,79 @@ USA.
   (* 4 (atan 1 1))
   unitless)
 
+(define-constant ':2pi "2\\pi" "2*Pi"
+  (* 8 (atan 1 1))
+  unitless)
 
+(define-constant ':pi/2 "\\pi/2" "Pi/2"
+  (* 2 (atan 1 1))
+  unitless)
+
+(define-constant ':pi/4 "\\pi/4" "Pi/4"
+  (atan 1 1)
+  unitless)
+
+(define-constant ':pi/3 "\\pi/3" "Pi/3"
+  (* 4/3 (atan 1 1))
+  unitless)
+
+(define-constant ':pi/6 "\\pi/6" "Pi/6"
+  (* 2/3 (atan 1 1))
+  unitless)
+
+(define-constant ':-pi "-\\pi" "-Pi"
+  (* -4 (atan 1 1))
+  unitless)
+
+(define-constant ':-2pi "-2\\pi" "-2*Pi"
+  (* -8 (atan 1 1))
+  unitless)
+
+(define-constant ':-pi/2 "-\\pi/2" "-Pi/2"
+  (* -2 (atan 1 1))
+  unitless)
+
+(define-constant ':-pi/4 "-\\pi/4" "-Pi/4"
+  (- (atan 1 1))
+  unitless)
+
+(define-constant ':-pi/3 "-\\pi/3" "-Pi/3"
+  (* -4/3 (atan 1 1))
+  unitless)
+
+(define-constant ':-pi/6 "-\\pi/6" "-Pi/6"
+  (* -2/3 (atan 1 1))
+  unitless)
+
+(define-constant ':+pi "+\\pi" "+Pi"
+  (* +4 (atan 1 1))
+  unitless)
+
+(define-constant ':+2pi "+2\\pi" "+2*Pi"
+  (* +8 (atan 1 1))
+  unitless)
+
+(define-constant ':+pi/2 "+\\pi/2" "+Pi/2"
+  (* +2 (atan 1 1))
+  unitless)
+
+(define-constant ':+pi/4 "+\\pi/4" "+Pi/4"
+  (+ (atan 1 1))
+  unitless)
+
+(define-constant ':+pi/3 "+\\pi/3" "+Pi/3"
+  (* +4/3 (atan 1 1))
+  unitless)
+
+(define-constant ':+pi/6 "+\\pi/6" "+Pi/6"
+  (* +2/3 (atan 1 1))
+  unitless)
+
+
+(define-constant ':gamma "\\gamma" "Euler-Macheroni-constant"
+  0.57721566490153286060651209008240243104215933593992
+  unitless)
+
 ;;;; Universal Physical Constants
 
 (define-constant ':c "c" "speed of light"
@@ -44,29 +116,29 @@ USA.
   128e-6)
 |#				;relative error
  
-;;; CODATA 2002
+;;; CODATA 2006
 (define-constant ':G "G" "gravitational constant"
-  6.6742e-11
+  6.67428e-11
   (/ (* newton (square meter)) (square kilogram))
-  1.5e-4)
+  1.0e-4)
 
-;;; CODATA 2002
+;;; CODATA 2006
 (define-constant ':e "e" "elementary charge"
-  1.60217653e-19
+  1.602176487e-19
   coulomb
-  8.85e-8)
+  2.5e-8)
 
-;;; CODATA 2002
+;;; CODATA 2006
 (define-constant ':h "h" "Planck constant"
-  6.6260693e-34
+  6.62606896e-34
   (* joule second)
-  1.7e-7)
+  5.0e-8)
 
-;;; CODATA 2002
+;;; CODATA 2006
 (define-constant ':N_A "N_A" "Avogadaro constant"
-  6.0221415e23
+  6.02214179e23
   (/ unitless mole)
-  1.7e-7)
+  5.0e-8)
 
 ;;; CODATA 2002
 (define-constant ':m_e "m_e" "electron mass"

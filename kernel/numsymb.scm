@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,7 +35,7 @@ USA.
 ;;; Disable intermediate simplification -- wastes time.
 (define incremental-simplifier #f)
 
-(define symbolic-operator-table (make-eq-hash-table 50))
+(define symbolic-operator-table (make-eq-hash-table))
 
 (define (make-numsymb-expression operator-symbol operands)
   (let ((operand-expressions (map numerical-expression operands)))
@@ -55,9 +55,13 @@ USA.
 ;;; currently disabled -- see heuristic.scm
 (define heuristic-number-canonicalizer #f)
 
+#|
 ;;; From general/canonicalizer.scm
 (define numerical-expression-canonicalizer
   (make-expression-canonicalizer))
+|#
+
+(define numerical-expression-canonicalizer #f)
 
 (define (numerical-expression expr)
   (cond ((number? expr)
@@ -76,6 +80,114 @@ USA.
 		(numerical-expression-canonicalizer expr))
 	       (else expr)))
 	(else expr)))
+
+(define (make-rectangular? exp)
+  (and (pair? exp) (eq? (car exp) 'make-rectangular)))
+
+(define (symb:make-rectangular r i)
+  (cond ((exact-zero? i) r)
+	((and (real? r) (real? i))
+	 (make-rectangular r i))
+	(else
+	 (symb:add r (symb:mul +i i)))))
+(addto-symbolic-operator-table 'make-rectangular symb:make-rectangular)
+
+
+(define (make-polar? exp)
+  (and (pair? exp) (eq? (car exp) 'make-polar)))
+
+(define (symb:make-polar m a)
+  (cond ((exact-zero? m) m)
+	((exact-zero? a) m)
+	((and (real? m) (real? a))
+	 (make-polar m a))
+	(else
+	 (symb:mul m
+		   (symb:add (symb:cos a)
+			     (symb:mul +i (symb:sin a)))))))
+(addto-symbolic-operator-table 'make-polar symb:make-polar)
+
+
+(define (real-part? exp)
+  (and (pair? exp) (eq? (car exp) 'real-part)))
+
+(define (symb:real-part z)
+  (cond ((complex? z) (real-part z))
+	;;((symbol? z) `(real-part ,z))
+	(else
+	 (symb:mul 1/2
+		   (symb:add z (symb:conjugate z))))))
+(addto-symbolic-operator-table 'real-part symb:real-part)
+
+
+(define (imag-part? exp)
+  (and (pair? exp) (eq? (car exp) 'imag-part)))
+
+(define (symb:imag-part z)
+  (cond ((complex? z) (imag-part z))
+	;;((symbol? z) `(imag-part ,z))
+	(else
+	 (symb:mul 1/2
+		   (symb:mul -i
+			     (symb:- z (symb:conjugate z)))))))
+(addto-symbolic-operator-table 'imag-part symb:imag-part)
+
+(define (magnitude? exp)
+  (and (pair? exp) (eq? (car exp) 'magnitude)))
+
+(define (symb:magnitude z)
+  (if (number? z)
+      (if (exact? z)
+	  (let ((m (magnitude z)))
+	    (if (exact? m)
+		m
+		(symb:magexpr z)))
+	  (magnitude z))
+      (symb:magexpr z)))
+
+(define (symb:magexpr z)
+  (symb:sqrt (symb:mul (symb:conjugate z) z)))
+(addto-symbolic-operator-table 'magnitude symb:magnitude)
+
+(define (angle? exp)
+  (and (pair? exp) (eq? (car exp) 'angle)))
+
+(define (symb:angle z)
+  (if (number? z)
+      (if (exact? z)
+	  (let ((a (angle z)))
+	    (if (exact? a)
+		a
+		(symb:anglexpr z)))
+	  (angle z))
+      (symb:anglexpr z)))
+
+(define (symb:anglexpr z)
+  (symb:atan (symb:imag-part z) (symb:real-part z)))
+(addto-symbolic-operator-table 'angle symb:angle)
+
+(define (conjugate? exp)
+  (and (pair? exp) (eq? (car exp) 'conjugate)))
+
+(define (symb:conjugate z)
+  (cond ((complex? z) (conjugate z))
+        ((known-real? z) z)
+        ((and (pair? z)
+              (memq (operator z)
+                    *conjugate-transparent-operators*))
+         (cons (operator z)
+               (map symb:conjugate (operands z))))
+        (else
+         `(conjugate ,z))))
+(addto-symbolic-operator-table 'conjugate symb:conjugate)
+
+(define *conjugate-transparent-operators*
+  '(negate invert square cube
+    sqrt exp log exp2 exp10 log2 log10
+    sin cos tan sec csc
+    asin acos atan
+    sinh cosh tanh sech csch
+    + - * / expt up down))
 
 (define (symb:& numexp u1 #!optional u2)
   (if (default-object? u2)
@@ -422,19 +534,53 @@ USA.
 	      `(log ,x)))
       `(log ,x)))
 (addto-symbolic-operator-table 'log symb:log)
+
+(define heuristic-sin-cos-simplify true)
+(define relative-integer-tolerance (* 100 *machine-epsilon*))
+(define absolute-integer-tolerance 1e-20)
+(define n:pi/4 (atan 1 1))
+(define n:pi (* 4 n:pi/4))
+(define n:2pi (* 2 n:pi))
+(define n:pi/2 (* 2 n:pi/4))
+(define n:pi/3 (/ n:pi 3))
+(define n:pi/6 (/ n:pi/2 3))
 
+(define (almost-integer? x)
+  (or (integer? x)
+      (and heuristic-sin-cos-simplify
+	   (real? x)
+	   (let ((z (round x)))
+	     (if (zero? z)
+		 (< (abs x) absolute-integer-tolerance)
+		 (< (abs (/ (- x z) z)) relative-integer-tolerance))))))
 
+(define (symb:zero-mod-pi? x) (almost-integer? (/ x n:pi)))
+
+(define (symb:pi/2-mod-2pi? x) (almost-integer? (/ (- x n:pi/2) n:2pi)))
+
+(define (symb:-pi/2-mod-2pi? x) (almost-integer? (/ (+ x n:pi/2) n:2pi)))
+
+(define (symb:pi/2-mod-pi? x) (almost-integer? (/ (- x n:pi/2) n:pi)))
+
+(define (symb:zero-mod-2pi? x) (almost-integer? (/ x n:2pi)))
+
+(define (symb:pi-mod-2pi? x) (almost-integer? (/ (- x n:pi) n:2pi)))
+
+(define (symb:pi/4-mod-pi? x) (almost-integer? (/ (- x n:pi/4) n:pi)))
+
+(define (symb:-pi/4-mod-pi? x) (almost-integer? (/ (+ x n:pi/4) :pi)))
+
 (define (sin? exp)
   (and (pair? exp) (eq? (car exp) 'sin)))
 
 (define (symb:sin x)
   (if (number? x)
-      (if (inexact? x)
-	  (sin x)
-	  (if (zero? x)
-	      :zero
-	      `(sin ,x)))
-      ;;Extend for symbolic combinations of pi.
+      (if (exact? x)
+	  (if (zero? x) 0 `(sin ,x))
+	  (cond ((symb:zero-mod-pi? x) 0.)
+		((symb:pi/2-mod-2pi? x) +1.)
+		((symb:-pi/2-mod-2pi? x) -1.)
+		(else (sin x))))
       `(sin ,x)))
 (addto-symbolic-operator-table 'sin symb:sin)
 
@@ -444,11 +590,12 @@ USA.
 
 (define (symb:cos x)
   (if (number? x)
-      (if (inexact? x)
-	  (cos x)
-	  (if (zero? x)
-	      :one
-	      `(cos ,x)))
+      (if (exact? x)
+	  (if (zero? x) 1 `(cos ,x))
+	  (cond ((symb:pi/2-mod-pi? x) 0.)
+		((symb:zero-mod-2pi? x) +1.)
+		((symb:pi-mod-2pi? x) -1.)
+		(else (cos x))))
       `(cos ,x)))
 (addto-symbolic-operator-table 'cos symb:cos)
 
@@ -457,11 +604,14 @@ USA.
 
 (define (symb:tan x)
   (if (number? x)
-      (if (inexact? x)
-	  (tan x)
-	  (if (zero? x)
-	      :zero
-	      `(tan ,x)))
+      (if (exact? x)
+	  (if (zero? x) 0 `(tan ,x))
+	  (cond ((symb:zero-mod-pi? x) 0.)
+		((symb:pi/4-mod-pi? x) 1.)
+		((symb:-pi/4-mod-pi? x) -1.)
+		((symb:pi/2-mod-pi? x)
+		 (error "Undefined -- TAN" x))
+		 (else (tan x))))
       `(tan ,x)))
 (addto-symbolic-operator-table 'tan symb:tan)
 
@@ -474,9 +624,9 @@ USA.
       (if (inexact? x)
 	  (csc x)
 	  (if (zero? x)
-	      (error "Zero argument -- CSC")
-	      `(/ 1 (sin ,x))))
-      `(/ 1 (sin ,x))))
+	      (error "Zero argument -- CSC" x)
+	      `(/ 1 ,(symb:sin x))))
+      `(/ 1 ,(symb:sin x))))
 (addto-symbolic-operator-table 'csc symb:csc)
 
 
@@ -489,8 +639,8 @@ USA.
 	  (sec x)
 	  (if (zero? x)
 	      :one
-	      `(/ 1 (cos ,x))))
-      `(/ 1 (cos ,x))))
+	      `(/ 1 ,(symb:cos x))))
+      `(/ 1 ,(symb:cos x))))
 (addto-symbolic-operator-table 'sec symb:sec)
 
 (define (atan? exp)
@@ -576,84 +726,11 @@ USA.
       `(sinh ,x)))
 (addto-symbolic-operator-table 'sinh symb:sinh)
 
-(define (real-part? exp)
-  (and (pair? exp) (eq? (car exp) 'real-part)))
-
-(define (symb:real-part z)
-  (if (complex? z) (real-part z) `(real-part ,z)))
-(addto-symbolic-operator-table 'real-part symb:real-part)
-
-
-(define (imag-part? exp)
-  (and (pair? exp) (eq? (car exp) 'imag-part)))
-
-(define (symb:imag-part z)
-  (if (complex? z) (imag-part z) `(imag-part ,z)))
-(addto-symbolic-operator-table 'imag-part symb:imag-part)
-
-
-(define (magnitude? exp)
-  (and (pair? exp) (eq? (car exp) 'magnitude)))
-
-(define (symb:magnitude z)
-  (if (number? z)
-      (if (exact? z)
-	  (let ((m (magnitude z)))
-	    (if (exact? m)
-		m
-		`(magnitude ,z)))
-	  (magnitude z))
-      `(magnitude ,z)))
-(addto-symbolic-operator-table 'magnitude symb:magnitude)
-
-
-(define (angle? exp)
-  (and (pair? exp) (eq? (car exp) 'angle)))
-
-(define (symb:angle z)
-  (if (number? z)
-      (if (exact? z)
-	  (let ((a (angle z)))
-	    (if (exact? a)
-		a
-		`(angle ,z)))
-	  (angle z))
-      `(angle ,z)))
-(addto-symbolic-operator-table 'angle symb:angle)
-
-
-(define (conjugate? exp)
-  (and (pair? exp) (eq? (car exp) 'conjugate)))
-
-(define (symb:conjugate z)
-  (if (complex? z) (conjugate z) `(conjugate ,z)))
-(addto-symbolic-operator-table 'conjugate symb:conjugate)
-
-(define (make-rectangular? exp)
-  (and (pair? exp) (eq? (car exp) 'make-rectangular)))
-
-(define (symb:make-rectangular r i)
-  (if (and (real? r) (real? i))
-      (make-rectangular r i)
-      `(make-rectangular ,r ,i)))
-(addto-symbolic-operator-table 'make-rectangular symb:make-rectangular)
-
-
-(define (make-polar? exp)
-  (and (pair? exp) (eq? (car exp) 'make-polar)))
-
-(define (symb:make-polar m a)
-  (if (and (real? m) (real? a) (or (inexact? m) (inexact? a)))
-      (make-polar m a)
-      `(make-polar ,m ,a)))
-(addto-symbolic-operator-table 'make-polar symb:make-polar)
-
-
 (define (max? exp)
   (and (pair? exp) (eq? (car exp) 'max)))
 
 (define (symb:max . l)
-  (if (for-all number? l)
+  (if (for-all? l number?)
       (apply max l)
       `(max ,@l)))
 (addto-symbolic-operator-table 'max symb:max)
@@ -663,7 +740,7 @@ USA.
   (and (pair? exp) (eq? (car exp) 'min)))  
 
 (define (symb:min . l)
-  (if (for-all number? l)
+  (if (for-all? l number?)
       (apply min l)
       `(min ,@l)))
 (addto-symbolic-operator-table 'min symb:min)

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,7 +27,7 @@ USA.
 
 (ge user-initial-environment)
 
-(add-subsystem-identification! "\n  ScmUtils" '("Mechanics " " Fall 2006"))
+(add-subsystem-identification! "ScmUtils" '("Mechanics " " Spring 2010"))
 
 (define scmutils-base-environment
   user-initial-environment)
@@ -103,6 +103,10 @@ USA.
 		       (lambda ()
 			 (load "litfun" scmutils-base-environment)))
 
+(in-scmutils-directory "./solve"
+                       (lambda ()
+			 (load "load" scmutils-base-environment)))
+
 (in-scmutils-directory "./units"
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))      
@@ -115,6 +119,8 @@ USA.
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 
-(ge generic-environment)
+(environment-define system-global-environment 'user-generic-environment
+		    (extend-top-level-environment
+		     (access generic-environment scmutils-base-environment)))
 
-
+(ge user-generic-environment)

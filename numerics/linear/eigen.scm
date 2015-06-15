@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -33,9 +33,9 @@ USA.
     (let ((poly
 	   (m:determinant
 	    (g:- matrix (g:* x (m:make-identity (m:dimension matrix)))))))
-      (poly:expression-> (expression poly)
-			 (lambda (pcf syms)
-			   (poly->roots pcf expand-multiplicities?))))))
+      (pcf:expression-> (expression poly)
+			(lambda (pcf syms)
+			  (poly->roots pcf expand-multiplicities?))))))
 
 
 (define (real-matrix->eigenvalues-eigenvectors matrix #!optional cutoff)
@@ -152,4 +152,90 @@ USA.
 		     '(0 0 1 2))))
 ((2. #(0. 0. 0. 1.) #(0. 1. 0. 0.)))
 
+|#
+
+#|
+;;; Bug!
+
+(define A
+  (matrix-by-rows (list 8 0 3/16)
+                  (list 0 8 3/16)
+                  (list 3/16 3/16 8)))
+
+(pp (matrix->eigenvalues-eigenvectors A))
+((7.7348349570559485) (7.9999999999982006) (8.265165042945835))
+
+#|
+;; Eigenvects missing -- answer should have been (matlab sez)
+
+((7.7348349570559485 #(1 0 1))
+ (7.9999999999982006 #(.7071 1 -.7071))
+ (8.265165042945835 #(.7071 -1 -.7071)))
+|#
+
+
+(lu-null-space
+ (g:- A
+      (g:* 8 (m:make-identity (m:dimension A)))))
+;Value: (#(-.7071067811865475 .7071067811865475 0.))
+
+(lu-null-space
+ (g:- A
+      (g:* 7.9999999999982006 (m:make-identity (m:dimension A)))))
+;Value: ()
+
+
+(real-matrix->eigenvalues-eigenvectors A)
+;Value: ((7.7348349570559485) (7.9999999999982006) (8.265165042945835))
+
+(pp (real-matrix->eigenvalues-eigenvectors A (* *machine-epsilon* 1e4)))
+((7.7348349570559485 #(-.5 -.49999999999999994 .7071067811865475))
+ (7.9999999999982006 #(.7071067811865475 -.7071067811865475 -3.465221769689776e-27))
+ (8.265165042945835 #(.49999999999999994 .49999999999999967 .7071067811865474)))
+
+
+;;; Indeed 
+(/ (* A #(-1/2 -1/2 (/ (sqrt 2) 2))) 7.7348349570559485)
+;Value: #(-.49999999999994155 -.49999999999994155 .707106781186465)
+
+
+;;; And, indeed:
+
+(set! heuristic-zero-test-bugger-factor 1e-11)
+
+(pp (matrix->eigenvalues-eigenvectors A))
+((7.7348349570559485
+  #(-.5000000000008521 -.5000000000008521 .7071067811853424))
+ (7.9999999999982006 #(-.7071067811865475 .7071067811865475 0.))
+ (8.265165042945835
+  #(.49999999999917066 .49999999999917066 .7071067811877204)))
+
+
+;;; Problem is roots are not good enuf for null-space test
+
+
+(pe (determinant (- A (* 'lam (m:identity-like A)))))
+(+ (* -1 (expt lam 3)) (* 24 (expt lam 2)) (* -24567/128 lam) 8183/16)
+
+((lambda (lam) 
+   (+ (* -1 (expt lam 3)) (* 24 (expt lam 2)) (* -24567/128 lam) 8183/16))
+ 8)
+;Value: 0
+
+((lambda (lam) 
+   (+ (* -1 (expt lam 3)) (* 24 (expt lam 2)) (* -24567/128 lam) 8183/16))
+ 7.9999999999982006)
+;Value: -1.1368683772161603e-13
+
+;;; ugh!
+
+;;; but I can generally not do better:
+(zbrent (lambda (lam) 
+	  (+ (* -1 (expt lam 3)) (* 24 (expt lam 2)) (* -24567/128 lam) 8183/16))
+	7.9999999999982006
+	8.0003)
+;Value: (#t 8.000000000001434 3)
+
+(- 8.000000000001434 8)
+;Value: 1.4335199693960021e-12
 |#

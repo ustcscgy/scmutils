@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -33,9 +33,9 @@ USA.
 
 ;;; The following is useful for working in Hertz.
 
-(define (f->s f) (* +i :2pi f))
+(define (f->s f) (* +i 2pi f))
 
-(define (f->omega f) (* :2pi f))
+(define (f->omega f) (* 2pi f))
 
 
 (define ((group-delay H) omega)
@@ -58,17 +58,17 @@ USA.
 
 
 (define (Butterworth-poles omega-cutoff n) 
-  (let* ((dtheta (/ :pi n))
+  (let* ((dtheta (/ pi n))
 	 (dtheta/2 (/ dtheta 2))
 	 (poles
 	  (if (even? n)
 	      (apply append
 		     (map (lambda (i)
 			    (list (make-polar omega-cutoff
-					      (+ :-pi
+					      (+ -pi
 						 (+ dtheta/2 (* i dtheta))))
 				  (make-polar omega-cutoff
-					      (- :-pi
+					      (- -pi
 						 (+ dtheta/2 (* i dtheta))))))
 
 			  (iota (/ n 2))))
@@ -76,9 +76,9 @@ USA.
 		    (apply append
 			   (map (lambda (i)
 				  (list (make-polar omega-cutoff
-						    (+ :-pi (* i dtheta)))
+						    (+ -pi (* i dtheta)))
 					(make-polar omega-cutoff
-						    (- :-pi (* i dtheta)))))
+						    (- -pi (* i dtheta)))))
 				(cdr (iota (ceiling->exact (/ n 2))))))))))
     poles))
 
@@ -97,21 +97,21 @@ USA.
 (make-scope)
 
 (plot-trace 1
-	    (sigfun:make (compose sqrt (Butterworth-response :2pi 8) f->omega)
+	    (sigfun:make (compose sqrt (Butterworth-response 2pi 8) f->omega)
 			 (sigfun:make-span -2 +2))
 	    #t)
 ;Value: (1 (-2. 2. 3.9062201980186685e-3 1.))
 
 (plot-trace 2
 	    (magnitude
-	     (sigfun:make (compose (H-Butterworth :2pi 8) f->s)
+	     (sigfun:make (compose (H-Butterworth 2pi 8) f->s)
 			  (sigfun:make-span -2 +2)))
 	    #t)
 ;Value: (2 (-2. 2. 3.906220198018671e-3 1.0000000000000007))
 	     
 (plot-trace 3
 	    (angle
-	     (sigfun:make (compose (H-Butterworth :2pi 8) f->s)
+	     (sigfun:make (compose (H-Butterworth 2pi 8) f->s)
 			  (sigfun:make-span -2 +2)))
 	    #t)
 ;Value: (3 (-2. 2. -3.1383164803632173 3.1383164803632178))
@@ -119,7 +119,7 @@ USA.
 (plot-trace 4
 	    (sigfun:make
 	      (compose (group-delay
-			(compose (H-Butterworth :2pi 8)
+			(compose (H-Butterworth 2pi 8)
 				 (lambda (omega) (* +i omega))))
 		       f->omega)
 	      (sigfun:make-span -2 +2))
@@ -181,13 +181,13 @@ USA.
 (make-scope 2)
 
 (plot-trace 1
-	    (sigfun:make (compose sqrt (Chebyshev-response :2pi .4 8) f->omega)
+	    (sigfun:make (compose sqrt (Chebyshev-response 2pi .4 8) f->omega)
 			 (sigfun:make-span -10 +10))
 	    #t)
 
 (plot-trace 2
 	    (magnitude
-	     (sigfun:make (compose (H-Chebyshev :2pi .4 8) f->s)
+	     (sigfun:make (compose (H-Chebyshev 2pi .4 8) f->s)
 			  (sigfun:make-span -10 +10)))
 	    #t)
 	     
@@ -197,26 +197,26 @@ USA.
 
 (plot-trace 1
 	    (magnitude
-	     (sigfun:make (compose (H-Chebyshev :2pi .4 8) f->s)
+	     (sigfun:make (compose (H-Chebyshev 2pi .4 8) f->s)
 			  (sigfun:make-span -10 +10))))
 ;Value: (1 (-10. 10. 1.9927310271925264e-10 .9999997372498004))
 
 (plot-trace 2
 	    (angle
-	     (sigfun:make (compose (H-Chebyshev :2pi .4 8) f->s)
+	     (sigfun:make (compose (H-Chebyshev 2pi .4 8) f->s)
 			  (sigfun:make-span -10 +10))))
 ;Value: (2 (-10. 10. -3.0893393766264996 3.0893393766264974))
 
 (plot-trace 3
 	    (inverse-Fourier-transform
-	     (sigfun:make (compose (H-Chebyshev :2pi .4 8) f->s)
+	     (sigfun:make (compose (H-Chebyshev 2pi .4 8) f->s)
 			  (sigfun:make-span -10 +10))))
 ;Value: (3 (-25.6 25.6 -.817767132981212 1.797939938853742))
 
 (plot-trace 4
 	    (sigfun:make
 	      (compose (group-delay
-			(compose (H-Chebyshev :2pi .4 8)
+			(compose (H-Chebyshev 2pi .4 8)
 				 (lambda (omega) (* +i omega))))
 		       f->omega)
 	      (sigfun:make-span -10 +10)))
