@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;; Frequency-domain filtration used to separate signals
@@ -45,7 +48,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (plot-trace 4 (Fourier-transform (+ 6Hz 2Hz)))
 ;Value: (4 (-32. 32. 0. 8.))
 
-(define lpf (sigfun:make (unit-boxcar 3) (sigfun:make-span -32 32)))
+(define lpf
+  (sigfun:make (unit-boxcar 3)
+	       (sigfun:make-span -32 32)))
 
 (plot-trace 5 lpf)
 ;Value: (5 (-32. 32. 0 1))
@@ -67,7 +72,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	     (* bpf (Fourier-transform (+ 6Hz 2Hz)))))
 ;Value: (8 (-8. 8. -1. 1.))
 
-
+
 (graphics-clear *the-scope*)
 
 
@@ -85,3 +90,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 
 (plot-trace 4 (Fourier-transform (+ 6.1Hz 2.39Hz)))
+
+
+(plot-trace 7
+	    (inverse-Fourier-transform
+	     (* lpf (Fourier-transform (+ 6.1Hz 2.39Hz)))))
+
+(plot-trace 8
+	    (inverse-Fourier-transform
+	     (* bpf (Fourier-transform (+ 6.1Hz 2.39Hz)))))
+

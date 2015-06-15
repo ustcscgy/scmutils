@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Property Tables
@@ -147,3 +150,51 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define (store! object table . keys)
   ((vector-ref table 2) keys object)
   'done)
+
+;;; Elementary table utilities implemented in ALISTs
+
+(define (lookup key table)
+  (let ((val (assq key table)))
+    (if val
+	(cadr val)
+	(error "key not in table -- LOOKUP" key))))
+
+(define (rlookup key table)
+  (cond ((null? table) false)
+	((null? (cdar table)) (rlookup key (cdr table)))
+	((eq? key (cadar table)) (car table))
+	(else (rlookup key (cdr table)))))
+
+(define (rassq key table)
+  (cond ((null? table) false)
+	((eq? key (cdar table)) (car table))
+	(else (rassq key (cdr table)))))
+
+(define (rassoc key table)
+  (cond ((null? table) false)
+	((equal? key (cdar table)) (car table))
+	(else (rassoc key (cdr table)))))
+
+(define (disassoc key alist)
+  (cond ((null? alist) '())
+	((equal? key (caar alist))
+	 (cdr alist))
+	(else
+	 (cons (car alist)
+	       (disassoc key (cdr alist))))))
+
+
+;;; Elementary table utility implemented as PLISTs
+
+(define (default-lookup name default list)
+  (let ((L (memq name list)))
+    (if L (cadr L) default)))
+
+(define (table-of is? keys values)
+  (define (lookup key)
+    (let next ((ks keys) (vs values))
+      (cond ((null? ks)
+             (error "Key not in table" key))
+            ((is? key (car ks)) (car vs))
+            (else (next (cdr ks) (cdr vs))))))
+  lookup)

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; DISPLAY-EXPRESSION
@@ -906,6 +909,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
     (sum ,unparse-sum)
     (- ,unparse-difference)
     (* ,tex:unparse-product)
+    (& ,tex:unparse-product)
     (negation ,unparse-negation)
     (/ ,tex:unparse-quotient)
     (signed-sum ,unparse-signed-sum)
@@ -962,7 +966,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		 "infty" "Box" "diamond" "Diamond" "triangle"
 
 		 "sin" "cos" "tan" "cot" "sec" "csc" "log" "exp"
-		 ))))
+		 ))
+	  (map (lambda (string)
+		 (list (string->symbol string)
+		       (string-append "{\\rm\\ " string " }")))
+	       '("meter" "kilogram" "second"
+		 "ampere" "kelvin" "mole"
+                 "candela" "radian"
+
+		 "newton" "joule" "coulomb"
+		 "watt" "volt" "ohm"
+		 "siemens" "farad" "weber"
+		 "henry" "hertz" "tesla"
+		 "pascal" "katal" "becquerel"
+		 "gray" "sievert" "inch"
+		 "pound" "slug" "foot"
+		 "mile" "dyne" "calorie"
+		 "day" "year" "sidereal-year"
+		 "AU" "arcsec" "pc"
+		 "ly" "esu" "ev"))))
 
 ;;; Actual unparsing procedure.  Symbol-substs is a table of special symbols
 ;;; to be substituted for.  UPtable is an unparsing table.
@@ -1156,18 +1178,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		  (map (lambda (term)
 			 (cond ((and (pair? term) (eq? (car term) '*))
 				(let ((first-factor (cadr term)))
-				  (if (and (number? first-factor) (negative? first-factor))
+				  (if (and (real? first-factor) (negative? first-factor))
 				      (if (and (= first-factor -1) (not (null? (cddr term))))
 					  (list '- (cons '* (cddr term)))
 					  (list '- (cons '* (cons (- first-factor) (cddr term)))))
 				      (list '+ term))))
 			       ((and (pair? term) (eq? (car term) '/))
 				(let ((numer (cadr term)))
-				  (cond ((and (number? numer) (negative? numer))
+				  (cond ((and (real? numer) (negative? numer))
 					 (list '- (cons '/ (cons (- numer) (cddr term)))))
 					((and (pair? numer) (eq? (car numer) '*))
 					 (let ((first-factor (cadr numer)))
-					   (if (and (number? first-factor) (negative? first-factor))
+					   (if (and (real? first-factor) (negative? first-factor))
 					       (if (and (= first-factor -1) (not (null? (cddr numer))))
 						   (list '-
 							 (cons '/

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;; -*- Scheme -*-
@@ -193,308 +196,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 				  (make-default-object)
 				  null-value))))))))
 
-;;;; List utilities
-
-(define (split-list list predicate recvr)
-  (let split ((list list)
-	      (recvr recvr))
-    (if (not (pair? list))
-	(recvr '() '())
-	(split (cdr list)
-	       (lambda (win lose)
-		 (if (predicate (car list))
-		     (recvr (cons (car list) win)
-			    lose)
-		     (recvr win
-			    (cons (car list) lose))))))))
-
-(define (find-infimum list predicate)
-  (if (null? list)
-      (error "find-infimum: empty list" list))
-  (let loop ((current (car list))
-	     (left (cdr list)))
-    (cond ((null? left)
-	   current)
-	  ((predicate (car left) current)
-	   (loop (car left) (cdr left)))
-	  (else
-	   (loop current (cdr left))))))
-
-(define (subst new old where)
-  (cond ((eq? where old)
-	 new)
-	((not (pair? where))
-	 where)
-	(else
-	 (cons (subst new old (car where))
-	       (subst new old (cdr where))))))
-
-(define (delq-once element list)
-  (cond ((null? list)
-	 '())
-	((eq? (car list) element)
-	 (cdr list))
-	(else
-	 (cons (car list)
-	       (delq-once element (cdr list))))))
-
-;;;; Mapping and reducing
-
-;; Important: All of these are iterative, so they won't run out of stack!
-
-(define (map&reduce procedure combiner null-value list1 #!optional list2 . lists)
-  ;; (reduce combiner null-value (map procedure list1 list2 . lists))
-  (cond ((default-object? list2)
-	 (let loop ((result null-value)
-		    (l list1))
-	   (if (null? l)
-	       result
-	       (loop (combiner (procedure (car l))
-			       result)
-		     (cdr l)))))
-	((null? lists)
-	 (let loop ((result null-value)
-		    (l1 list1)
-		    (l2 list2))
-	   (if (or (null? l1) (null? l2))
-	       result
-	       (loop (combiner (procedure (car l1) (car l2))
-			       result)
-		     (cdr l1)
-		     (cdr l2)))))
-	(else
-	 (let loop ((result null-value)
-		    (l (cons* list1 list2 lists)))
-	   (if (there-exists? l null?)
-	       result
-	       (loop (combiner (apply procedure (map car l))
-			       result)
-		     (map cdr l)))))))
-
-(define (%append x y)
-  (if (null? x)
-      y
-      (%reverse! (%reverse x '()) y)))
-  
-(define (%reverse! l #!optional tail)
-  (let loop ((current l)
-	     (new-cdr (if (default-object? tail)
-			  '()
-			  tail)))
-    (if (pair? current)
-	(let ((next (cdr current)))
-	  (set-cdr! current new-cdr)
-	  (loop next current))
-	(begin
-	  (if (not (null? current))
-	      (error "%REVERSE!: Argument not a list" l))
-	  new-cdr))))
-
-(define (%reverse ol #!optional tail)
-  (let loop ((l ol)
-	     (accum (if (default-object? tail)
-			'()
-			tail)))
-    (cond ((pair? l)
-	   (loop (cdr l)
-		 (cons (car l) accum)))
-	  ((null? l)
-	   accum)
-	  (else
-	   (error "%REVERSE: Argument not a list" ol)))))  
-
-(define (%map f ol1 #| #!optional ol2 . rest |#)
-  ;; Important: The circular list hack for multi-argument
-  ;; map does not work here.
-  (cond ((default-object? l2)
-	 (%map-1 f ol1))
-	((null? rest)
-	 (%map-2 f ol1 ol2))
-	(else
-	 (let outer ((result '())
-		     (ls (reverse (%map-1 reverse (cons* ol1 ol2 rest)))))
-	   (cond ((pair? (car ls))
-		  (let inner ((args (list (caar ls)))
-			      (next (list (cdar ls)))
-			      (rest (cdr ls)))
-		    (cond ((null? rest)
-			   (outer (cons (apply f args) result)
-				  (reverse! next)))
-			  ((not (pair? (car rest)))
-			   (error "%map: Arguments have different lengths"
-				  (cons* ol1 ol2 rest)))
-			  (else
-			   (inner (cons (caar rest) args)
-				  (cons (cdar rest) next)
-				  (cdr rest))))))
-		 ((there-exists? ls (lambda (x) (not (null? x))))
-		  (error "%map:Arguments have different lengths"))
-		 (else
-		  result))))))
-
-(define-integrable (%map-1 f ol)
-  (let loop ((result '()) (l1 (reverse ol)))
-    (cond ((pair? l1)
-	   (loop (cons (f (car l1)) result)
-		 (cdr l1)))
-	  ((null? l1)
-	   result)
-	  (else
-	   (error "%map: Argument not a list" ol)))))      
-
-(define-integrable (%map-2 f ol1 ol2)
-  (let loop ((result '())
-	     (l1 (reverse ol1))
-	     (l2 (reverse ol2)))
-    (cond ((and (pair? l1) (pair? l2))
-	   (loop (cons (f (car l1) (car l2)) result)
-		 (cdr l1)
-		 (cdr l2)))
-	  ((and (null? l1) (null? l2))
-	   result)
-	  (else
-	   (error "%map: Arguments have different lengths"
-		  ol1 ol2)))))
-
-;;;; Set utilities
-
-(define-integrable (eq-set/make-empty)
-  '())
-
-(define-integrable (eq-set/empty? set)
-  (null? set))
-
-(define-integrable (eq-set/member? element set)
-  (memq element set))
-
-(define-integrable (eq-set/adjoin element set)
-  (if (eq-set/member? element set)
-      set
-      (cons element set)))
-
-(define (eq-set/remove element set)
-  (if (not (eq-set/member? element set))
-      set
-      (delq element set)))
-
-;; Important: This will return set2 itself (rather than a copy) if the
-;; union is set2.  Thus eq? can be used on the return value to
-;; determine whether the set has grown.
-
-(define (eq-set/union set1 set2)
-  (define (loop set new-elements)
-    (if (null? new-elements)
-	set
-	(loop (eq-set/adjoin (car new-elements) set)
-	      (cdr new-elements))))
-
-  ;; If set2 is smaller than set1, the union is guaranteed not to be set2.
-  (if (< (length set2) (length set1))
-      (loop set1 set2)
-      (loop set2 set1)))
-
-(define (eq-set/intersection set1 set2)
-  (define (examine set1 set2)
-    (let process ((set #| (reverse set1) |# set1)
-		  (result (eq-set/make-empty)))
-      (if (null? set)
-	  result
-	  (process (cdr set)
-		   (if (eq-set/member? (car set) set2)
-		       (cons (car set) result)
-		       result)))))
-
-  (if (< (length set2) (length set1))
-      (examine set2 set1)
-      (examine set1 set2)))
-
-(define (eq-set/difference set1 set2)
-  (if (null? set2)
-      set1
-      (let process ((set set1) (result (eq-set/make-empty)))
-	(cond ((null? set)
-	       result)
-	      ((eq-set/member? (car set) set2)
-	       (process (cdr set) result))
-	      (else
-	       (process (cdr set)
-			(cons (car set) result)))))))
-
-(define (eq-set/subset? set1 set2)
-  (or (eq-set/empty? set1)
-      (and (eq-set/member? (car set1) set2)
-	   (eq-set/subset? (cdr set1) set2))))
-
-(define (eq-set/equal? set1 set2)
-  (or (eq? set1 set2)
-      (and (eq-set/subset? set1 set2)
-	   (eq-set/subset? set2 set1))))
-
-;;;; Multi set utilities
-
-(define-integrable (multi-set/empty)
-  '())
-
-(define-integrable (multi-set/adjoin element set)
-  (cons element set))
-
-(define-integrable (multi-set/empty? set)
-  (null? set))
-
-(define-integrable (multi-set/first set)
-  (car set))
-
-(define-integrable (multi-set/rest set)
-  (cdr set))
-
-(define-integrable (multi-set/remove element set)
-  (delq-once element set))
-
-(define-integrable (multi-set/element? element set)
-  (memq element set))
-
-(define-integrable (multi-set/union set1 set2)
-  (%reverse set1 set2))
-
-(define (multi-set/intersection set1 set2)
-  (define (process set1 set2 result)
-    (cond ((multi-set/empty? set1)
-	   result)
-	  ((not (multi-set/element? (multi-set/first set1) set2))
-	   (process (multi-set/rest set1) set2 result))
-	  (else
-	   (process (multi-set/rest set1)
-		    (multi-set/remove (multi-set/first set1)
-				      set2)
-		    (multi-set/adjoin (multi-set/first set1)
-				      result)))))
-
-  (if (< (length set2) (length set1))
-      (process set2 set1 (multi-set/empty))
-      (process set1 set2 (multi-set/empty))))
-
-(define (multi-set/difference set1 set2)
-  (define (process set1 set2 result)
-    (cond ((multi-set/empty? set1)
-	   result)
-	  ((multi-set/element? (multi-set/first set1) set2)
-	   (process (multi-set/rest set1)
-		    (multi-set/remove (multi-set/first set1) set2)
-		    result))
-	  (else
-	   (process (multi-set/rest set1)
-		    set2
-		    (multi-set/adjoin (multi-set/first set1)
-				      result)))))
-  (process set1 set2 (multi-set/empty)))
-
 ;;;; Random utilities: association tables (eq? based)
-
+#|
+;;; 6 May 2003 No longer works, but no longer needed -- GJS
 (let-syntax ((primitive
 	      (lambda (name)
 		`',(make-primitive-procedure name))))
   (define-integrable string-hash (primitive string-hash))
   (define-integrable symbol-print-name (primitive system-pair-car)))
+|#
 
 (define (find-next-prime number)
   (let loop ((primes 
@@ -520,7 +230,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (cond ((exact-integer? object)
 	  object)
 	 ((symbol? object)
-	  (string-hash (symbol-print-name object)))
+	  #| 6 May 2003 No longer works -- GJS
+	  (string-hash (symbol-print-name object))|#
+	  (symbol-hash object))
 	 ((string? object)
 	  (string-hash object))
 	 (else

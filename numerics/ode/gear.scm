@@ -1,29 +1,31 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Gear integrators for stiff differential equations
 
 ;;; Assumption: all states have their time as the first component.
-
 #| For example:
 
 ((gear-advance-generator
@@ -46,7 +48,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    ;; assert dt = 1.000...
    (list ns dt sdt)))
 
-
 ((gear-advance-generator
   (lambda (x cont)
     (cont (vector 1.0 (vector-ref x 1))
@@ -66,6 +67,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    ;; assert dt = 1.000...
    (list ns dt sdt)))
 
+
 
 ((gear-advance-generator
   (lambda (v cont)
@@ -84,7 +86,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (pp ns)
    (cont))
  list)
-
+
+
 (define (circle state alpha predicted ctolerance succeed fail)
   (let ((t (vector-ref state 0))
 	(b1 (vector-ref state 1))
@@ -101,7 +104,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 ((gear-advance-generator
   circle
-  (4 0 3)				;do not ignore time
+  '(4 0 3)				;do not ignore time
   .000001				;lte
   .0000001				;convergence
   true)					;implicit
@@ -152,7 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    max-h
    continue
    done))
-
+
 (add-integrator!
  'implicit-gear
  (lambda (generalized-corrector
@@ -189,38 +192,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (declare (usual-integrations))
 
-#|
-(declare (usual-integrations + - * / < > = zero? positive? negative?
-			     sqrt abs exp sin cos #| atan |#)
-	 (reduce-operator
-	  (+ flo:+ (null-value 0. none) (group left))
-	  (- flo:- (null-value 0. single) (group left))
-	  (* flo:* (null-value 1. none) (group left))
-	  (/ flo:/ (null-value 1. single) (group left)))
-	 (integrate-primitive-procedures
-	  (< flonum-less?)
-	  (> flonum-greater?)
-	  (= flonum-equal?)
-	  (zero? flonum-zero?)
-	  (positive? flonum-positive?)
-	  (negative? flonum-negative?)
-	  (sqrt flonum-sqrt)
-	  (abs flonum-abs)
-	  (exp flonum-exp)
-	  (sin flonum-sin)
-	  (cos flonum-cos)
-	  #|(atan flonum-atan 1)
-	  (atan flonum-atan2 2)|#))
-|#
-
 (define (gear-advance-generator f&df dimension lte
 	                #!optional convergence-tolerance implicit? spice-mode?)
   (let* ((lte-measure (parse-error-measure lte))
-	 (convergence-tolerance (parse-error-measure lte *gear-fixed-point-margin*))
+	 (convergence-tolerance
+	  (parse-error-measure lte *gear-fixed-point-margin*))
 	 (convergence-measure (parse-error-measure convergence-tolerance))
 	 (implicit? (if (default-object? implicit?) false implicit?))
 	 (spice-mode? (if (default-object? spice-mode?) false spice-mode?))
-	 (stepper (gear-integrator f&df lte-measure convergence-measure spice-mode? dimension implicit?)))
+	 (stepper
+	  (gear-integrator f&df
+			   lte-measure
+			   convergence-measure
+			   spice-mode?
+			   dimension
+			   implicit?)))
     (define (advance start-state step-required h-suggested max-h continue done)
       ;; done = (lambda (end-state step-achieved h-suggested) ... )
       ;; continue = (lambda (state step-achieved h-taken next)
@@ -228,7 +214,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
       ;;              )
       (let lp ((step-achieved 0.0)
 	       (states (list start-state))
-	       (fx (if implicit? 'ignore (f&df start-state (lambda (fx dfx) fx))))
+	       (fx
+		(if implicit? 'ignore (f&df start-state (lambda (fx dfx) fx))))
 	       (h (min-step-size step-required h-suggested max-h))
 	       (order 1)
 	       (wins 1)
@@ -236,31 +223,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	(if advance-wallp?
 	    (pp `(advance: ,step-achieved ,(car states))))
 	(continue (car states) step-achieved h
-		  (lambda ()
-		    (stepper states
-			     fx
-			     h
-			     order
-			     wins
-			     accum-error
-			     (lambda (step-obtained new-states nfx h-suggested order-suggested wins accum-error)
-			       (let ((nstep (+ step-achieved step-obtained)))
-				 (if (close-enuf? step-required nstep *independent-variable-tolerance*)
-				     (done (car new-states) nstep h-suggested)
-				     (lp nstep
-					 new-states
-					 nfx
-					 (min-step-size (- step-required nstep) h-suggested max-h)
-					 order-suggested
-					 wins
-					 accum-error)))))))))
+	  (lambda ()
+	    (stepper states fx h order wins accum-error
+		     (lambda (step-obtained
+			      new-states
+			      nfx
+			      h-suggested
+			      order-suggested
+			      wins
+			      accum-error)
+		       (let ((nstep (+ step-achieved step-obtained)))
+			 (if (close-enuf? step-required
+					  nstep
+					  *independent-variable-tolerance*)
+			     (done (car new-states) nstep h-suggested)
+			     (lp nstep
+				 new-states
+				 nfx
+				 (min-step-size (- step-required nstep)
+						h-suggested
+						max-h)
+				 order-suggested
+				 wins
+				 accum-error)))))))))
     advance))
-
 
-(define (gear-integrator f&df lte-measure convergence-measure spice-mode? dimension implicit?)
+(define (gear-integrator f&df
+			 lte-measure convergence-measure spice-mode? dimension
+			 implicit?)
   ;; lte = local-truncation-error tolerance
   (define gear-solve
-    (gear-solve-maker f&df lte-measure convergence-measure dimension implicit?))
+    (gear-solve-maker f&df
+		      lte-measure convergence-measure dimension implicit?))
   (define gear-predict (gear-predict-maker dimension implicit?))
   (define (gear-step xs fx h k wins err-accum cont)
     ;; The gear stepper takes a set of xs.
@@ -268,41 +262,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
     ;;   cont = (lambda (h nxs nfx newh newk nerr) ...)
     (wallp-pp gear-wallp? `(gear-step h= ,h k= ,k))
       (gear-predict xs h k
-		    (lambda (xp)		               ;predicted x
-		      (wallp-pp gear-wallp? `(gear-predict: ,xp))
-		      (gear-solve xs h k xp
-				  (lambda (xc nfx err niter) ;converged in NITER
-				    (wallp-pp gear-wallp?
-					      `(gear-solve: ,xc)
-					      `(err=   ,err
-						       accum= ,err-accum
-						       niter= ,niter))
-				    (let ((naccum (+ err err-accum)))
-				      (gear-control err wins h k naccum niter
-						    spice-mode?
-						    (lambda (nh nk) ;good step
-						      (cont h (update-table xc xs)
-							    nfx nh nk (fix:+ wins 1) naccum))
-						    (lambda (nh nk) ;careful step
-						      (cont h (update-table xc xs)
-							    nfx nh nk 1 0.0))
-						    (lambda (nh nk) ;bad step
-						      (gear-step xs fx nh nk 0 0.0 cont)))))
-				  (lambda () ;failed to converge
-				    (gear-step xs
-					       fx
-					       (/ h *gear-fixed-point-failure-contraction*)
-					       (max (fix:- k 1) *gear-min-order*) ; was k
-					       1
-					       0.0
-					       cont))))))
+	(lambda (xp)		               ;predicted x
+	  (wallp-pp gear-wallp? `(gear-predict: ,xp))
+	  (gear-solve xs h k xp
+		      (lambda (xc nfx err niter) ;converged in NITER
+			(wallp-pp gear-wallp?
+				  `(gear-solve: ,xc)
+				  `(err=   ,err
+					   accum= ,err-accum
+					   niter= ,niter))
+			(let ((naccum (+ err err-accum)))
+			  (gear-control err wins h k naccum niter spice-mode?
+			   (lambda (nh nk) ;good step
+			     (cont h (update-table xc xs)
+				   nfx nh nk (fix:+ wins 1) naccum))
+			   (lambda (nh nk) ;careful step
+			     (cont h (update-table xc xs)
+				   nfx nh nk 1 0.0))
+			   (lambda (nh nk) ;bad step
+			     (gear-step xs fx nh nk 0 0.0 cont)))))
+		      (lambda ()	;failed to converge
+			(gear-step xs
+				   fx
+				   (/ h *gear-fixed-point-failure-contraction*)
+				   (max (fix:- k 1) *gear-min-order*) ; was k
+				   1
+				   0.0
+				   cont))))))
   gear-step)
 
 (define (update-table new table)
   (if (fix:< (length table) *gear-max-order*)
       (cons new table)
       (cons new (reverse (cdr (reverse table))))))
-
 
 (define (gear-predict-maker dimension implicit?)
   (let ((clip-vector
@@ -343,7 +335,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		    (matrix-matrix alpha*I Dfx)     ;A
 		    (vector-vector (clip-vector fx) ;b
 				   (vector+vector (scalar*vector alpha
-								 (clip-vector x))
+						                 (clip-vector x))
 						  b))
 		    (lambda (ds . rest)	;succeed
 		      (continue (vector+vector (pad-vector ds) x) fx))
@@ -379,7 +371,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		(fail)))))
     (if implicit? implicit-gear-solve gear-solve)))
 
-(define (gear-control err wins h k err-accum niter spice-mode good-step careful-step bad-step)
+(define (gear-control err wins h k err-accum niter
+		      spice-mode good-step careful-step bad-step)
   ;;  good-step = (lambda (nh nk) ...)
   ;;  bad-step  = (lambda (nh nk) ...)
   (cond (spice-mode
@@ -404,8 +397,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		  ;;(write-line `(order-down: ,(max (- k 1) *gear-min-order*)))
 		  (bad-step (* contract *contract-order* h)
 			    (max (fix:- k 1) *gear-min-order*)))
-		 (else
-		  (bad-step (* contract h) k)))))
+		 (else (bad-step (* contract h) k)))))
 	;; Step is acceptable.
 	((<= wins (fix:* *gear-step-refractory-period* k)) ;do nothing
 	 (good-step h k))
@@ -440,7 +432,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
     (/ h (+ (* m (exact->inexact niter)) b))))
 
 (define gear-wallp? false)
-
 
 ;;;       Stepsize and order control parameters
 
@@ -486,8 +477,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 ;;; On any one step, the step will not increase by more than this factor.
 
 (define *gear-max-step-increase* 2.0)
-
-
+
 ;;; To prevent divide-by-zero errors in step-size adjust.
 
 (define *gear-protect* 1e-20)
@@ -504,12 +494,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define *gear-fixed-point-failure-contraction* 8.0) ;see SPICE
 
 (define *spice-order-too-big*  12)
+
 (define *spice-step-too-big*   10)
+
 (define *spice-good-step*       6)
+
 (define *spice-step-too-small*  4)
+
 (define *spice-order-too-small* 2)
 
+
 (define *spice-step-reduction* 8.0)	;SPICE uses 8
+
 (define *spice-step-expansion* 2.0)
 
 #|
@@ -525,48 +521,48 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		       0
 		       (* i (expt (list-ref dtns deriv-index)
 				  (- i 1)))))))
-	    (B (generate-matrix n n
+	    (B (m:generate n n
 		 (lambda (i j)
 		   (if (= i 0)
 		       1
 		       (expt (list-ref dtns j) i))))))
-      (let ((coeffs (rcf:simplify (matrix:solve-linear-system B C)))
+      (let ((coeffs (simplify (m:rsolve C B)))
 	    (tnames (list-head '(tn-1 tn-2 tn-3 tn-4 tn-5 tn-6) order)))
 	(text/cselim
 	 `(lambda (dt1 ts)		;dt1=step
 	    (let* (,@(generate-list order
-				    (lambda (i)
-				      `(,(list-ref tnames i) (list-ref ts ,i))))
+		        (lambda (i)
+			  `(,(list-ref tnames i) (list-ref ts ,i))))
 		   ,@(map (lambda (dtn-k+1 tn-k) `(,dtn-k+1 (- ,tn-k tn-1)))
 			  (cddr dtns)
 			  (cdr tnames)))
-	      (list ,@(vector->list coeffs))))))))))
+	      (list ,@(map expression (cdr coeffs)))))))))))
 
-
+
 ;;; For example, we can produce the standard stiffly-stable
 ;;;   integrators for equally-spaced intervals (see Gear.)
 
-(pp (map (compose rcf:simplify (lambda (x) (* 'h x)))
-     ((lambda->generic-procedure (gear-generator 1 0))
+(pp (map (compose expression rcf:simplify (lambda (x) (* 'h x)))
+     ((lambda->interpreted-generic-procedure (gear-generator 1 0))
       'h '(0))))
 (1 -1)
 ;No value
 
-(pp (map (compose rcf:simplify (lambda (x) (* 'h x)))
-     ((lambda->generic-procedure (gear-generator 2 0))
-      'h '(0 (- h)))))
+(pp (map (compose expression rcf:simplify (lambda (x) (* 'h x)))
+     ((lambda->interpreted-generic-procedure (gear-generator 2 0))
+      'h (list 0 (- 'h)))))
 (3/2 -2 1/2)
 ;No value
 
-(pp (map (compose rcf:simplify (lambda (x) (* 'h x)))
-     ((lambda->generic-procedure (gear-generator 3 0))
-      'h '(0 (- h) (* -2 h)))))
+(pp (map (compose expression rcf:simplify (lambda (x) (* 'h x)))
+     ((lambda->interpreted-generic-procedure (gear-generator 3 0))
+      'h (list 0 (- 'h) (* -2 'h)))))
 (11/6 -3 3/2 -1/3)
 ;No value
 
-(pp (map (compose rcf:simplify (lambda (x) (* 'h x)))
-     ((lambda->generic-procedure (gear-generator 4 0))
-      'h '(0 (- h) (* -2 h) (* -3 h)))))
+(pp (map (compose expression rcf:simplify (lambda (x) (* 'h x)))
+     ((lambda->interpreted-generic-procedure (gear-generator 4 0))
+      'h (list 0 (- 'h) (* -2 'h) (* -3 'h)))))
 (25/12 -4 3 -4/3 1/4)
 ;No value
 
@@ -614,9 +610,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	     (/ (+ (* 3 V-33) (* V-34 -2) (* V-35 -2) V-36)
 		(+ (expt dt1 3) (* V-37 V-33) (* V-38 V-33) (* V-35 dt3)))
 	     (/ (+ V-39 V-34 (* V-37 dt4)) V-40)
-	     (/ V-39 (+ (* dt1 V-41) (* V-34 V-38) (* -1 (expt dt3 3)) (* V-41 dt4)))
-	     (/ (+ V-33 (* V-34 -1))
-		(+ V-40 (* -1 dt1 V-42) (* V-37 V-42) (expt dt4 3))))))))))
+	     (/ V-39
+		(+ (* dt1 V-41)
+		   (* V-34 V-38)
+		   (* -1 (expt dt3 3))
+		   (* V-41 dt4)))
+	     (/ (+ V-33
+		   (* V-34 -1))
+		(+ V-40
+		   (* -1 dt1 V-42)
+		   (* V-37 V-42)
+		   (expt dt4 3))))))))))
 
 (define gc4
   (lambda (dt1 ts)
@@ -671,9 +675,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		     (* V-53 V-44)
 		     (* V-49 V-44)
 		     (* V-54 V-50)))
-	       (/ (+ V-55 (* V-51 V-44) (* V-56 dt3) (* V-53 dt1) V-54 (* V-57 dt3))
+	       (/ (+ V-55
+		     (* V-51 V-44)
+		     (* V-56 dt3)
+		     (* V-53 dt1)
+		     V-54
+		     (* V-57 dt3))
 		  V-60)
-	       (/ (+ V-61 (* V-44 dt5) (* V-57 dt1))
+	       (/ (+ V-61
+		     (* V-44 dt5)
+		     (* V-57 dt1))
 		  (+ (* dt1 V-62)
 		     (* V-65 dt4)
 		     (* V-65 dt5)
@@ -702,19 +713,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		     (* -1 (expt dt5 4))))))))))))
 
 #|
-(pp (show-time
-     (lambda ()
-       (gear-generator 5 0))))
-process time: 1045630; real time: 1065110
-On sony:
-Scheme saved on Sunday October 9, 1994 at 2:59:09 AM
-  Release 7.3.0 (beta)
-  Microcode 11.147
-  Runtime 14.166
-  SF 4.30
-  Liar (MIPS) 4.106
-Using collins-gcd
+(pp (gear-generator 5 0))
 |#
+
 (define gc5
   (lambda (dt1 ts)
     (let ((V-569 (* -1 dt1)) (tn-1 (list-ref ts 0)))
@@ -762,83 +763,68 @@ Using collins-gcd
 		  (V-553 (* V-552 dt3)))
 	      (let ((V-580 (+ (* V-577 dt4) V-579)))
 		(list
-		 (/
-		  (+
-		   (*
-		    (+
-		     (*
-		      (+
-		       (*
-			(+ (* 5 dt1) (* -4 dt3) (* -4 dt4) (* -4 dt5) (* -4 dt6))
-			dt1)
-		       (* (+ V-548 (* 3 dt4)) dt3)
-		       (* V-548 dt4)
-		       (* V-549 3))
-		      dt1)
-		     (* (+ (* (+ V-550 (* -2 dt6)) dt4) V-551) dt3)
-		     (* V-551 dt4))
-		    dt1)
-		   V-553)
-		  (*
-		   (+
-		    (*
-		     (+ (* (+ V-555 (* V-556 dt3) (* (+ V-561 V-562) dt1)) dt1)
-			(* V-565 dt3)
-			V-566)
-		     dt1)
-		    V-553)
-		   dt1))
-		 (/
-		  (+
-		   (*
-		    (+ (* (+ V-565 (* V-568 dt3) (* (+ V-570 dt3) dt1)) dt1)
+		 (/ (+ (* (+ (* (+ (* (+ (* 5 dt1)
+					 (* -4 dt3)
+					 (* -4 dt4)
+					 (* -4 dt5)
+					 (* -4 dt6))
+				      dt1)
+				   (* (+ V-548 (* 3 dt4)) dt3)
+				   (* V-548 dt4)
+				   (* V-549 3))
+				dt1)
+			     (* (+ (* (+ V-550 (* -2 dt6)) dt4) V-551) dt3)
+			     (* V-551 dt4))
+			  dt1)
+		       V-553)
+		    (* (+ (* (+ (* (+ V-555
+				      (* V-556 dt3)
+				      (* (+ V-561 V-562) dt1)
+				      ) dt1)
+			  (* V-565 dt3)
+			  V-566)
+		       dt1)
+		      V-553)
+		     dt1))
+		 (/ (+ (* (+ (* (+ V-565 (* V-568 dt3) (* (+ V-570 dt3) dt1))
+				dt1)
 		       (* V-555 dt3)
 		       V-552)
 		    dt1)
 		   (* V-571 V-549))
 		  (* V-572 V-552))
-		 (/
-		  (* (+ (* (+ V-565 (* V-570 dt1)) dt1) V-552) dt1)
-		  (+
-		   (* V-572 (+ (* (+ V-555 (* (+ V-568 dt3) dt3)) dt3) V-566))
-		   (* (+ (* (+ V-565 (* (+ V-556 V-558) dt3)) dt3) V-552)
-		      (expt dt3 2))))
-		 (/
-		  (*
-		   (+ (* (+ (* V-561 dt1) (* V-554 dt3) V-549) dt1)
-		      (* V-549 V-558))
-		   dt1)
-		  (+ (* (+ (* V-573 V-574) V-575) dt1)
-		     (* V-575 dt3)
-		     (* V-574 (expt dt4 3))))
-		 (/
-		  (*
-		   (+
-		    (*
-		     (+ (* (+ V-569 dt3 dt4 dt6) dt1)
-			(* V-567 dt3)
-			(* V-562 dt6))
-		     dt1)
-		    (* V-573 dt6))
-		   dt1)
-		  (+ (* (+ V-580 (* (+ (* V-581 V-578) V-577) dt3)) dt1)
-		     (* V-580 dt3)
-		     (* V-579 dt4)
-		     (* V-576 (expt dt5 4))))
-		 (/
-		  (*
-		   (+
-		    (* (+ (* (+ V-559 V-562) dt1) (* (+ dt4 dt5) dt3) V-581) dt1)
+		 (/ (* (+ (* (+ V-565 (* V-570 dt1)) dt1) V-552) dt1)
+		    (+ (* V-572
+			  (+ (* (+ V-555 (* (+ V-568 dt3) dt3)) dt3) V-566))
+		       (* (+ (* (+ V-565 (* (+ V-556 V-558) dt3)) dt3) V-552)
+			  (expt dt3 2))))
+		 (/ (* (+ (* (+ (* V-561 dt1) (* V-554 dt3) V-549) dt1)
+			  (* V-549 V-558))
+		       dt1)
+		    (+ (* (+ (* V-573 V-574) V-575) dt1)
+		       (* V-575 dt3)
+		       (* V-574 (expt dt4 3))))
+		 (/ (* (+ (* (+ (* (+ V-569 dt3 dt4 dt6) dt1)
+				(* V-567 dt3)
+				(* V-562 dt6))
+			     dt1)
+			  (* V-573 dt6))
+		       dt1)
+		    (+ (* (+ V-580 (* (+ (* V-581 V-578) V-577) dt3)) dt1)
+		       (* V-580 dt3)
+		       (* V-579 dt4)
+		       (* V-576 (expt dt5 4))))
+		 (/ (* (+ (* (+ (* (+ V-559 V-562) dt1)
+				(* (+ dt4 dt5) dt3) V-581) dt1)
 		    (* V-571 dt5))
 		   dt1)
-		  (+
-		   (* (+ V-587 (* (+ V-586 (* (+ V-549 (* -1 V-585)) dt4)) dt3))
+		  (+ (* (+ V-587
+			   (* (+ V-586 (* (+ V-549 (* -1 V-585)) dt4)) dt3))
 		      dt1)
 		   (* V-587 dt3)
 		   (* V-584 dt4)
 		   (* V-557 V-583)
 		   (expt dt6 5))))))))))))
-
 |#
 
 ;;; A bit of further hacking yields:
@@ -863,7 +849,8 @@ Using collins-gcd
 
 (define (gc3 dt1 ts)
   (let ((tn-1 (list-ref ts 0)) (V-86 (flo:* dt1 dt1)))
-    (let ((dt4 (flo:- (list-ref ts 2) tn-1)) (dt3 (flo:- (list-ref ts 1) tn-1)))
+    (let ((dt4 (flo:- (list-ref ts 2) tn-1))
+	  (dt3 (flo:- (list-ref ts 1) tn-1)))
       (let ((V-95 (flo:* dt4 dt4))
 	    (V-94 (flo:* dt3 dt3))
 	    (V-91 (flo:* dt4 -1.))
@@ -963,7 +950,8 @@ Using collins-gcd
 				(flo:+ (flo:+ (flo:* -1. (flo:* V-135 V-135))
 					      (flo:* V-136 dt4))
 				       (flo:+ (flo:* V-136 dt5)
-					      (flo:* V-125 (flo:* dt4 V-135))))))
+					      (flo:* V-125
+						     (flo:* dt4 V-135))))))
 		  (flo:/ (flo:+ V-128 V-132)
 			 (flo:+ (flo:+ (flo:+ (flo:* dt1 (flo:* dt3 V-139))
 					      (flo:* V-140 dt5))
@@ -981,8 +969,10 @@ Using collins-gcd
 				(flo:+ (flo:+ (flo:* V-143 V-124)
 					      (flo:* dt3 V-144))
 				       (flo:+ (flo:* dt4 V-144)
-					      (flo:* -1. (flo:* V-142 V-142)))))))))))))
-
+					      (flo:* -1.
+						     (flo:* V-142
+							    V-142)))))))))))))
+
 (define gear-correctors
   (vector 0 gc1 gc2 gc3 gc4 ;gc5
 	  ))

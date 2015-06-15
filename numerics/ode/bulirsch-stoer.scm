@@ -1,27 +1,29 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
-;;; Bulirsch-Stoer integration
-;;;   Send bug reports to gjs@mit.edu
+;;;; Bulirsch-Stoer integration: Send bug reports to gjs@mit.edu
 ;;;    Ideas from Jack Wisdom, from Michel Henon, from B&S
 
 #|
@@ -75,12 +77,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (.47500000000000003 #(.4750000000000001 .8892927216231684 .4573384471789555))
 (.8125 #(.8125 .6876855622205039 .7260086552607131))
 (1.31875 #(1.31875 .2493861513251363 .9684041240759129))
-(2.078125 #(2.078125 -.4858441220551543 .8740454731102133))
-(2.578125 #(2.578125 -.8454080510229712 .5341209856067642))
-(3.328125 #(3.328125 -.9826532269212551 -.18545251581265804))
-(4.328125 #(4.328125 -.37487689325834334 -.9270746005047118))
+...
 (5.328125 #(5.328125 .5775595272329195 -.8163485729163036))
-;Value: (#(6.283185307179586 .9999999999999994 1.3276830294967203e-15) 6.283185307179586 1.4325904607693793)
+;Value: (#(6.283185307179586 .9999999999999994 1.3276830294967203e-15)
+;;;;     6.283185307179586 1.4325904607693793)
 
 
 (define (f x) (sin (/ 1.0 x)))
@@ -124,30 +124,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (declare (usual-integrations))
 
-#|
-(declare (usual-integrations + - * / < > = zero? positive? negative?
-			     sqrt abs exp sin cos #| atan |#)
-	 (reduce-operator
-	  (+ flo:+ (null-value 0. none) (group left))
-	  (- flo:- (null-value 0. single) (group left))
-	  (* flo:* (null-value 1. none) (group left))
-	  (/ flo:/ (null-value 1. single) (group left)))
-	 (integrate-primitive-procedures
-	  (< flonum-less?)
-	  (> flonum-greater?)
-	  (= flonum-equal?)
-	  (zero? flonum-zero?)
-	  (positive? flonum-positive?)
-	  (negative? flonum-negative?)
-	  (sqrt flonum-sqrt)
-	  (abs flonum-abs)
-	  (exp flonum-exp)
-	  (sin flonum-sin)
-	  (cos flonum-cos)
-	  #|(atan flonum-atan 1)
-	  (atan flonum-atan2 2)|#))
-|#
-
 (declare (integrate-operator for less-than))
 
 (define (for initial test increment to-do)
@@ -165,35 +141,46 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
     (declare (integrate i))
     (fix:< i n)))
 
-(declare (integrate-operator increment))
 
-(define increment fix:1+)
+(define *max-tableau-depth*)
+(define *max-tableau-width*)
+(define bulirsch-stoer-steps)
+(define bulirsch-stoer-magic-vectors)
 
-(define *max-tableau-depth* 10)
-(define *max-tableau-width*  6)
 
-;;; #(1 repeated{2^n+1 3*2^n})
+(define (bulirsch-stoer-setup max-depth max-width)
+  (define (bsi n)
+    (cons-stream (expt 2 (+ n 1))
+		 (cons-stream (* 3 (expt 2 n))
+			      (bsi (+ n 1)))))
+  (set! *max-tableau-depth* max-depth)
+  (set! *max-tableau-width* max-width)
+  (let ((bulirsch-stoer-integers (cons-stream 1 (bsi 0))))
+    (pp (stream-head bulirsch-stoer-integers max-depth))
+    (set! bulirsch-stoer-steps
+	  (list->vector
+	   (map (lambda (x) (fix:* 2 x))
+		(stream-head bulirsch-stoer-integers max-depth))))
+    (set! bulirsch-stoer-magic-vectors
+	  (make-initialized-vector *max-tableau-depth*
+	    (lambda (m)
+	      (make-initialized-vector (min m *max-tableau-width*)
+		(lambda (k)
+		  (exact->inexact
+		   (square (/ (stream-ref bulirsch-stoer-integers m)
+			      (stream-ref bulirsch-stoer-integers
+					  (fix:- m (fix:1+ k)))))))))))
+    'done))
+
+(bulirsch-stoer-setup 10 6)
+;;; (1 2 3 4 6 8 12 16 24 32)
+
+#|
+;; bulirsch-stoer-integers = #(1 repeated{2^n+1 3*2^n})
 
 (define bulirsch-stoer-integers
-  #(1 2 3 4 6 8 12 16 24 32 48 64 96))
-
-(define bulirsch-stoer-steps
-  (list->vector
-   (map (lambda (x) (fix:* 2 x))
-	(vector->list bulirsch-stoer-integers))))
-
-(define bulirsch-stoer-floats
-  (list->vector
-   (map exact->inexact
-	(vector->list bulirsch-stoer-integers))))
-
-(define bulirsch-stoer-magic-vectors
-  (make-initialized-vector *max-tableau-depth*
-    (lambda (m)
-      (make-initialized-vector (min m *max-tableau-width*)
-	(lambda (k)
-	  (square (/ (vector-ref bulirsch-stoer-floats m)
-		     (vector-ref bulirsch-stoer-floats (fix:- m (fix:1+ k))))))))))
+  #(1 2 3 4 6 8 12 16 24 32 48 64 96))	       
+|#
 
 (define-integrable (vector-copy-into-vector dim v1 v2)
   (for 0 (less-than dim) fix:1+
@@ -251,12 +238,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 
 ;;;;                  (bulirsch-stoer-lisptran f n tolerance)
-;;; f is a system derivative, n is the system dimension, tolerance is the maximum allowable relative error.
-;;;  As in FORTRAN, f takes an n-dimensional state vector, and an answer vector to clobber
+
+;;;    f is a system derivative, 
+;;;    n is the system dimension, 
+;;;    tolerance is the maximum allowable relative error.
+;;;
+;;;  As in FORTRAN, f takes an n-dimensional state vector, 
+;;;    and an answer vector to clobber
 ;;;    it clobbers the answer to be the state derivative vector.
+;;;
 ;;;  (bulirsch-stoer-lisptran f n tolerance) returns a procedure 
-;;;    that takes a state and a requested advance, and calls a continuation 
-;;;    that takes a new state, the advance achieved, and a guestimate of the achievable advance.
+;;;    that takes 
+;;;          a state and 
+;;;          a requested advance,
+;;;      it calls a continuation 
+;;;               that takes a new state, 
+;;;                          the advance achieved, and
+;;;                          a guestimate of the achievable advance.
 
 (define (bulirsch-stoer-lisptran f n tolerance)
   (let ((error-measure (parse-error-measure tolerance))
@@ -285,6 +283,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		(let ((m1 (min m *max-tableau-width*))
 		      (d (vector-ref bulirsch-stoer-magic-vectors m)))
 		  (modified-midpoint (vector-ref bulirsch-stoer-steps m) new-out)
+
 		  (for 0 (less-than n) fix:1+
 		       (lambda (i)	;coordinates
 			 (declare (integrate i))
@@ -305,13 +304,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 				    (vector-set! (vector-ref tableau i) k dtn)
 				    (set! yb (+ yb dtn)))))
 			   (vector-set! new-state-estimate i yb))))
+
 		  (let ((verr (error-measure new-state-estimate old-state-estimate)))
 		    (if bulirsch-stoer-wallp
 			(pp `(bulirsch-stoer level: ,m error: ,verr h: ,delta-t)))
+		    ;; In Jack's C program the first two conditions
+		    ;; below are interchanged and the minimum number
+		    ;; of iterations is set to (fix:< m 4)
 		    (cond ((< verr 2.0)
 			   (continuation (vector-copy new-state-estimate)
 					 delta-t
-					 (* delta-t 1.5
+					 (* (* delta-t 1.5)
 					    (expt 0.6
 						  (exact->inexact (fix:- m m1))))))
 			  ((fix:< m 2)
@@ -321,9 +324,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 			  ((not (< verr old-verr))
 			   (outside (* 0.5 delta-t)))
 			  (else
-			   (m-loop (fix:+ m 1) verr
+			   (m-loop (fix:1+ m) verr
 				   new-state-estimate old-state-estimate
 				   new-out old-out)))))
+
 		(outside (* 0.5 delta-t)))))))))
 
 (define bulirsch-stoer-wallp false)

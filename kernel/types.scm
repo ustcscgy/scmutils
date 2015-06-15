@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; This is needed to load particular types
@@ -30,22 +33,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	quantity-predicate concrete-predicate abstract-predicate))
 
 (define (type-tag type)
-  (first type))
+  (car type))
 
 (define (abstract-type-tag type)
-  (second type))
+  (cadr type))
 
 (define (quantity-predicate type)
-  (third type))
+  (caddr type))
 
 (define (concrete-predicate type)
-  (fourth type))
+  (cadddr type))
 
 (define (abstract-predicate type)
-  (fifth type))
+  (car (cddddr type)))
 
 
 (define-integrable number-type-tag '*number*)
+
+(define-integrable with-units-type-tag '*with-units*)
+
+(define-integrable unit-type-tag '*unit*)
 
 (define-integrable vector-type-tag '*vector*)
 
@@ -82,6 +89,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define type-tags
   (list number-type-tag
+	unit-type-tag
+	with-units-type-tag
 	vector-type-tag
 	quaternion-type-tag
 	;;abstract-vector-type-tag
@@ -130,7 +139,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   (or (number? x)
       (abstract-number? x)
       (and (differential? x)
-	   (numerical-quantity? (differential-of x)))))
+	   (numerical-quantity? (differential-of x)))
+      (and (with-units? x)
+	   (numerical-quantity? (u:value x)))))
+
+(define (with-units? x)
+  (and (pair? x)
+       (eq? (car x) with-units-type-tag)))
+
+(define (units? x)
+  (and (pair? x)
+       (eq? (car x) unit-type-tag)))
+
 
 (define *number*
   (make-type '*number* '*number* numerical-quantity? number? abstract-number?))

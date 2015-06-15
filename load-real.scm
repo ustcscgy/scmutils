@@ -1,30 +1,33 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Scmutils top-level loader
 
 (ge user-initial-environment)
 
-(add-identification! "ScmUtils" "Mechanics " " Summer 2002")
+(add-subsystem-identification! "ScmUtils" '("Mechanics " " Summer 2005"))
 
 (define scmutils-base-environment
   user-initial-environment)
@@ -43,21 +46,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (local-assignment scmutils-base-environment
 		  'derivative-symbol
 		  (string->symbol "D"))
-
-;;; EXTEND-IC-ENVIRONMENT should eventually be replaced with
-;;; EXTEND-INTERPRETER-ENVIRONMENT.
-
-(let ((numerical-environment
-       (extend-ic-environment scmutils-base-environment)))
-  (local-assignment scmutils-base-environment
-		    'numerical-environment
-		    numerical-environment)
-  (local-assignment numerical-environment
-		    '*environment*
-		    'numerical-environment))
-
-(define numerical-environment
-  (access numerical-environment scmutils-base-environment))
 
 (define (in-scmutils-directory relative-path thunk)
   (with-working-directory-pathname
@@ -78,8 +66,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 
-(define generic-environment
-  (access generic-environment scmutils-base-environment))
+(environment-define system-global-environment
+		    'generic-environment
+		    (access generic-environment scmutils-base-environment))
 
 (in-scmutils-directory "./simplify"
 		       (lambda ()
@@ -110,8 +99,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (in-scmutils-directory "./kernel"
 		       (lambda ()
 			 (load "litfun" scmutils-base-environment)))
-      
+
+(in-scmutils-directory "./units"
+		       (lambda ()
+			 (load "load" scmutils-base-environment)))      
+
 (in-scmutils-directory "./mechanics"
+		       (lambda ()
+			 (load "load" scmutils-base-environment)))
+
+(in-scmutils-directory "./calculus"
 		       (lambda ()
 			 (load "load" scmutils-base-environment)))
 

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Sets -- Implementation as ordered lists of symbols
@@ -146,3 +149,189 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   ((list->set symbols) '(d e f))))
 ;Value: (a c d e f)
 |#
+
+;;;; Sets represented as unsorted lists of elements
+
+;;; elements are tested with equal?
+
+(define (list-adjoin item list)
+  (if (member item list)
+      list
+      (cons item list)))
+
+(define (list-union l1 l2)
+  (cond ((null? l1) l2)
+	((member (car l1) l2)
+	 (list-union (cdr l1) l2))
+	(else (cons (car l1)
+		    (list-union (cdr l1) l2)))))
+
+(define (list-intersection l1 l2)
+  (cond ((null? l1) '())
+	((member (car l1) l2)
+	 (cons (car l1)
+	       (list-intersection (cdr l1) l2)))
+	(else (list-intersection (cdr l1) l2))))
+
+(define (list-difference l1 l2)
+  (cond ((null? l1) '())
+	((member (car l1) l2)
+	 (list-difference (cdr l1) l2))
+	(else
+	 (cons (car l1)
+	       (list-difference (cdr l1) l2)))))
+
+(define (duplications? lst)
+  (cond ((null? lst) false)
+	((member (car lst) (cdr lst)) true)
+	(else (duplications? (cdr lst)))))
+
+(define (remove-duplicates list)
+  (if (null? list)
+      '()
+      (let ((rest (remove-duplicates (cdr list))))
+        (if (member (car list) rest)
+            rest
+            (cons (car list) rest)))))
+
+(define (subset? s1 s2)
+  (if (null? s1)
+      true
+      (and (member (car s1) s2)
+	   (subset? (cdr s1) s2))))
+
+(define (same-set? s1 s2)
+  (and (subset? s1 s2)
+       (subset? s2 s1)))
+
+;;;; eq-set utilities from Jinx
+
+(define-integrable (eq-set/make-empty)
+  '())
+
+(define-integrable (eq-set/empty? set)
+  (null? set))
+
+(define-integrable (eq-set/member? element set)
+  (memq element set))
+
+(define-integrable (eq-set/adjoin element set)
+  (if (eq-set/member? element set)
+      set
+      (cons element set)))
+
+(define (eq-set/remove element set)
+  (if (not (eq-set/member? element set))
+      set
+      (delq element set)))
+
+;; Important: This will return set2 itself (rather than a copy) if the
+;; union is set2.  Thus eq? can be used on the return value to
+;; determine whether the set has grown.
+
+(define (eq-set/union set1 set2)
+  (define (loop set new-elements)
+    (if (null? new-elements)
+	set
+	(loop (eq-set/adjoin (car new-elements) set)
+	      (cdr new-elements))))
+
+  ;; If set2 is smaller than set1, the union is guaranteed not to be set2.
+  (if (< (length set2) (length set1))
+      (loop set1 set2)
+      (loop set2 set1)))
+
+(define (eq-set/intersection set1 set2)
+  (define (examine set1 set2)
+    (let process ((set #| (reverse set1) |# set1)
+		  (result (eq-set/make-empty)))
+      (if (null? set)
+	  result
+	  (process (cdr set)
+		   (if (eq-set/member? (car set) set2)
+		       (cons (car set) result)
+		       result)))))
+
+  (if (< (length set2) (length set1))
+      (examine set2 set1)
+      (examine set1 set2)))
+
+(define (eq-set/difference set1 set2)
+  (if (null? set2)
+      set1
+      (let process ((set set1) (result (eq-set/make-empty)))
+	(cond ((null? set)
+	       result)
+	      ((eq-set/member? (car set) set2)
+	       (process (cdr set) result))
+	      (else
+	       (process (cdr set)
+			(cons (car set) result)))))))
+
+(define (eq-set/subset? set1 set2)
+  (or (eq-set/empty? set1)
+      (and (eq-set/member? (car set1) set2)
+	   (eq-set/subset? (cdr set1) set2))))
+
+(define (eq-set/equal? set1 set2)
+  (or (eq? set1 set2)
+      (and (eq-set/subset? set1 set2)
+	   (eq-set/subset? set2 set1))))
+
+;;;; multi-set utilities from Jinx
+
+(define-integrable (multi-set/empty)
+  '())
+
+(define-integrable (multi-set/adjoin element set)
+  (cons element set))
+
+(define-integrable (multi-set/empty? set)
+  (null? set))
+
+(define-integrable (multi-set/first set)
+  (car set))
+
+(define-integrable (multi-set/rest set)
+  (cdr set))
+
+(define-integrable (multi-set/remove element set)
+  (delq-once element set))
+
+(define-integrable (multi-set/element? element set)
+  (memq element set))
+
+(define-integrable (multi-set/union set1 set2)
+  (%reverse set1 set2))
+
+(define (multi-set/intersection set1 set2)
+  (define (process set1 set2 result)
+    (cond ((multi-set/empty? set1)
+	   result)
+	  ((not (multi-set/element? (multi-set/first set1) set2))
+	   (process (multi-set/rest set1) set2 result))
+	  (else
+	   (process (multi-set/rest set1)
+		    (multi-set/remove (multi-set/first set1)
+				      set2)
+		    (multi-set/adjoin (multi-set/first set1)
+				      result)))))
+
+  (if (< (length set2) (length set1))
+      (process set2 set1 (multi-set/empty))
+      (process set1 set2 (multi-set/empty))))
+
+(define (multi-set/difference set1 set2)
+  (define (process set1 set2 result)
+    (cond ((multi-set/empty? set1)
+	   result)
+	  ((multi-set/element? (multi-set/first set1) set2)
+	   (process (multi-set/rest set1)
+		    (multi-set/remove (multi-set/first set1) set2)
+		    result))
+	  (else
+	   (process (multi-set/rest set1)
+		    set2
+		    (multi-set/adjoin (multi-set/first set1)
+				      result)))))
+  (process set1 set2 (multi-set/empty)))

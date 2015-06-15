@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;; Hamiltonians look better if we divide them out.
@@ -25,6 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define *divide-out-terms* #t)
 
 (define *fully-divide-out-terms* #t)
+
+(define *heuristic-numbers* #f)
+
 
 (define (ham:simplify hexp)
   (cond ((and (quotient? hexp) *divide-out-terms*)
@@ -76,7 +82,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   (flush-derivative
    (flush-row/col
     (ham:simplify
-     (easy-simplify			;from rule-environment
+     (new-simplify			;from rule-environment
       (expression exp))))))
 
 
@@ -84,10 +90,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define *last-expression-printed*)
 
 (define (canonicalize-numbers expr)
-  (cond ((pair? expr)
+  (cond ((with-units? expr)
+	 (with-si-units->expression expr))
+	((pair? expr)
 	 (cons (canonicalize-numbers (operator expr))
 	       (map canonicalize-numbers (operands expr))))
-	((number? expr)
+	((and (number? expr) *heuristic-numbers*)
 	 (heuristic-canonicalize-complex expr))
 	(else
 	 expr)))
@@ -120,3 +128,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define pe print-expression)
 (define se show-expression)
+
+
+(define (print-expression-prefix expr #!optional simplifier)
+  (if (default-object? simplifier)
+      (set! simplifier simplify))
+  (prepare-for-printing expr simplifier)
+  ((pp-line-prefix "; ") *last-expression-printed*))
+
+(define pep print-expression-prefix)
+
+(define (print-expression-comment expr #!optional simplifier)
+  (if (default-object? simplifier)
+      (set! simplifier simplify))
+  (prepare-for-printing expr simplifier)
+  (newline)
+  (display "#| Result:")
+  (newline)
+  (pp *last-expression-printed*)
+  (display "|#"))
+
+(define pec print-expression-comment)

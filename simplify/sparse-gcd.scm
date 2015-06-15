@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;;             Sparse Multivariate Polynomial GCD 
@@ -107,84 +110,87 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	   (g1 (univariate-gcd P1 Q1)))
       (let stagelp ((k 1) (g g1) (rargs rargs1))	
 	;; g has k vars interpolated to make it arity k.
-	(if (= k n)
-	    g
-	    (let* ((skeleton (map sparse-exponents g))
-		   (nterms (length skeleton))
-		   (trial-arglists
-		    (begin
-		      (if *sgcd-wallp*
-			  (pp `(sparse-gcd:
-				(k ,k)
-				(nterms ,nterms)
-				(skeleton ,skeleton)
-				(time ,(- (runtime) time0)))))
-		      (generate-list nterms
-			 (lambda (i)
-			   (make-interpolation-args k)))))
-		   (Pk (sparse-evaluate> P (cdr rargs)))
-		   (Qk (sparse-evaluate> Q (cdr rargs)))
-		   (Gks (map (lambda (arglist)
-			       (univariate-gcd
-				(sparse-evaluate< Pk arglist)
-				(sparse-evaluate< Qk arglist)))
-			     trial-arglists))
-		   (GkSkels (map (lambda (Gk)
-				   (map sparse-exponents Gk))
-				 Gks)))
+	(cond ((= k n) g)
+	      ((sparse-zero? g)
+	       (if *sgcd-wallp* (pp `(sparse-gcd: zero!)))
+	       (restart time0))
+	      (else
+	       (let* ((skeleton (map sparse-exponents g))
+		      (nterms (length skeleton))
+		      (trial-arglists
+		       (begin
+			 (if *sgcd-wallp*
+			     (pp `(sparse-gcd:
+				   (k ,k)
+				   (nterms ,nterms)
+				   (skeleton ,skeleton)
+				   (time ,(- (runtime) time0)))))
+			 (generate-list nterms
+					(lambda (i)
+					  (make-interpolation-args k)))))
+		      (Pk (sparse-evaluate> P (cdr rargs)))
+		      (Qk (sparse-evaluate> Q (cdr rargs)))
+		      (Gks (map (lambda (arglist)
+				  (univariate-gcd
+				   (sparse-evaluate< Pk arglist)
+				   (sparse-evaluate< Qk arglist)))
+				trial-arglists))
+		      (GkSkels (map (lambda (Gk)
+				      (map sparse-exponents Gk))
+				    Gks)))
 
-	      (if (not (all-equal? GkSkels))
-		  (begin (if *sgcd-wallp*
-			     (pp `(sparse-gcd: GkSkels-not-same ,GkSkels)))
-			 (stagelp k g rargs))
-		  (let ((xk+1s
-			 (generate-list (+ (list-ref ds k) 1)
-					interpolate-random)))
-		    (lu-decompose
-		     (matrix-by-row-list
-		      (map (lambda (arguments)
-			     (map (lambda (exponents)
-				    (apply *
-					   (map expt
-						arguments
-						exponents)))
-				  skeleton))
-			   trial-arglists))
-		     (lambda (lu-matrix lu-permutation lu-sign)
-		       (let ((coeffs
-			      (map (lambda (xk+1)
-				     (let ((values
-					    (map (lambda (Gk)
-						   (sparse-evaluate
-						    Gk
-						    (list xk+1)))
-						 Gks)))
-				       (vector->list
-					(lu-backsubstitute
-					 lu-matrix
-					 lu-permutation
-					 (list->vector values)))))
-				   xk+1s)))
-			 (let clp ((css (list-transpose coeffs)) (cps '()))
-			   (if (null? css)
-			       (let ((cps (reverse cps)))
-				 (let ((new-g (expand-poly g cps)))
-				   (if (and (sparse-divisible? Pk new-g)
-					    (sparse-divisible? Qk new-g))
-				       (stagelp (fix:+ k 1) new-g (cdr rargs))
-				       (begin (if *sgcd-wallp*
-						  (pp `(sparse-gcd: division)))
-					      (restart time0)))))
-			       (univariate-interpolate-values
-				xk+1s (car css)
-				(lambda (cp) (clp (cdr css) (cons cp cps)))
-				(lambda ()
-				  (if *sgcd-wallp*
-				      (pp `(sparse-gcd: interpolation)))
-				  (restart time0)))))))
-		     (lambda (x)
-		       (if *sgcd-wallp* (pp `(sparse-gcd: singular)))
-		       (restart time0)))))))))))
+		 (if (not (all-equal? GkSkels))
+		     (begin (if *sgcd-wallp*
+				(pp `(sparse-gcd: GkSkels-not-same ,GkSkels)))
+			    (stagelp k g rargs))
+		     (let ((xk+1s
+			    (generate-list (+ (list-ref ds k) 1)
+					   interpolate-random)))
+		       (lu-decompose
+			(matrix-by-row-list
+			 (map (lambda (arguments)
+				(map (lambda (exponents)
+				       (apply *
+					      (map expt
+						   arguments
+						   exponents)))
+				     skeleton))
+			      trial-arglists))
+			(lambda (lu-matrix lu-permutation lu-sign)
+			  (let ((coeffs
+				 (map (lambda (xk+1)
+					(let ((values
+					       (map (lambda (Gk)
+						      (sparse-evaluate
+						       Gk
+						       (list xk+1)))
+						    Gks)))
+					  (vector->list
+					   (lu-backsubstitute
+					    lu-matrix
+					    lu-permutation
+					    (list->vector values)))))
+				      xk+1s)))
+			    (let clp ((css (list-transpose coeffs)) (cps '()))
+			      (if (null? css)
+				  (let ((cps (reverse cps)))
+				    (let ((new-g (expand-poly g cps)))
+				      (if (and (sparse-divisible? Pk new-g)
+					       (sparse-divisible? Qk new-g))
+					  (stagelp (fix:+ k 1) new-g (cdr rargs))
+					  (begin (if *sgcd-wallp*
+						     (pp `(sparse-gcd: division)))
+						 (restart time0)))))
+				  (univariate-interpolate-values
+				   xk+1s (car css)
+				   (lambda (cp) (clp (cdr css) (cons cp cps)))
+				   (lambda ()
+				     (if *sgcd-wallp*
+					 (pp `(sparse-gcd: interpolation)))
+				     (restart time0)))))))
+			(lambda (x)
+			  (if *sgcd-wallp* (pp `(sparse-gcd: singular)))
+			  (restart time0))))))))))))
 
 (define *sgcd-wallp* #f)
 

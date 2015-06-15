@@ -1,53 +1,31 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Quality-controlled adaptive integrators.
 
 (declare (usual-integrations))
-
-#|
-(declare (usual-integrations + - * / < > = zero? positive? negative?
-			     sqrt abs exp sin cos #| atan |#)
-	 (reduce-operator
-	  (+ flo:+ (null-value 0. none) (group left))
-	  (- flo:- (null-value 0. single) (group left))
-	  (* flo:* (null-value 1. none) (group left))
-	  (/ flo:/ (null-value 1. single) (group left)))
-	 (integrate-primitive-procedures
-	  (< flonum-less?)
-	  (> flonum-greater?)
-	  (= flonum-equal?)
-	  (zero? flonum-zero?)
-	  (positive? flonum-positive?)
-	  (negative? flonum-negative?)
-	  (sqrt flonum-sqrt)
-	  (abs flonum-abs)
-	  (exp flonum-exp)
-	  (sin flonum-sin)
-	  (cos flonum-cos)
-	  #|(atan flonum-atan 1)
-	  (atan flonum-atan2 2)|#))
-|#
-
 
 ;;; QUALITY-CONTROL upgrades a one-step method into an adaptive
 ;;; quality-control method.  Given the one-step method and its "order"
@@ -173,7 +151,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 
 (add-integrator! 'rkqc
- (lambda (derivative lte-tolerance start-state step-required h-suggested max-h continue done)
+ (lambda (derivative lte-tolerance start-state
+		     step-required h-suggested max-h continue done)
    ((advance-generator ((quality-control rk4 4) derivative lte-tolerance))
     start-state
     step-required
@@ -222,7 +201,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define (c-trapezoid f qc-tolerance #!optional convergence-tolerance)
   (let ((error-measure
 	 (parse-error-measure
-	  (if (default-object? convergence-tolerance) qc-tolerance convergence-tolerance))))
+	  (if (default-object? convergence-tolerance)
+	      qc-tolerance
+	      convergence-tolerance))))
     (lambda (xn)
       (let ((d (f xn)))
 	(define (trapstep dt succeed fail)
@@ -239,7 +220,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		    (let* ((ncorr
 			    (vector+vector xn
 					   (scalar*vector dt/2
-							  (vector+vector (f corrected) d))))
+							  (vector+vector (f corrected)
+									 d))))
 			   (nverr (error-measure ncorr corrected)))
 		      (if (< nverr verr)
 			  (lp corrected ncorr (fix:+ count 1))
@@ -248,15 +230,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	trapstep))))
 
 (add-integrator! 'ctqc
- (lambda (derivative lte-tolerance convergence-tolerance start-state step-required h-suggested max-h continue done)
-   ((advance-generator ((quality-control c-trapezoid 2) derivative lte-tolerance convergence-tolerance))
+ (lambda (derivative lte-tolerance convergence-tolerance start-state
+		     step-required h-suggested max-h continue done)
+   ((advance-generator
+     ((quality-control c-trapezoid 2) derivative lte-tolerance convergence-tolerance))
     start-state
     step-required
     h-suggested
     max-h
     continue
     done))
- '(derivative lte-tolerance convergence-tolerance start-state step-required h-suggested max-h continue done))
+ '(derivative lte-tolerance convergence-tolerance start-state
+	      step-required h-suggested max-h continue done))
 
 ;;; A trapezoid method:  xn+1 is found by Newton iteration, rather
 ;;;   than corrector iteration as in c-trapezoid, above.
@@ -297,7 +282,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define (n-trapezoid f-df qc-tolerance dimension #!optional convergence-tolerance)
   (let* ((convergence-tolerance
-	  (if (default-object? convergence-tolerance) qc-tolerance convergence-tolerance))
+	  (if (default-object? convergence-tolerance)
+	      qc-tolerance
+	      convergence-tolerance))
 	 (error-measure (parse-error-measure convergence-tolerance))
 	 (clip-vector (vector-clipper dimension))
 	 (pad-vector (vector-padder dimension))
@@ -333,7 +320,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 				 (nverr (error-measure ncorr corrected)))
 			    (if (< nverr verr)
 				(lp corrected ncorr (fix:+ count 1))
-				(begin (if pc-wallp? (write-line `(gj nr failed: ,nverr ,verr)))
+				(begin (if pc-wallp?
+					   (write-line `(gj nr failed: ,nverr ,verr)))
 				       (fail)))))))))
 	      trapstep)))))
 

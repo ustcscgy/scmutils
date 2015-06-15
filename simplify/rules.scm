@@ -1,26 +1,30 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
-;;;; Rule systems for simplification
+;;;; Rule systems for simplification.
+;;;  Written by GJS in the 1980s, edited by MiraWilczek in Summer 2002.
 
 ;;; Default is simplifier lives dangerously.
 
@@ -104,6 +108,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    ( (SQRT (EXPT (? x) (? n odd-integer?)))
      sqrt-expt-simplify?
      (* (SQRT (: x)) (EXPT (: x) (: (quotient (fix:- n 1) 2)))) )
+
+   ( (* (?? x) (? y) (?? z) (EXPT (? y) (? n)) (?? w))
+     none
+     (* (:: x) (:: z) (EXPT (: y) (+ (: n) 1)) (:: w)) )
+
 
    ( (SQRT (EXP (? x)))
      sqrt-expt-simplify?
@@ -193,6 +202,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
      (/ 1 (SQRT (+ 1 (EXPT (: a) 2)))) )
    |#
 
+   ( (atan (? y) (? x))
+      (let ((s (simplify `(gcd ,(simplify y) ,(simplify x)))))
+	(if (equal? s 1)
+	    #f
+	    (begin (match-assign! 'temp *dictionary* s)
+		   #t)))
+      (atan (: (simplify `(/ ,y ,temp)))
+	    (: (simplify `(/ ,x ,temp)))) )
+
    ( (ATAN (/ (? y) (? x))) none (ATAN (: y) (: x)) )
 
    ( (ATAN (? y)) none (ATAN (: y) 1) )
@@ -246,6 +264,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    ( (* (?? a) (SQRT (? x)) (?? b) (SQRT (? y)) (?? c))
      none
      (* (:: a) (:: b) (:: c) (SQRT (* (: x) (: y)))) )
+
+   ( (/ (SQRT (? x)) (SQRT (? y)))
+     none
+     (SQRT (/ (: x) (: y))) )
+
+   ( (/ (* (?? a) (SQRT (? x)) (?? b)) (SQRT (? y)))
+     none
+     (* (:: a) (:: b) (SQRT (/ (: x) (: y)))) )
+
+   ( (/ (SQRT (? x)) (* (?? a) (SQRT (? y)) (?? b)))
+     none
+     (/ (SQRT (/ (: x) (: y))) (* (:: a) (:: b))) )
+
+   ( (/ (* (?? a) (SQRT (? x)) (?? b))
+	(* (?? c) (SQRT (? y)) (?? d)))
+     none
+     (/ (* (:: a) (:: b) (SQRT (/ (: x) (: y))))
+	(* (:: c) (:: d))) )
    ))
 
 (define specfun->logexp
@@ -282,6 +318,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
      ( (EXP (* 3/2 (LOG (? x1)))) none (EXPT (SQRT (: x1)) 3) )
 
      ( (EXP (* -3/2 (LOG (? x1)))) none (EXPT (SQRT (: x1)) -3) )
+
+     ( (EXP (* (?? n1) (LOG (? x)) (?? n2)))
+       none
+       (expt (: x) (* (:: n1) (:: n2))) )
      ))
 
 (define log-contract
@@ -438,8 +478,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
    ( (SIN (+ (? x) (? y) (?? ys)))	;at least one y
      none
-     (+ (* (SIN (: x)) (COS (* (: y) (:: ys))))
-	(* (COS (: x)) (SIN (* (: y) (:: ys))))) )
+     (+ (* (SIN (: x)) (COS (+ (: y) (:: ys))))
+	(* (COS (: x)) (SIN (+ (: y) (:: ys))))) )
 
    ( (COS (* (? n exact-integer?) (? f) (?? fs))) ;at least one f
      (> n 1)
@@ -448,8 +488,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
    ( (COS (+ (? x) (? y) (?? ys)))	;at least one y
      none
-     (- (* (COS (: x)) (COS (* (: y) (:: ys))))
-	(* (SIN (: x)) (SIN (* (: y) (:: ys))))) )
+     (- (* (COS (: x)) (COS (+ (: y) (:: ys))))
+	(* (SIN (: x)) (SIN (+ (: y) (:: ys))))) )
    ))
 
 (define contract-multiangle
@@ -569,6 +609,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
    ))
 
+;;; The following predicates are used in trig rules.
+
+(define (negative-number? x)
+  (and (number? x) (negative? x)))
+
+(define (complex-number? z)
+  (and (complex? z)
+       (not (n:zero? (n:real-part z)))
+       (not (n:zero? (n:imag-part z)))))
+
+(define (imaginary-number? z)
+  (and (complex? z)
+       (not (n:zero? z))
+       (n:zero? (n:real-part z))))
+
+(define (imaginary-integer? z)
+  (and (complex? z)
+       (not (n:zero? z))
+       (zero? (n:real-part z))
+       (exact-integer? (n:imag-part z))))
+
+
 ;;; We can eliminate SIN and COS in favor of complex exponentials 
 
 (define sincos->exp1
@@ -602,48 +664,51 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define exp->sincos
   (rule-system
-     ( (EXP (? c1 imaginary-number?))
-       (positive? (imag-part c1))
-       (+ (COS (: (n:imag-part c1)))
-	  (* +i (SIN (: (imag-part c1))))) )
+   ( (EXP (? c1 imaginary-number?))
+     (positive? (n:imag-part c1))
+     (+ (COS (: (n:imag-part c1)))
+	(* +i (SIN (: (n:imag-part c1))))) )
 
-     ( (EXP (? c1 imaginary-number?))
-       (negative? (n:imag-part c1))
-       (+ (COS (: (- (imag-part c1))))
-	  (* -i (SIN (: (- (imag-part c1)))))) )
+   ( (EXP (? c1 imaginary-number?))
+     (negative? (n:imag-part c1))
+     (+ (COS (: (- (n:imag-part c1))))
+	(* -i (SIN (: (- (n:imag-part c1)))))) )
 
-     ( (EXP (* (? c1 imaginary-number?) (?? f)))
-       (positive? (n:imag-part c1))
-       (+ (COS (* (: (imag-part c1)) (:: f)))
-	  (* +i (SIN (* (: (imag-part c1)) (:: f))))) )
+   ( (EXP (* (? c1 imaginary-number?) (?? f)))
+     (positive? (n:imag-part c1))
+     (+ (COS (* (: (n:imag-part c1)) (:: f)))
+	(* +i (SIN (* (: (n:imag-part c1)) (:: f))))) )
 
-     ( (EXP (* (? c1 imaginary-number?) (?? f)))
-       (negative? (n:imag-part c1))
-       (+ (COS (* (: (- (imag-part c1))) (:: f)))
-	  (* -i (SIN (* (: (- (imag-part c1))) (:: f))))) )
-     ))
-
-;;; The following predicates are used in trig rules.
+   ( (EXP (* (? c1 imaginary-number?) (?? f)))
+     (negative? (n:imag-part c1))
+     (* (EXP (: (n:real-part c1)))
+	(+ (COS (* (: (- (n:imag-part c1))) (:: f)))
+	   (* -i (SIN (* (: (- (n:imag-part c1))) (:: f)))))) )
 
-(define (negative-number? x)
-  (and (number? x) (negative? x)))
+   ( (EXP (? c1 complex-number?))
+     (positive? (n:imag-part c1))
+     (* (EXP (: (n:real-part c1)))
+	(+ (COS (: (n:imag-part c1)))
+	   (* +i (SIN (: (n:imag-part c1)))))) )
 
-(define (complex-number? z)
-  (and (complex? z)
-       (not (n:zero? (n:real-part z)))
-       (not (n:zero? (n:imag-part z)))))
+   ( (EXP (? c1 complex-number?))
+     (negative? (n:imag-part c1))
+     (* (EXP (: (n:real-part c1)))
+	(+ (COS (: (- (n:imag-part c1))))
+	   (* -i (SIN (: (- (n:imag-part c1))))))) )
 
-(define (imaginary-number? z)
-  (and (complex? z)
-       (not (n:zero? z))
-       (n:zero? (n:real-part z))))
+   ( (EXP (* (? c1 complex-number?) (?? f)))
+     (positive? (n:imag-part c1))
+     (* (EXP (: (n:real-part c1)))
+	(+ (COS (* (: (n:imag-part c1)) (:: f)))
+	   (* +i (SIN (* (: (n:imag-part c1)) (:: f)))))) )
 
-(define (imaginary-integer? z)
-  (and (complex? z)
-       (not (n:zero? z))
-       (zero? (n:real-part z))
-       (exact-integer? (n:imag-part z))))
-
+   ( (EXP (* (? c1 complex-number?) (?? f)))
+     (negative? (n:imag-part c1))
+     (* (EXP (: (n:real-part c1)))
+	(+ (COS (* (: (- (n:imag-part c1))) (:: f)))
+	   (* -i (SIN (* (: (- (n:imag-part c1))) (:: f)))))) )
+   ))
 	    
 (define exp-contract
   (rule-system
@@ -652,11 +717,35 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
      (* (:: x1) (:: x3) (:: x5) (EXP (+ (: x2) (: x4)))) )
 
    ( (EXPT (EXP (? x)) (? p)) none (EXP (* (: p) (: x))) )
+
+   ( (/ (EXP (? x)) (EXP (? y))) none (EXP (- (: x) (: y))) )
+
+   ( (/ (* (?? x1) (EXP (? x)) (?? x2)) (EXP (? y)))
+     none
+     (* (:: x1) (:: x2) (EXP (- (: x) (: y)))) )
+
+   ( (/ (EXP (? x)) (* (?? y1) (EXP (? y)) (?? y2)))
+     none
+     (/ (EXP (- (: x) (: y))) (* (:: y1) (:: y2))) )
+
+   ( (/ (* (?? x1) (EXP (? x)) (?? x2))
+	(* (?? y1) (EXP (? y)) (?? y2)))
+     none
+     (/ (* (:: x1) (:: x2) (EXP (- (: x) (: y))))
+	(* (:: y1) (:: y2))) )
    ))
 
 
 (define exp-expand
   (rule-system
+   ( (EXP (- (? x1)))
+     none
+     (/ 1 (EXP (: x1))) )
+
+   ( (EXP (- (? x1) (? x2)))
+     none
+     (/ (EXP (: x1)) (EXP (: x2))) )
+
    ( (EXP (+ (? x1) (? x2) (?? xs)))
      none
      (* (EXP (: x1)) (EXP (+ (: x2) (:: xs)))) )
@@ -688,17 +777,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	(EXP (* (: (n:* (n:imag-part x) +i)) (:: factors)))) )
    ))
 
-(define exp-general
-  (rule-system
-   ( (EXP (- (? x1)))
-     none
-     (/ 1 (EXP (: x1))) )
 
-   ( (EXP (- (? x1) (? x2)))
+(define complex-rules
+  (rule-system
+   ( (make-rectangular (cos (? theta)) (sin (? theta)))
      none
-     (/ (EXP (: x1)) (EXP (: x2))) )
+     (exp (* +i (: theta))) )
+
+   ( (real-part (make-rectangular (? x) (? y)))
+     none
+     (: x) )
+   ( (imag-part (make-rectangular (? x) (? y)))
+     none
+     (: x) )
+
+   ( (magnitude (make-rectangular (? x) (? y)))
+     none
+     (sqrt (+ (expt (: x) 2) (expt (: y) 2))) )
+   ( (angle (make-rectangular (? x) (? y)))
+     none
+     (atan (: y) (: x)) )
+
+
+   ( (real-part (make-polar (? m) (? a)))
+     none
+     (* (: m) (cos (: a))) )
+   ( (imag-part (make-polar (? m) (? a)))
+     none
+     (* (: m) (sin (: a))) )
+
+   ( (magnitude (make-polar (? m) (? a)))
+     none
+     (: m) )
+   ( (angle (make-polar (? m) (? a)))
+     none
+     (: a) )
 
    ))
+
 
 ;;;; Simplifiers defined using these rule sets
 
@@ -859,3 +975,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    exp))
 
 
+(define *factoring* #f)
+
+(define (new-simplify exp)
+  ((compose (if *factoring* poly:factor (lambda (expr) expr))
+	    simplify-and-flatten
+	    (compose universal-reductions root-out-squares)
+	    (simplify-until-stable (compose universal-reductions sqrt-expand)
+				   simplify-and-flatten)
+	    (compose simplify-and-flatten universal-reductions root-out-squares)
+	    (simplify-until-stable sqrt-contract
+				   simplify-and-flatten)
+	    sincos->trig
+	    (simplify-until-stable sincos-random
+				   simplify-and-flatten)
+	    (compose simplify-and-flatten sin^2->cos^2)
+	    (simplify-until-stable sincos-flush-ones
+				   simplify-and-flatten)
+
+	    (simplify-until-stable (compose log-expand exp-expand)
+				   simplify-and-flatten)	
+	    (simplify-until-stable (compose log-contract exp-contract)
+				   simplify-and-flatten)
+
+	    (simplify-until-stable (compose universal-reductions
+					    angular-parity
+					    log-expand
+					    exp-expand
+					    sqrt-expand)
+				   simplify-and-flatten)
+	    simplify-and-flatten
+	    trig->sincos
+	    canonicalize-partials
+	    )
+   exp))

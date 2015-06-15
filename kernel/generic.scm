@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Primitive Generic Operation Declarations 
@@ -49,15 +52,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define (g:zero? x)
   (if (number? x)
-      (zero? x)
+      (exact-zero? x)
       (generic-predicate 'zero? x)))
 (define (g:one? x)
   (if (number? x)
-      (one? x)
+      (exact-one? x)
       (generic-predicate 'one? x)))
 (define (g:identity? x)
   (if (number? x)
-      (one? x)
+      (exact-one? x)
       (generic-predicate 'identity? x)))
 
 (define (g:negate x)
@@ -82,7 +85,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define (g:sqrt x)
   (if (number? x)
-      (sqrt x)
+      (n:sqrt x)
       (generic-apply 'sqrt x)))
 
 (define (g:exp x)
@@ -203,7 +206,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define (g:/:bin x y)
   (cond ((and (number? x) (number? y)) (/ x y))
-	((g:zero? x) (g:zero-like y))
+	;; ((g:zero? x) (g:zero-like y))  ; Ancient bug!  No consequence.
+	((g:zero? x) x)
 	((g:one? y) x)
 	(else (generic-apply '/ x y))))
 
@@ -254,10 +258,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (lambda (f)
      (generic-apply 'partial-derivative f varspecs))
    `(partial ,@varspecs)))
-
-
-(define *enable-literal-apply* #f)
-
+
 (define (g:apply f . apply-args)
   (define (collapse l)
     (if (null? (cdr l))
@@ -269,17 +270,27 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
       (let ((args (collapse apply-args)))
 	(cond ((procedure? f)
 	       (apply f args))
-	      ((and (symbol? f) *enable-literal-apply*)
+	      ((applicable-literal? f)
 	       (apply
 		(literal-function f
-				  (default-function-type (length args)))
+		  (permissive-function-type (length args)))
 		args))
+	      ((eq? f second)
+	       (apply (access second system-global-environment)
+		      args))
 	      (else
 	       (generic-apply 'apply f args))))))
+
+
+(define *enable-literal-apply* #f)
 
 (define (with-literal-apply-enabled thunk)
   (fluid-let ((*enable-literal-apply* #t))
     (thunk)))
+
+(define (applicable-literal? f)
+  (and (symbol? f) *enable-literal-apply*))
+
 
 ;;; N-ary Operator extensions
 

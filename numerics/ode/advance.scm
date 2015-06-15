@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;; The advance-generator is used with 1-step adaptive integrators to
@@ -64,29 +67,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (list ns dt sdt)))
 |#
 
-#|
-(declare (usual-integrations + - * / < > = zero? positive? negative?
-			     sqrt abs exp sin cos #| atan |#)
-	 (reduce-operator
-	  (+ flo:+ (null-value 0. none) (group left))
-	  (- flo:- (null-value 0. single) (group left))
-	  (* flo:* (null-value 1. none) (group left))
-	  (/ flo:/ (null-value 1. single) (group left)))
-	 (integrate-primitive-procedures
-	  (< flonum-less?)
-	  (> flonum-greater?)
-	  (= flonum-equal?)
-	  (zero? flonum-zero?)
-	  (positive? flonum-positive?)
-	  (negative? flonum-negative?)
-	  (sqrt flonum-sqrt)
-	  (abs flonum-abs)
-	  (exp flonum-exp)
-	  (sin flonum-sin)
-	  (cos flonum-cos)
-	  #|(atan flonum-atan 1)
-	  (atan flonum-atan2 2)|#))
-|#
 
 (define (advance-generator advancer)
   (define (advance start-state step-required h-suggested max-h continue done)
@@ -185,103 +165,65 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 ;;; Error measures
 
-(define (vector-error vh vf)
-  (make-initialized-vector (vector-length vh)
-    (lambda (i)
-      (let ((yh (vector-ref vh i))
-	    (yf (vector-ref vf i)))
-	(if (and (zero? yh) (zero? yf))
-	    0.0
-	    (/ (- yh yf)
-	       (+ (magnitude yh) (magnitude yf) 2.0)
-	       0.5))))))
+;;; Can specify for each component the breakpoints between relative
+;;; error and absolute error measure and can specify the weights.
 
-(define (maxnorm-relabs tolerance)
-  (define (vector-error vh vf)
-    (let ((n (vector-length vh)))
-      (let lp ((i 0) (ans 0.0))
+(define (vector-metric summarize accumulate each-component)
+  (define (the-metric v1 v2)
+    (let ((n (vector-length v1)))
+      (assert (fix:= (vector-length v2) n))
+      (let lp ((i 0) (accumulation 0.0))
 	(if (fix:= i n)
-	    (/ (* 2.0 ans) tolerance)
-	    (let ((yh (vector-ref vh i))
-		  (yf (vector-ref vf i)))
-	      (if (and (zero? yh) (zero? yf))
-		  (lp (fix:1+ i) ans)
-		  (lp (fix:1+ i)
-		      (max (/ (magnitude (- yh yf))
-			      (+ (magnitude yh) (magnitude yf) 2.0))
-			   ans))))))))
-  vector-error)
+	    (summarize accumulation n)
+	    (lp (fix:1+ i)
+		(accumulate (each-component (vector-ref v1 i)
+					    (vector-ref v2 i)
+					    i)
+			    accumulation))))))
+  the-metric)
 
-(define (maxnorm-relabs-each tolerances)
-  (define (vector-error vh vf)
-    (let ((n (vector-length vh)))
-      (let lp ((i 0) (ans 0.0))
-	(if (fix:= i n)
-	    (* 2.0 ans)
-	    (let ((yh (vector-ref vh i))
-		  (yf (vector-ref vf i)))
-	      (if (and (zero? yh) (zero? yf))
-		  (lp (fix:1+ i) ans)
-		  (lp (fix:1+ i)
-		      (max (/ (magnitude (- yh yf))
-			      (+ (magnitude yh) (magnitude yf) 2.0)
-			      (vector-ref tolerances i))
-			   ans))))))))
-  vector-error)
+(define *norm-breakpoint* 1e-10)
 
-(define (maxnorm-relabs-scaled tolerance scales)
-  (define (vector-error vh vf)
-    (let ((n (vector-length vh)))
-      (let lp ((i 0) (ans 0.0))
-	(if (fix:= i n)
-	    (/ (* 2.0 ans) tolerance)
-	    (let ((yh (vector-ref vh i))
-		  (yf (vector-ref vf i)))
-	      (if (and (zero? yh) (zero? yf))
-		  (lp (fix:1+ i) ans)
-		  (lp (fix:1+ i)
-		      (max (/ (magnitude (- yh yf))
-			      (+ (magnitude yh) (magnitude yf)
-				 (* 2.0 (vector-ref scales i))))
-			   ans))))))))
-  vector-error)
+(define (lp-norm p #!optional tolerance breakpoints weights)
+  (if (default-object? tolerance)
+      (set! tolerance *machine-epsilon*))
+  (if (default-object? breakpoints)
+      (set! breakpoints (lambda (i) *norm-breakpoint*)))
+  (if (default-object? weights)
+      (set! weights (lambda (i) 1.0)))
+  (vector-metric (lambda (a n)
+		   (* (expt a (/ 1 p))
+		      (/ 2
+			 (* (n:sigma weights 0 (fix:- n 1))
+			    tolerance))))
+		 +
+		 (lambda (x y i)
+		   (* (expt (/ (magnitude (- x y))
+			       (+ (+ (magnitude x) (magnitude y))
+				  (* 2.0 (breakpoints i))))
+			    p)
+		      (weights i)))))
 
-(define (maxnorm-relabs-each-scaled tolerances scales)
-  (define (vector-error vh vf)
-    (let ((n (vector-length vh)))
-      (let lp ((i 0) (ans 0.0))
-	(if (fix:= i n)
-	    (* 2.0 ans)
-	    (let ((yh (vector-ref vh i))
-		  (yf (vector-ref vf i)))
-	      (if (and (zero? yh) (zero? yf))
-		  (lp (fix:1+ i) ans)
-		  (lp (fix:1+ i)
-		      (max (/ (magnitude (- yh yf))
-			      (+ (magnitude yh) (magnitude yf)
-				 (* 2.0 (vector-ref scales i)))
-			      (vector-ref tolerances i))
-			   ans))))))))
-  vector-error)
+(define (max-norm #!optional tolerance breakpoints weights)
+  (if (default-object? tolerance)
+      (set! tolerance *machine-epsilon*))
+  (if (default-object? breakpoints)
+      (set! breakpoints (lambda (i) *norm-breakpoint*)))
+  (if (default-object? weights)
+      (set! weights (lambda (i) 1.0)))
+  (vector-metric (lambda (a n)
+		   (* a (/ 2 tolerance)))
+		 max
+		 (lambda (x y i)
+		   (* (/ (magnitude (- x y))
+			 (+ (+ (magnitude x) (magnitude y))
+			    (* 2.0 (breakpoints i))))
+		      (weights i)))))
 
 (define (parse-error-measure tolerance-specification #!optional multiplier)
   (if (default-object? multiplier) (set! multiplier 1.0))
   (cond ((number? tolerance-specification) ;uniform relative error -- scale = 1
-	 (maxnorm-relabs (* multiplier tolerance-specification)))
-	((vector? tolerance-specification) ;tolerance for each coord -- scale = 1
-	 (maxnorm-relabs-each
-	  (scalar*vector multiplier tolerance-specification)))
-	((and (pair? tolerance-specification)
-	      (number? (car tolerance-specification))
-	      (vector? (cdr tolerance-specification)))
-	 (maxnorm-relabs-scaled (* multiplier (car tolerance-specification))
-				(cdr tolerance-specification)))
-	((and (pair? tolerance-specification)
-	      (vector? (car tolerance-specification))
-	      (vector? (cdr tolerance-specification)))
-	 (maxnorm-relabs-scaled-each
-	  (scalar*vector multiplier (car tolerance-specification))
-	  (cdr tolerance-specification)))
+	 (max-norm (* multiplier tolerance-specification)))
 	((procedure? tolerance-specification) ;arbitrary user-supplied procedure
 	 tolerance-specification)
 	(else

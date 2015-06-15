@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Rational Forms constructed over polynomials
@@ -40,8 +43,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define pcf:= poly:=)
 (define pcf:+ poly:+)
 (define pcf:* poly:*)
+
+#|
+;;; Now set in pcf-fpf.scm to sparse stuff
 (define (pcf:gcd x y)
   ((poly/heuristic-gcd poly/gcd-memoized) x y))
+|#
+
 (define pcf:quotient poly:quotient)
 (define pcf:- poly:-)
 (define pcf:negate poly:negate)
@@ -256,6 +264,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   (make-rcf (rcf:denominator v/v*)
 	    (rcf:numerator v/v*)))
 
+(define (rcf:gcd u/u* v/v*)
+  (rcf:binary-operator u/u* v/v*
+    pcf:gcd
+    (lambda (u v v*)
+      (cond ((pcf:zero? u) v/v*)
+	    ((pcf:one? u) pcf:one)
+	    (else (pcf:gcd u v))))
+    (lambda (u u* v)
+      (cond ((pcf:zero? v) u/u*)
+	    ((pcf:one? v) pcf:one)
+	    (else (pcf:gcd u v))))
+    (lambda (u u* v v*)
+      (let ((d1 (pcf:gcd u v))
+	    (d2 (pcf:gcd u* v*)))
+	(make-rcf d1 d2)))))
+
 (define (rcf:binary-operator u/u* v/v* int*int int*rat rat*int rat*rat)
   (if (ratform? u/u*)
       (if (ratform? v/v*)
@@ -428,6 +452,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
     (invert   ,rcf:invert)
     (expt     ,rcf:expt)
     (square   ,rcf:square)
-    (gcd      ,pcf:gcd)))
+    (gcd      ,rcf:gcd)))
 
-(define rcf:operators-known (map car rcf:operator-table))
+(define rcf:operators-known
+  (map car rcf:operator-table))

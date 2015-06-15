@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;;                      Structures
@@ -173,6 +176,52 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		     ans)))))
 
 
+(define (s:map-chain proc s)
+  (define (walk s rev-chain)
+    (if (structure? s)
+	(s:generate (s:length s)
+		    (s:same s)
+		    (lambda (i)
+		      (walk (s:ref s i)
+			    (cons i rev-chain))))
+	(proc s (reverse rev-chain))))
+  (walk s '()))
+
+#|
+(pe (s:map-chain (up 'a 'b 'c) cons))
+(up (a 0) (b 1) (c 2))
+
+(pe (s:map-chain (up 'a (down 'b 'c) 'd) cons))
+(up (a 0) (down (b 1 0) (c 1 1)) (d 2))
+|#
+
+;;; S:FRINGE recursively traverses a structure, making up a list of
+;;; the terminal elements.
+
+(define (s:fringe s)
+  (define (walk s ans)
+    (if (structure? s)
+	(let ((n (s:length s)))
+	  (let lp ((i 0) (ans ans))
+	    (if (fix:= i n)
+		ans
+		(lp (fix:+ i 1)
+		    (walk (s:ref s i) ans)))))
+	(cons s ans)))
+  (walk s '()))
+
+(define (s:foreach proc s)
+  (define (walk s)
+    (if (structure? s)
+	(let ((n (s:length s)))
+	  (let lp ((i 0))
+	    (if (fix:= i n)
+		'done
+		(begin (walk (s:ref s i))
+		       (lp (fix:+ i 1))))))
+	(proc s)))
+  (walk s))
+
 ;;; The following mappers only make sense if, when there is more than
 ;;; one structure they are all isomorphic.
 
@@ -190,6 +239,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   (s:map/l proc structures))
 
 (define (s:map/l proc structures)
+  (if (structure? (car structures))
+      (s:generate (s:length (car structures))
+		  (s:same (car structures))
+		  (lambda (i)
+		    (apply proc
+			   (map (lambda (s)
+				  (s:ref s i))
+				structures))))
+      (apply proc structures)))
+
+#|
+(define (s:map/l proc structures)
   (s:generate (s:length (car structures))
 	      (s:same (car structures))
 	      (lambda (i)
@@ -197,26 +258,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		       (map (lambda (s)
 			      (s:ref s i))
 			    structures)))))
+|#
 
 (define ((s:elementwise proc) . structures)
   (s:map/l proc structures))
 
 (define structure:elementwise s:elementwise)
-
-;;; S:FRINGE recursively traverses a structure, making up a list of
-;;; the terminal elements.
-
-(define (s:fringe s)
-  (define (walk s ans)
-    (if (structure? s)
-	(let ((n (s:length s)))
-	  (let lp ((i 0) (ans ans))
-	    (if (fix:= i n)
-		ans
-		(lp (fix:+ i 1)
-		    (walk (s:ref s i) ans)))))
-	(cons s ans)))
-  (walk s '()))
 
 (define (s:arity v) (v:arity (s:->vector v)))
 

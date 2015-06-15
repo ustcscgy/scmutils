@@ -23,11 +23,69 @@ USA.
 
 |#
 
-(load "lag" generic-environment)
+;;;(load "lag" generic-environment)
 
-(load "constants" scmutils-base-environment)
+(load "../units/constants" generic-environment)
+
+
+;;; Chapter 1
+
+(load "universal" generic-environment)
+
+(load "Lagrangian" generic-environment)
+
+(load "action" generic-environment)
+
+(load "Lagrangian-evolution" generic-environment)
+
+(load "gamma-bar" generic-environment)
+
+(load "Lagrangian-transformations" generic-environment)
+
+(load "Noether" generic-environment)
+
+
+;;; Chapter 2
+
+(load "rigid" generic-environment)
+
+
+;;; Chapter 3
+
+(load "Hamiltonian" generic-environment)
+
+(load "Routhian" generic-environment)
+
+(load "Hamiltonian-evolution" generic-environment)
+
+(load "sections" scmutils-base-environment)
+
+
+;;; Chapter 4
+
+(load "qualitative" generic-environment)
+
+
+;;; Chapter 5
+
+(load "point-transformation" generic-environment)
+
+(load "canonical" generic-environment)
+
+(load "symplectic" generic-environment)
+
+(load "dual" generic-environment)
+
+(load "time-varying" generic-environment)
+
+(load "generating-functions" generic-environment)
+
+(load "time-evolution" generic-environment)
+
+(load "Lie-transform" generic-environment)
+
+
+;;; Chapter 6
 
 (load "pendulum" generic-environment)
-(load "dpend" generic-environment)
 
-;(load "poincare-birkhoff" generic-environment)

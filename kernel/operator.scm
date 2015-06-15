@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Operators
@@ -100,6 +103,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (operator-merge-subtypes op1 op2)
    (operator-merge-arities op1 op2)))
 
+#|
 (define (o:o+f op f)
   (make-operator
    (lambda (g)
@@ -113,6 +117,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
      (g:+ (g:* f g) (op g)))
    `(+ ,f ,(operator-name op))
    (operator-subtype op)))
+|#
+
+(define (o:o+f op f)
+  (make-operator
+   (lambda (g)
+     (g:+ (op g) (g:compose f g)))
+   `(+ ,(operator-name op) ,f)
+   (operator-subtype op)))
+
+(define (o:f+o f op)
+  (make-operator
+   (lambda (g)
+     (g:+ (g:compose f g) (op g)))
+   `(+ ,f ,(operator-name op))
+   (operator-subtype op)))
 
 
 (define (o:- op1 op2)
@@ -124,6 +143,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
    (operator-merge-subtypes op1 op2)
    (operator-merge-arities op1 op2)))
 
+#|
 (define (o:o-f op f)
   (make-operator
    (lambda (g)
@@ -137,6 +157,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
      (g:- (g:* f g) (op g)))
    `(- ,f ,(operator-name op))
    (operator-subtype op)))
+|#
+
+(define (o:o-f op f)
+  (make-operator
+   (lambda (g)
+     (g:- (op g) (g:compose f g)))
+   `(- ,(operator-name op) ,f)
+   (operator-subtype op)))
+
+(define (o:f-o f op)
+  (make-operator
+   (lambda (g)
+     (g:- (g:compose f g) (op g)))
+   `(- ,f ,(operator-name op))
+   (operator-subtype op)))
+
 
 (define (o:negate op)
   (make-operator

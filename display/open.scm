@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Graphics Windows
@@ -236,6 +239,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 		      (exact->inexact y1)))
 
 (define (plot-function window f x0 x1 dx)
+  (if *gnuplotting* (newline *gnuplotting*))
   (let loop ((x x0) (fx (f x0)))
     (if *gnuplotting*
 	(begin (newline *gnuplotting*)
@@ -249,6 +253,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	    (loop nx nfx))))))
 
 (define (plot-inverse window f y0 y1 dy)
+  (if *gnuplotting* (newline *gnuplotting*))
   (let loop ((y y0) (fy (f y0)))
     (if *gnuplotting*
         (begin (newline *gnuplotting*)
@@ -262,6 +267,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
             (loop ny nfy))))))
 
 (define (plot-parametric win f a b dx)
+  (if *gnuplotting* (newline *gnuplotting*))
   (let loop ((x a))
     (let ((fx (f x)))
       (plot-point win (car fx) (cdr fx))
@@ -269,6 +275,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 #|
 (define (plot-parametric-fill win f a b near?)
+  (if *gnuplotting* (newline *gnuplotting*))
   (let loop ((a a) (xa (f a)) (b b) (xb (f b)))
     (let ((m (/ (+ a b) 2)))
       (let ((xm (f m)))
@@ -279,6 +286,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 |#
 
 (define (plot-parametric-fill win f a b near?)
+  (if *gnuplotting* (newline *gnuplotting*))
   (let loop ((a a) (xa (f a)) (b b) (xb (f b)))
     (if (not (close-enuf? a b
 			  (* *allowable-roundoffs*
@@ -294,6 +302,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define *allowable-roundoffs* 10)
 
 (define (plot-fun win f a b eps)
+  (if *gnuplotting* (newline *gnuplotting*))
   (plot-parametric-fill 
    win
    (lambda (x) (cons x (f x)))
@@ -353,12 +362,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 ;;; For gjs
 
-(define plotting-window)
+(define plotting-window #f)
 
 (define (plot-xy window xs ys)
-  (if (or (eq? window 'new) (eq? window #t))
-      (set! window (make-display-frame 0.0 1.0 0.0 1.0)))
-  (set! plotting-window window)
+  (if *gnuplotting* (newline *gnuplotting*))
+  (cond ((or (eq? window 'new) (eq? window #t))
+	 (set! plotting-window
+	       (make-display-frame 0.0 1.0 0.0 1.0)))
+	((or (eq? window 'old) (eq? window 'clear) (eq? window #f))
+	 'done)
+	((eq? window plotting-window)
+	 'done)
+	(else
+	 (if (graphics-device? plotting-window)
+	     (graphics-close plotting-window))
+	 (set! plotting-window window)))
+  (if (not (graphics-device? plotting-window))
+      (error "Plotting window is not initialized"))
+  (if (eq? window 'clear)
+      (graphics-clear plotting-window))
+
   (if (vector? xs) (set! xs (vector->list xs)))
   (if (vector? ys) (set! ys (vector->list ys)))
   (let ((minx (apply min xs))
@@ -391,18 +414,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 |#
 
 (define (plot-f window f)
-  (if (not (eq? window #f))
-      (set! plotting-window window))
+  (if *gnuplotting* (newline *gnuplotting*))
+  (cond ((or (eq? window 'new) (eq? window #t))
+	 (set! plotting-window
+	       (make-display-frame 0.0 1.0 0.0 1.0)))
+	((or (eq? window 'old) (eq? window 'clear) (eq? window #f))
+	 'done)
+	((eq? window plotting-window)
+	 'done)
+	(else
+	 (if (graphics-device? plotting-window)
+	     (graphics-close plotting-window))
+	 (set! plotting-window window)))
+  (if (not (graphics-device? plotting-window))
+      (error "Plotting window is not initialized"))
+  (if (eq? window 'clear)
+      (graphics-clear plotting-window))
+
   (call-with-values
       (lambda ()
-	(graphics-device-coordinate-limits window))
+	(graphics-device-coordinate-limits plotting-window))
     (lambda (left bottom right top)
       (let ((numx (- right left)))
 	(call-with-values
 	    (lambda ()
-	      (graphics-coordinate-limits window))
+	      (graphics-coordinate-limits plotting-window))
 	  (lambda (x0 y0 x1 y1)
-	    (plot-function window
+	    (plot-function plotting-window
 			   f
 			   x0
 			   x1

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Sparse linear equation solver
@@ -98,26 +101,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 				       substitution))))
 				  substitutions)))))))))
 
-#|
-(define (seq:isolate-one-var equation)
-  (if (seq:no-terms? (seq:equation->terms equation))
-      (if (zero? (seq:equation->constant equation))
-	  'tautology
-	  'contradiction)
-      ;; Here we choose a pivot.  CAR is not the best pivot...
-      (let ((pivot-term (car (seq:equation->terms equation))))
-	(let ((pivot-coefficient (- (seq:term->coefficient pivot-term))))
-	  (seq:make-substitution
-	   (seq:term->identifier pivot-term)
-	   (seq:make-equation
-	    (map (lambda (term)
-		   (seq:make-term (seq:term->identifier term)
-				  (/ (seq:term->coefficient term)
-				     pivot-coefficient)))
-		 (cdr (seq:equation->terms equation)))
-	    (/ (seq:equation->constant equation)
-	       pivot-coefficient)))))))
-|#
 
 (define (seq:isolate-one-var equation)
   (if (seq:no-terms? (seq:equation->terms equation))

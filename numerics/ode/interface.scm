@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; State advancer for parametric system derivatives with
@@ -61,25 +64,54 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   advance-state)
 
 (define *default-advancer-tolerance* 1e-12)
-
-
+
 (define (make-parametric-flat-sysder parametric-sysder params fstate flatten unflatten)
 
   (define ((parametric-flat-sysder params) fstate)
     (flatten ((apply parametric-sysder params) (unflatten fstate))))
 
-  (let ((compiled-parametric-flat-sysder
+  (cond ((gear? *ode-integration-method*)
+	 ;; produce f&df
 	 (if *compiling-sysder?
-	     (compile-parametric-memoized
-	      parametric-sysder 	;for memoizer
-	      parametric-flat-sysder    ;to be compiled
-	      params
-	      fstate)
-	     parametric-flat-sysder)))
-    compiled-parametric-flat-sysder))
+	     (let* ((cpfs
+		     (compile-parametric-memoized parametric-sysder	    
+						  parametric-flat-sysder 
+						  params
+						  fstate))
+		    (parametric-flat-jacobian
+		     (lambda (params)
+		       (lambda (fstate)
+			 (s->m (compatible-shape fstate)
+			       ((g:derivative (parametric-flat-sysder params)) fstate)
+			       fstate))))
+		    (cpfj
+		     (compile-parametric-memoized cpfs
+						  parametric-flat-jacobian 
+						  params
+						  fstate)))
+	       
+	       (lambda (params)
+		 (let ((f (cpfs params)) (df (cpfj params)))
+		   (lambda (fstate cont)
+		     (cont (f fstate) (df fstate))))))
+	     (let ((cs (compatible-shape fstate)))
+	       (lambda (params)
+		 (let ((f (parametric-flat-sysder params))
+		       (df (g:derivative (parametric-flat-sysder params))))
+		   (lambda (fstate cont)
+		     (cont (f fstate) (s->m cs (df fstate) fstate))))))))
+	(*compiling-sysder?
+	 ;; produce compiled flat sysder
+	 (compile-parametric-memoized
+	  parametric-sysder		;for memoizer
+	  parametric-flat-sysder	;to be compiled
+	  params
+	  fstate))
+	(else
+	 parametric-flat-sysder)))
 
 (define *compiling-sysder? #t)
-(define *max-compiled-sysder-table-size* 10)
+(define *max-compiled-sysder-table-size* 3)
 (define *compiled-sysder-table-size* 0)
 (define *compiled-sysder-table* '())
 

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Literal function descriptor language.
@@ -116,11 +119,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
       (list 'DOWN* type)
       (cons 'DOWN (make-list n type))))
 
+(define Any 'Any)
+
 (define (-> domain range)
   `(-> ,domain ,range))
 
-(define (default-function-type n)
+(define (default-function-type n #!optional type)
   (-> (X* Real n) Real))
+
+(define (permissive-function-type n)
+  (-> (X* Any n) Real))
 
 
 ;;; Some useful types
@@ -270,6 +278,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	    (error "Unknown type combinator" type-expression))))
 	((eq? type-expression Real)
 	 numerical-quantity?)
+	((eq? type-expression Any)
+	 any?)
 	(else
 	 (error "Unknown primitive type" type-expression))))
 
@@ -315,17 +325,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (define (f:domain-types f)
   (if (typed-or-abstract-function? f)
-      (second (apply-hook-extra f))
+      (cadr (apply-hook-extra f))
       #f))
 
 (define (f:range-type f)
   (if (typed-or-abstract-function? f)
-      (third (apply-hook-extra f))
+      (caddr (apply-hook-extra f))
       #f))
 
 (define (f:expression f)
   (if (typed-or-abstract-function? f)
-      (fourth (apply-hook-extra f))
+      (cadddr (apply-hook-extra f))
       #f))
 
 
@@ -356,8 +366,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 (define (litfun fexp arity range-type domain-types)
   (assert (exactly-n? arity)
 	  "I cannot handle this arity -- LITERAL-FUNCTION")
-  (assert (fix:= (length domain-types) (car arity))
-	  "Inconsistent arity -- LITERAL-FUNCTION")
   (let ((apply-hook (make-apply-hook #f #f)))
     (let ((litf
 	   (cond ((equal? arity *exactly-zero*)
@@ -442,22 +450,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 			    (s:fringe (make-partials apply-hook v))  
 			    (s:fringe dv))))))))
 
-(define (accumulate-tags v)
-  (cond ((structure? v)
-	 (let ((n (s:length v)))
-	   (let lp ((i 0) (ut '()))
-	     (if (fix:= i n)
-		 ut
-		 (lp (fix:+ i 1)
-		     (union-differential-tags
-		      ut
-		      (accumulate-tags (s:ref v i))))))))
-	((numerical-quantity? v)
-	 (differential-tags
-	  (car (last-pair (differential->terms v)))))
-	(else
-	 (error "Bad structure -- ACCUMULATE-TAGS" v))))
-
 (define (make-partials apply-hook v)
   (define (fd indices vv)
     (cond ((structure? vv)
@@ -488,3 +480,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	   (error "Bad structure -- MAKE-PARTIALS"
 		  indices vv))))
   (fd '() v))
+
+#|
+;;; Not used anywhere.
+
+(define (accumulate-tags v)
+  (cond ((structure? v)
+	 (let ((n (s:length v)))
+	   (let lp ((i 0) (ut '()))
+	     (if (fix:= i n)
+		 ut
+		 (lp (fix:+ i 1)
+		     (union-differential-tags
+		      ut
+		      (accumulate-tags (s:ref v i))))))))
+	((numerical-quantity? v)
+	 (differential-tags
+	  (car (last-pair (differential->terms v)))))
+	(else
+	 (error "Bad structure -- ACCUMULATE-TAGS" v))))
+|#

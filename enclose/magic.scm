@@ -1,205 +1,298 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
-(define (compile-and-run-sexp sexp #!optional environment declarations syntax-table)
-  (scode-eval (if (default-object? declarations)
-		  (compile-sexp sexp)
-		  (compile-sexp sexp declarations))
-	      (if (default-object? environment)
-		  scmutils-base-environment
-		  environment)))
-
-(define (compile-sexp sexp #!optional declarations syntax-table)
-  (let ((scode
-	 (syntax&integrate (text/cselim sexp)
-			   (if (default-object? declarations)
-			       '((USUAL-INTEGRATIONS))
-			       declarations)
-			   (if (default-object? syntax-table)
-			       system-global-syntax-table
-			       syntax-table))))
-    (if (or *do-not-compile*
-	    (lexical-unreferenceable? system-global-environment 'COMPILE-PROCEDURE))
-	scode
-	(let* ((compiler-package (->environment '(compiler top-level)))
-	       (compile-scode (access compile-scode compiler-package)))
-	  (fluid-let (((access compiler:show-procedures? compiler-package)
-		       false))
-	    (compile-scode scode))))))
-
-
-(define (compile-and-run-numerical sexp #!optional environment declarations syntax-table)
-  (scode-eval (if (default-object? declarations)
-		  (compile-sexp sexp)
-		  (compile-numerical sexp declarations))       
-	      (if (default-object? environment)
-		  scmutils-base-environment
-		  environment)))
-
-(define (compile-numerical sexp #!optional declarations syntax-table)
-  (let ((scode
-	 (syntax&integrate (text/cselim (flonumize sexp))
-			   (if (default-object? declarations)
-			       *numerical-integrations*
-			       declarations)
-			   (if (default-object? syntax-table)
-			       system-global-syntax-table
-			       syntax-table))))
-    (if (or *do-not-compile*
-	    (lexical-unreferenceable? system-global-environment 'COMPILE-PROCEDURE))
-	scode
-	(let* ((compiler-package (->environment '(compiler top-level)))
-	       (compile-scode (access compile-scode compiler-package)))
-	  (fluid-let (((access compiler:show-procedures? compiler-package)
-		       false))
-	    (compile-scode scode))))))
-
-(define (compile-generic->numerical generic-procedure #!optional simplify)
-  (define (walk object)
-    (cond ((pair? object)
-	   (cons (walk (car object)) (walk (cdr object))))
-	  ((primitive-procedure? object)
-	   (primitive-procedure-name object))
-	  (else object)))
-  (let ((sexp (walk (unsyntax (procedure-lambda generic-procedure)))))
-    (scode-eval (compile-numerical
-		 (if (default-object? simplify)
-		     sexp
-		     (simplify sexp)))
-		numerical-environment)))
-
-(define *numerical-integrations*
-  '((integrate-external "/usr/local/lib/mit-scheme/floint")))
-
-(define *do-not-compile* false)
-
-(define (flonumize exp)
-  (cond ((list? exp)
-	 (if (symbol? (car exp))
-	     (case (car exp)
-	       ((declare access quote) exp)
-	       ((define define-integrable)
-		`(,(car exp) ,(cadr exp) ,@(flonumize (cddr exp))))
-	       ((lambda named-lambda)
-		`(,(car exp) ,(cadr exp) ,@(map flonumize (cddr exp))))
-	       ((let let* fluid-let)
-		(if (symbol? (cadr exp))
-		    `(,(car exp) ,(cadr exp)
-				 ,(map (lambda (b)
-					 (cons (car b)
-					       (if (null? (cdr b))
-						   '()
-						   (list (flonumize (cadr b))))))
-				       (caddr exp))
-				 ,@(map flonumize (cdddr exp)))    
-		    `(,(car exp)
-		      ,(map (lambda (b)
-			      (cons (car b)
-				    (if (null? (cdr b))
-					'()
-					(list (flonumize (cadr b))))))
-			    (cadr exp))
-		      ,@(map flonumize (cddr exp)))))
-	       ((vector-ref list-ref matrix-ref) exp)
-	       ((make-vector)
-		`(make-vector ,(cadr exp) ,(flonumize (caddr exp))))
-	       ((vector-set!)
-		`(vector-set! ,(cadr exp)
-			      ,(caddr exp)
-			      ,(flonumize (cadddr exp))))
-	       ((matrix-set!)
-		`(matrix-set! ,(cadr exp)
-			      ,(caddr exp)
-			      ,(cadddr exp)
-			      ,(flonumize (list-ref exp 4))))
-	       ((set!)
-		`(set! ,(cadr exp) ,(flonumize (caddr exp))))
-	       ((expt)
-		(let ((base (flonumize (cadr exp)))
-		      (e (caddr exp)))
-		  (if (and (integer? e) (exact? e))
-		      (case e
-			((2) `(* ,base ,base))
-			((3) `(* ,base ,base ,base))
-			((4) `(* ,base ,base ,base ,base))
-			(else `(expt ,base ,e))))))
-	       (else
-		(if (string-prefix? "fix:" (symbol->string (car exp)))
-		    exp
-		    (cons (car exp)
-			  (map flonumize (cdr exp))))))
-	     (map flonumize exp)))
-	((number? exp) (exact->inexact exp))
-	((vector? exp) ((vector-elementwise flonumize) exp))
-	(else exp)))
-
-#|
-(define *numerical-integrations*
-  '((usual-integrations + - * / < > = zero? positive? negative?
-			sqrt abs exp sin cos #| atan |#)
-    (reduce-operator
-     (+ flo:+ (null-value 0. none) (group left))
-     (- flo:- (null-value 0. single) (group left))
-     (* flo:* (null-value 1. none) (group left))
-     (/ flo:/ (null-value 1. single) (group left)))
-    (integrate-primitive-procedures
-     (< flonum-less?)
-     (> flonum-greater?)
-     (= flonum-equal?)
-     (zero? flonum-zero?)
-     (positive? flonum-positive?)
-     (negative? flonum-negative?)
-     (sqrt flonum-sqrt)
-     (abs flonum-abs)
-     (exp flonum-exp)
-     (sin flonum-sin)
-     (cos flonum-cos)
-     #|(atan flonum-atan 1)		;
-     (atan flonum-atan2 2)|#)))
-|#
-
-#|
-Date: Thu, 30 Aug 90 07:06:55 edt
-From: "Guillermo J. Rozas" <jinx@altdorf.ai.mit.edu>
-Return-Path: <jinx@altdorf.ai.mit.edu>
-To: hal@altdorf.ai.mit.edu, gjs@altdorf.ai.mit.edu, wisdom@altdorf.ai.mit.edu
-Subject: Floating arithmetic
-Reply-To: jinx@zurich.ai.mit.edu
-
-To change the default arithmetic to floating point in a file,
-use
-
-(declare (usual-integrations + - * /)
-	 (reduce-operator
-	  (+ flo:+ (null-value 0. none) (group left))
-	  (- flo:- (null-value 0. single) (group left))
-	  (* flo:* (null-value 1. none) (group left))
-	  (/ flo:/ (null-value 1. single) (group left))))
-
-instead of 
+;;;; Magic interface to Scheme compiler, CPH & GJS
 
 (declare (usual-integrations))
 
-You may need to add similar constructs for =, >, etc., and other
-declarations for the irrational functions.
 
+
+(define (compile-and-run-numerical sexp #!optional environment declarations keep?)
+  (if (default-object? environment) (set! environment scmutils-base-environment))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep?) (set! keep? 'keep))
+  (scode-eval (compile-numerical sexp environment declarations keep?) environment))
+
+(define (compile-numerical sexp #!optional environment declarations keep?)
+  (if (default-object? environment) (set! environment scmutils-base-environment))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep?) (set! keep? 'keep))
+  (compile-sexp ((compose generic->floating flonumize) sexp)
+		environment
+		declarations
+		keep?))
+
+(define (compile-and-run-sexp sexp #!optional environment declarations keep?)
+  (if (default-object? environment) (set! environment scmutils-base-environment))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep?) (set! keep? 'keep))
+  (scode-eval (compile-sexp sexp environment declarations keep?) environment))
+
+(define (compile-sexp sexp #!optional environment declarations keep?)
+  (if (default-object? environment) (set! environment scmutils-base-environment))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep?) (set! keep? 'keep))
+  (compile-expression (text/cselim sexp) environment declarations keep?))
+
+
+
+;;; This takes a closed procedure and makes a faster one
+
+(define (compile-procedure procedure #!optional declarations keep-debugging-info?)
+  (if (not (procedure? procedure))
+      (error:wrong-type-argument procedure "procedure" 'compile-procedure))
+  (if (default-object? declarations) (set! declarations '((usual-integrations))))
+  (if (default-object? keep-debugging-info?) (set! keep-debugging-info? 'keep))
+  (if (compound-procedure? procedure)
+      (compiler-output->procedure
+       (compile-procedure-text (procedure-lambda procedure)
+			       declarations
+			       keep-debugging-info?)			       
+       (procedure-environment procedure))
+      procedure))
+
+;;; Imports from the Scheme compiler subsystem
+
+(define integrate/sexp
+  (access integrate/sexp (->environment '(scode-optimizer top-level))))
+
+(define integrate/scode
+  (access integrate/scode (->environment '(scode-optimizer top-level))))
+
+(define compiler-output->procedure
+  (access compiler-output->procedure (->environment '(compiler top-level))))
+
+(define compile-scode/no-file
+  (access compile-scode/no-file (->environment '(compiler top-level))))
+
+(define scode-variable?
+  (access variable? system-global-environment))
+
+(define scode-variable-name
+  (access variable-name system-global-environment))
+
+(define make-scode-variable
+  (access make-variable system-global-environment))
+
+(define scode-combination-operator
+  (access combination-operator system-global-environment))
+
+(define scode-combination-operands
+  (access combination-operands system-global-environment))
+
+(define make-scode-combination
+  (access make-combination system-global-environment))
+
+
+;;; Interface procedures to the Scheme compiler
+
+;;; This compiles an s-expression to something that can be evaluated with scode-eval
+
+(define (compile-expression s-expression environment declarations keep-debugging-info?)
+  (fluid-let ((sf:noisy? #f))
+    (compile-scode/no-file
+     (integrate/sexp s-expression environment declarations #f)
+     (and keep-debugging-info? 'KEEP))))
+
+
+;;; This compiles a procedure text
+
+(define (compile-procedure-text procedure-text declarations keep-debugging-info?)
+  (fluid-let ((sf:noisy? #f))
+    (compile-scode/no-file
+     (integrate/scode (make-declaration declarations procedure-text) #f)
+     (and keep-debugging-info? 'KEEP))))
+
+
+(define (named-combination-transformer do-leaf do-named-combination)
+  (letrec
+      ((do-expr
+	(lambda (expr)
+	  ((scode-walk scode-walker expr) expr)))
+       (scode-walker
+	(make-scode-walker
+	 do-leaf
+	 `((assignment
+	    ,(lambda (expr)
+	       (make-assignment (assignment-name expr)
+				(do-expr (assignment-value expr)))))
+	   (combination
+	    ,(lambda (expr)
+	       (if (scode-variable? (scode-combination-operator expr))
+		   (do-named-combination expr)
+		   (make-scode-combination (do-expr (scode-combination-operator expr))
+					   (map do-expr
+						(scode-combination-operands expr))))))
+	   (comment
+	    ,(lambda (expr)
+	       (make-comment (comment-text expr)
+			     (do-expr (comment-expression expr)))))
+	   (conditional
+	    ,(lambda (expr)
+	       (make-conditional (do-expr (conditional-predicate expr))
+				 (do-expr (conditional-consequent expr))
+				 (do-expr (conditional-alternative expr)))))
+	   (delay
+	    ,(lambda (expr)
+	       (make-delay (do-expr (delay-expression expr)))))
+	   (disjunction
+	    ,(lambda (expr)
+	       (make-disjunction (do-expr (disjunction-predicate expr))
+				 (do-expr (disjunction-alternative expr)))))
+	   (definition
+	    ,(lambda (expr)
+	       (make-definition (definition-name expr)
+				(do-expr (definition-value expr)))))
+	   (lambda
+	    ,(lambda (expr)
+	       (lambda-components expr
+		 (lambda (name required optional rest auxiliary decls body)
+		   (make-lambda name required optional rest auxiliary decls
+				(do-expr body))))))
+	   (sequence
+	    ,(lambda (expr)
+	       (make-sequence (map do-expr (sequence-actions expr)))))))))
+    do-expr))
+
+(define flonumize
+  (named-combination-transformer
+   (lambda (expr)
+     (if (and (number? expr)
+	      (real? expr)
+	      (exact? expr))
+	 (exact->inexact expr)
+	 expr))
+   (lambda (expr)
+     (let ((operator (scode-combination-operator expr))
+	   (operands (scode-combination-operands expr)))
+       (let ((operator-name (scode-variable-name operator)))
+	 (case operator-name
+	   ((make-vector make-initialized-vector v:generate vector:generate
+	     make-list make-initialized-list
+	     s:generate)
+	    (make-scode-combination operator
+				    (cons (car operands)
+					  (map flonumize (cdr operands)))))
+	   ((vector-ref vector-set! list-ref s:ref s:with-substituted-coord)
+	    (make-scode-combination operator
+				    (cons* (flonumize (car operands))
+					   (cadr operands)
+					   (map flonumize (cddr operands)))))
+	   ((matrix-ref matrix-set!)
+	    (make-scode-combination operator
+				    (cons* (flonumize (car operands)) 
+					   (cadr operands)
+					   (caddr operands)
+					   (map flonumize (cdddr operands)))))
+	   ((m:minor m:submatrix)
+	    (make-scode-combination operator
+				    (cons* (flonumize (car operands))
+					   (cdr operands))))
+	   ((v:make-zero v:make-basis-unit
+	     m:make-zero m:make-identity
+	     exact->inexact)
+	    expr)
+	   ((expt)
+	    (let ((base (flonumize (car expr)))
+		  (e (cadr expr)))
+	      (if (exact-integer? e)
+		  (cond ((= e 0)
+			 1.)
+			((= e 1)
+			 base)
+			((<= 2 e 4)
+			 (make-scode-combination (make-scode-variable '*)
+						 (make-list base e)))
+			(else
+			 (make-scode-combination operator (list base e))))
+		  (make-scode-combination operator (list base (flonumize e))))))
+	   (else
+	    (if (string-prefix? "fix:" (symbol->string operator-name))
+		expr
+		(make-scode-combination operator (map flonumize operands))))))))))
+
+(define generic->floating
+  (let ()
+    (define (make-flo-bin op)
+      (lambda (x y)
+	(make-scode-combination (make-scode-variable op)
+				(list x y))))
+    (let ((flo:+:bin (make-flo-bin 'flo:+))
+	  (flo:-:bin (make-flo-bin 'flo:-))
+	  (flo:*:bin (make-flo-bin 'flo:*))
+	  (flo:/:bin (make-flo-bin 'flo:/))
+	  (flo:-:una
+	   (lambda (x)
+	     (make-scode-combination (make-scode-variable 'flo:-)
+				     (list 0. y))))
+	  (flo:/:una
+	   (lambda (x)
+	     (make-scode-combination (make-scode-variable 'flo:/)
+				     (list 1. y)))))
+      (named-combination-transformer
+       (lambda (expr) expr)	     
+       (lambda (expr)
+	 (let ((operator (scode-combination-operator expr))
+	       (operands (scode-combination-operands expr)))
+	   (let ((operator-name (scode-variable-name operator)))
+	     (case operator-name
+	       ((+)
+		(apply (accumulation flo:+:bin 0.)
+		       (map generic->floating operands)))
+	       ((*)
+		(apply (accumulation flo:*:bin 1.)
+		       (map generic->floating operands)))
+	       ((-)
+		(apply (inverse-accumulation flo:-:bin flo:+:bin flo:-:una 0.)
+		       (map generic->floating operands)))
+	       ((/)
+		(apply (inverse-accumulation flo:/:bin flo:*:bin flo:/:una 1.)
+		       (map generic->floating operands)))
+	       ((sqrt exp abs cos sin tan)
+		(make-scode-combination
+		 (make-scode-variable
+		  (string->symbol
+		   (string-append "flo:"
+				  (symbol->string operator-name))))
+					(list (generic->floating (car operands)))))
+	       (else
+		(if (string-prefix? "fix:" (symbol->string operator-name))
+		    expr
+		    (make-scode-combination operator
+					    (map generic->floating operands))))))))))))
+
+
+#|
+(define ((test-transformer trans) expr)
+  (pp (trans (syntax expr scmutils-base-environment))))
+
+((test-transformer (compose generic->floating flonumize))
+ '(+ 1 (* 2 (tan 3) (sin a) (vector-ref b 5)) 6))
+(flo:+ (flo:+ 1.
+	      (flo:* (flo:* (flo:* 2. (flo:tan 3.))
+			    (flo:sin a))
+		     (vector-ref b 5)))
+       6.)
 |#

@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;; Numerical definite integration system interface.
@@ -52,16 +55,87 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 (declare (usual-integrations))
 
-;;; Sets the default for whether the integrand should be compiled.
+;;; Default compile integrand
 (define *compile-integrand? #t)
-
-;;; Caches the last compiled function, to avoid recompiling.
-(define memoized-compiler
-  (linear-memoize-1arg generic-procedure->numerical-procedure 10 weak-find-eq?))
 
 ;;; Default error specification
 (define *definite-integral-allowable-error* 1.0e-11)
 
+;;; Default ditherer off (see rational.scm)
+(set! *quadrature-neighborhood-width* #f)
+
+
+;;; Interface to quadrature.scm
+
+(define (definite-integral-with-tolerance f x1 x2 tolerance)
+  ((make-definite-integrator f x1 x2 tolerance)
+   'integral))
+
+
+;;; Assumes f is purely numerical, and no units on t1, t2
+
+(define (definite-integral-numerical f t1 t2 tolerance compile?)
+  (cond ((and (number? t1) (number? t2) (= t1 t2)) 0)
+	((not compile?)
+	 (definite-integral-with-tolerance f t1 t2 tolerance))
+	(else
+	 (definite-integral-with-tolerance (compile-procedure f)
+	   t1 t2 tolerance))))
+
+(define (definite-integral f t1 t2 #!optional tolerance compile?)
+  (if (default-object? tolerance)
+      (set! tolerance *definite-integral-allowable-error*))
+  (if (default-object? compile?)
+      (set! compile? *compile-integrand?))
+  (let ((fx (f (choose-interior-point t1 t2))))
+    (if (with-units? fx)		;Must extract numerical procedure
+	(let* ((input-value (generate-uninterned-symbol))
+	       (input-units (u:units t1))
+	       (input (with-units input-value input-units))
+	       (output (f input))
+	       (output-units (u:units output))
+	       (output-value (u:value output))
+	       (integral-units (*units output-units input-units))
+	       (lexp
+		(text/cselim
+		 `(lambda (,input-value)
+		    ,(*compiler-simplifier* output-value))))
+	       (nf (eval lexp scmutils-base-environment)))
+	  (with-units
+	      (definite-integral-numerical nf (u:value t1) (u:value t2)
+		tolerance compile?)
+	    integral-units))
+	(definite-integral-numerical f (u:value t1) (u:value t2)
+	  tolerance compile?))))
+
+(define (choose-interior-point x1 x2)
+  (assert (units:= x1 x2)
+	  "Limits of integration must have same units.")
+  (let ((u (u:units x1))
+	(t1 (u:value x1))
+	(t2 (u:value x2)))
+    (cond ((and (number? t1) (number? t2))
+	   (with-units (/ (+ t1 t2) 2.0) u))
+
+	  ((and (eq? t1 :-infinity) (number? t2))
+	   (with-units (- t2 1.0) u))
+	  ((and (number? t1) (eq? t2 :+infinity))
+	   (with-units (+ t1 1.0) u))
+
+	  ((and (eq? t1 :+infinity) (number? t2))
+	   (with-units (+ t2 1.0) u))
+	  ((and (number? t1) (eq? t2 :-infinity))
+	   (with-units (- t1 1.0) u))
+
+	  ((and (eq? t1 :-infinity) (eq? t2 :+infinity))
+	   (with-units 0 u))
+	  ((and (eq? t1 :+infinity) (eq? t2 :-infinity))
+	   (with-units 0 u))
+
+	  (else
+	   (error "No interior point: CHOOSE-INTERIOR-POINT")))))
+
+#|
 (define (definite-integral f t1 t2 #!optional epsilon compile?)
   (if (default-object? epsilon)
       (set! epsilon *definite-integral-allowable-error*))
@@ -72,10 +146,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 	 ((make-definite-integrator f t1 t2 epsilon)
 	  'integral))
 	(else
-	 ((make-definite-integrator (memoized-compiler f) t1 t2 epsilon)
+	 ((make-definite-integrator (compile-procedure f) t1 t2 epsilon)
 	  'integral))))
+|#
 
-(define (definite-integral-with-tol f x1 x2 tol)
-  ((make-definite-integrator (memoized-compiler f) x1 x2 tol) 'integral))
 
-(set! *quadrature-neighborhood-width* #f)
+
+

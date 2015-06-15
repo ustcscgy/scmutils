@@ -24,9 +24,29 @@ USA.
 |#
 
 (for-each cf-conditionally
-	  '("lag"
+	  '(
 	    "constants"
-	    ))
+	    "universal"
+	    "Lagrangian"
+	    "action"
+	    "Lagrangian-evolution"
+	    "gamma-bar"
+	    "Lagrangian-transformations"
+	    "Noether"
+	    "rigid"
+	    "Hamiltonian"
+	    "Routhian"
+	    "Hamiltonian-evolution"
+	    "sections"
+	    "qualitative"
+	    "point-transformation"
+	    "canonical"
+	    "symplectic"
+	    "dual"
+	    "time-varying"
+	    "generating-functions"
+	    "time-evolution"
+	    "Lie-transform"
 
-(cf-conditionally "pendulum")
-(cf-conditionally "dpend")
+	    "pendulum"
+	    ))
