@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -137,6 +137,29 @@ USA.
   (if (and (number? x) (number? y)) (= x y) (generic:= x y)))
 
 
+(define generic:< (make-generic-operator 2 '< (lambda (x y) #f)))
+
+(define (g:<:bin x y)
+  (if (and (number? x) (number? y)) (< x y) (generic:< x y)))
+ 
+
+(define generic:<= (make-generic-operator 2 '<= (lambda (x y) #f)))
+
+(define (g:<=:bin x y)
+  (if (and (number? x) (number? y)) (<= x y) (generic:<= x y)))
+
+
+(define generic:> (make-generic-operator 2 '> (lambda (x y) #f)))
+
+(define (g:>:bin x y)
+  (if (and (number? x) (number? y)) (> x y) (generic:> x y)))
+
+
+(define generic:>= (make-generic-operator 2 '>= (lambda (x y) #f)))
+
+(define (g:>=:bin x y)
+  (if (and (number? x) (number? y)) (>= x y) (generic:>= x y)))
+
 (define generic:+ (make-generic-operator 2 '+))
 
 (define (g:+:bin x y)
@@ -241,9 +264,11 @@ USA.
 		(literal-function f
 		  (permissive-function-type (length args)))
 		args))
+	      #|
 	      ((eq? f second)
 	       (apply (access second system-global-environment)
 		      args))
+	      |#
 	      (else
 	       (generic:apply f args))))))
 
@@ -273,6 +298,71 @@ USA.
 		   (and ans (g:=:bin larg (car args)))))))))
 
 
+(define (g:< . args)
+  (g:<:n args))
+
+(define (g:<:n args)
+  (cond ((null? args) #t)
+	((null? (cdr args)) #t)
+	(else
+	 (let lp ((args (cddr args))
+		  (larg (cadr args))
+		  (ans (g:<:bin (car args) (cadr args))))
+	   (if (null? args)
+	       ans
+	       (lp (cdr args)
+		   (car args)
+		   (and ans (g:<:bin larg (car args)))))))))
+
+(define (g:<= . args)
+  (g:<=:n args))
+
+(define (g:<=:n args)
+  (cond ((null? args) #t)
+	((null? (cdr args)) #t)
+	(else
+	 (let lp ((args (cddr args))
+		  (larg (cadr args))
+		  (ans (g:<=:bin (car args) (cadr args))))
+	   (if (null? args)
+	       ans
+	       (lp (cdr args)
+		   (car args)
+		   (and ans (g:<=:bin larg (car args)))))))))
+
+(define (g:> . args)
+  (g:>:n args))
+
+(define (g:>:n args)
+  (cond ((null? args) #t)
+	((null? (cdr args)) #t)
+	(else
+	 (let lp ((args (cddr args))
+		  (larg (cadr args))
+		  (ans (g:>:bin (car args) (cadr args))))
+	   (if (null? args)
+	       ans
+	       (lp (cdr args)
+		   (car args)
+		   (and ans (g:>:bin larg (car args)))))))))
+
+
+(define (g:>= . args)
+  (g:>=:n args))
+
+(define (g:>=:n args)
+  (cond ((null? args) #t)
+	((null? (cdr args)) #t)
+	(else
+	 (let lp ((args (cddr args))
+		  (larg (cadr args))
+		  (ans (g:>=:bin (car args) (cadr args))))
+	   (if (null? args)
+	       ans
+	       (lp (cdr args)
+		   (car args)
+		   (and ans (g:>=:bin larg (car args)))))))))
+
 (define (g:+ . args)
   (g:+:n args))
 
@@ -300,7 +390,7 @@ USA.
 	       ans
 	       (lp (cdr args)
 		   (g:*:bin ans (car args))))))))
-
+
 (define (g:- . args)
   (g:-:n args))
 
@@ -320,8 +410,7 @@ USA.
 	(else
 	 (g:/:bin (car args)
 		  (g:*:n (cdr args))))))
-
-
+
 (define (g:gcd . args)
   (g:gcd:n args))
 

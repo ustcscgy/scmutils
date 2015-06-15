@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -213,6 +213,14 @@ USA.
 	   (operator-arity op)
 	   (operator-optionals op)))
 
+(define (o:o/n op n)
+  (make-op (lambda gs
+	     (g:* (/ 1 n) (apply op gs)))
+	   `(/ ,(operator-name op) ,n)
+	   (operator-subtype op)
+	   (operator-arity op)
+	   (operator-optionals op)))
+
 (define (o:expt op n)
   (assert (equal? (operator-arity op) *exactly-one*) "o:expt")
   (make-op (iterated op n o:identity)
@@ -297,6 +305,7 @@ USA.
 (assign-operation '*          o:*               operator? operator?)
 (assign-operation '*          o:o*f             operator? not-operator?) 
 (assign-operation '*          o:f*o             not-operator? operator?)
+(assign-operation '/          o:o/n             operator? numerical-quantity?)
 
 (assign-operation 'negate     o:negate          operator?)
 (assign-operation 'expt       o:expt            operator? exact-integer?)

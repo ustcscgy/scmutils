@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -143,6 +143,9 @@ USA.
 (assign-operation '*                  (f:binary g:*)             cofunction? function?)
 (assign-operation '/                  (f:binary g:/)             function? cofunction?)
 (assign-operation '/                  (f:binary g:/)             cofunction? function?)
+
+(assign-operation 'dot-product        (f:binary g:dot-product)   function? cofunction?)
+(assign-operation 'dot-product        (f:binary g:dot-product)   cofunction? function?)
 
 (assign-operation 'expt               (f:binary g:expt)          function? cofunction?)
 (assign-operation 'expt               (f:binary g:expt)          cofunction? function?)

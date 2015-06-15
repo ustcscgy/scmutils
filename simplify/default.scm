@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -54,11 +54,10 @@ USA.
 (define g:simplify
   (make-generic-operator 1 'simplify default-simplify))
 
-
+#|
 (define (simplify-undefined expr) '*undefined-value*)
-
 (assign-operation 'simplify simplify-undefined undefined-value?)
-
+|#
 
 ;;; There are no simplifiers yet for compound abstract types.
 ;(assign-operation 'simplify expression abstract-vector?)
@@ -80,16 +79,24 @@ USA.
 
 
 ;;; Here we have notrivial simplification
+#|
 (define (simplify-with-units num)
   (let ((value (g:* (unit-scale (u:units num)) (u:value num)))
 	(vect (unit-exponents (u:units num)))
 	(system (environment-lookup scmutils-base-environment
 				    (unit-system (u:units num)))))
-    (list *unit-constructor*
-	  (g:simplify value)
-	  (exponent-vector->unit-expression system vect))))
+    (make-unit-description (g:simplify value) vect system)))
 
 (assign-operation 'simplify simplify-with-units with-units?)
+|#
+
+(define (simplify-units num)
+  (let ((system (environment-lookup scmutils-base-environment
+				    (unit-system (u:units num)))))
+    (with-units->expression system num)))
+
+(assign-operation 'simplify simplify-units with-units?)
+(assign-operation 'simplify simplify-units units?)
 
 ;;; This must be the first handler (last in generic table) 
 ;;; that triggers on PROCEDURE? because it is default for 

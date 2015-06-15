@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -25,11 +25,16 @@ USA.
 |#
 
 ;;; A metric induces a torsion-free connection			       
+
+;;; We reserve *Christoffel* and Christoffel? for Christoffel type 2
+
+(define (make-Christoffel-1 symbols basis)
+  (list '*Christoffel-1* symbols basis))
 	       
 (define (metric->Christoffel-1 metric basis)
   (assert (coordinate-basis? basis))
   (let ((vector-basis (basis->vector-basis basis)))
-    (make-Christoffel
+    (make-Christoffel-1
      (s:map/r (lambda (e_k)
 		(s:map/r (lambda (e_j)
 			   (s:map/r (lambda (e_i)
@@ -226,7 +231,7 @@ USA.
 
 (define (literal-Christoffel-1 name coordsys)
   (let ((n (dimension coordsys)))
-    (make-Christoffel
+    (make-Christoffel-1
      (s:map/r (lambda (name)
 		(literal-manifold-function name coordsys))
 	      (literal-Christoffel-names name '(down down down) n))

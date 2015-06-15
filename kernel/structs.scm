@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -126,9 +126,11 @@ USA.
 (define (down . args)
   (vector->row (list->vector args)))
 
-
+#|
+;;; Defined in types.scm
 (define (up? v) (column? v))
 (define (down? v) (row? v))
+|#
 
 (define (s:opposite v)
   (cond ((column? v) 'down)
@@ -143,17 +145,27 @@ USA.
 	 (error "Bad structure -- S:SAME" v))))
 
 (define (s:length v)
-  (vector-length (s:->vector v)))
+  (if (structure? v)
+      (vector-length (s:->vector v))
+      1))
 
 
 (define (s:ref v i)
-  (vector-ref (s:->vector v) i))
+  (if (structure? v)
+      (vector-ref (s:->vector v) i)
+      (if (fix:= i 0)
+	  v
+	  (error "Bad structure -- S:REF" v i))))
 
 (define (s:with-substituted-coord v i xi)
-  (s:structure (s:same v)
-	       (vector-with-substituted-coord
-		(s:->vector v)
-		i xi)))
+  (if (structure? v)
+      (s:structure (s:same v)
+		   (vector-with-substituted-coord
+		    (s:->vector v)
+		    i xi))
+      (if (fix:= i 0)
+	  xi
+	  (error "Bad structure -- S:WITH-SUBSTITUTED-COORD" v i xi))))
 
 (define (s:subst struct newval . chain)
   (s:subst-internal struct newval chain))
@@ -805,6 +817,14 @@ USA.
 		(s:generate (m:num-cols mat) 'row
 			    (lambda (j)
 			      (matrix-ref mat i j))))))
+
+
+(define (submatrix s lowrow hirow+1 lowcol hicol+1)
+  (cond ((structure? s)
+	 (m:submatrix (structure->matrix s) lowrow hirow+1 lowcol hicol+1))
+	((matrix? s)
+	 (m:submatrix s lowrow hirow+1 lowcol hicol+1))
+	(else (error "Wrong type submatrix" s))))
 
 ;;; A few lonely tensor operations here -- this will expand later.
 

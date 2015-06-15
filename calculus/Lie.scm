@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -64,11 +64,13 @@ USA.
 		 k
 		 `((Lie-derivative ,(diffop-name X))
 		   ,(diffop-name Y)))))
+	     ((structure? Y)
+	      (s:map/r (Lie-derivative X) Y))
 	     (else
-	      (error "Bad input -- Lie-derivative"))))
+	      (error "Bad argument -- Lie-derivative"))))
 	  `(Lie-derivative ,X)))
 	(else
-	 (error "Bad input -- Lie-derivative"))))
+	 (error "Bad vector field -- Lie-derivative"))))
 
 #|
 (install-coordinates R3-rect (up 'x 'y 'z))

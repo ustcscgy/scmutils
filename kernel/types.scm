@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -154,8 +154,9 @@ USA.
        (eq? (car x) with-units-type-tag)))
 
 (define (units? x)
-  (and (pair? x)
-       (eq? (car x) unit-type-tag)))
+  (or (eq? x '&unitless)
+      (and (pair? x)
+	   (eq? (car x) unit-type-tag))))
 
 
 (define *number*
@@ -343,3 +344,13 @@ USA.
 	   (and (pair? x)
 		(or (compound-type-tag? (car x))
 		    (eq? (car x) differential-type-tag))))))
+
+(define (not-d-c-u? x)
+  (not (or (eq? x '&unitless)
+	   (vector? x)
+	   (and (pair? x)
+		(or (compound-type-tag? (car x))
+		    (eq? (car x) differential-type-tag)
+		    (eq? (car x) with-units-type-tag)
+		    (eq? (car x) unit-type-tag))))))
+

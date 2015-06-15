@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -24,35 +24,21 @@ USA.
 
 |#
 
+;;; Combining impedances -- simple stuff -- see MARTHA for more stuff
 
-#|
-;;; Metric can be obtained for an embedded manifold.  For example:
+(define (series z1 z2) (+ z1 z2))
 
-(define (((S2-metric R) coords) v1 v2)
-  (let ((df ((D ((S2 R) '->point)) coords)))
-    (dot-product (* df v1) (* df v2))))
+(define (parallel z1 z2) (/ (* z1 z2) (+ z1 z2)))
 
-(pe (((S2-metric 'R) (up 'theta 'phi))
-     (up 'xi_1 'eta_1)
-     (up 'xi_2 'eta_2)))
-(+ (* (expt R 2) eta_1 eta_2 (expt (sin theta) 2))
-   (* (expt R 2) xi_1 xi_2))
+(define (divider z1 z2) (/ z2 (+ z1 z2)))
+
+(define (resistor R)			;R
+  (lambda (s) R))
+
+(define (capacitor C)			;C
+  (lambda (s) (/ 1 (* C s))))
+
+(define (inductor L)			;L
+  (lambda (s) (* L s)))
 
 
-;;; More generally, for an embedded manifold and geometric vector
-;;; fields.
-
-(define ((metric v1 v2) pos)
-  (dot-product 
-   ((v1 identity) pos)
-   ((v2 identity) pos)))
-
-(define v1 (+ (* 'xi_1 d/dtheta) (* 'eta_1 d/dphi)))
-
-(define v2 (+ (* 'xi_2 d/dtheta) (* 'eta_2 d/dphi)))
-
-(pe ((met2 v1 v2)
-     (((S2 'R) '->point) (up 'theta 'phi))))
-(+ (* (expt R 2) eta_1 eta_2 (expt (sin theta) 2))
-   (* (expt R 2) xi_1 xi_2))
-|#

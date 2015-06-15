@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -59,34 +59,6 @@ USA.
 	       (coordinate-reps point))))
     (assert rep)
     (cadr rep)))
-
-;;; The following was a good idea, except for the problem that
-;;; derivatives generate an enormous number of "distinct" points due
-;;; to incrementing the differential tags.
-#|
-(define (make-manifold-point spec manifold coordinate-system coordinate-rep)
-  (let ((sspec (s:map/r simplify-numerical-expression spec)))
-    (let ((entry (assoc sspec (manifold 'distinguished-points))))
-      (if entry
-	  (let ((m (cadr entry)))
-	    (let ((entry (assq coordinate-system (coordinate-reps m))))
-	      (if (not entry)
-		  (set-coordinate-reps! m
-		    (cons (list coordinate-system
-				(s:map/r simplify-numerical-expression
-					 coordinate-rep))
-			  (coordinate-reps m)))
-		  ;; assert: simplified coord rep is equal to stored one.
-		  ))
-	    m)
-	  (let ((m (%make-manifold-point sspec manifold)))
-	    ((manifold 'add-distinguished-point!) sspec m)
-	    (set-coordinate-reps! m
-	       (list (list coordinate-system
-			   (s:map/r simplify-numerical-expression
-				    coordinate-rep))))
-	    m)))))
-|#
 
 (define (get-coordinates point coordinate-system thunk)
   (let ((entry (assq coordinate-system (coordinate-reps point))))
@@ -380,11 +352,20 @@ USA.
 (define (dimension coordinate-system)
   (coordinate-system 'dimension))
 
+(define (frame? x)
+  (and (procedure? x)
+       ;; Kludge.  See frame-maker.scm
+       (not (x 'manifold))))
+
 (define (chart coordinate-system)
-  (coordinate-system '->coords))
+  (if (frame? coordinate-system)
+      (event->coords coordinate-system)
+      (coordinate-system '->coords)))
 
 (define (point coordinate-system)
-  (coordinate-system '->point))
+  (if (frame? coordinate-system)
+      (coords->event coordinate-system)
+      (coordinate-system '->point)))
 
 (define (typical-point coordinate-system)
   ((point coordinate-system)
@@ -447,6 +428,7 @@ USA.
 ;;;; Common manifolds
 
 (define R^n (specify-manifold 'R^n))
+(define R^n-type R^n)
 
 (attach-patch 'origin R^n)
 
@@ -461,21 +443,23 @@ USA.
 	 (lambda (coords)
 	   (if ((me 'check-coordinates) coords)
 	       (make-manifold-point coords manifold me coords)
-	       (error "Bad coordinates: rectangular" coords))))
+	       (error "Bad coordinates: rectangular" coords me))))
 	((check-point)
 	 (lambda (point)
 	   (my-manifold-point? point manifold)))
 	((point->coords)
 	 (lambda (point)
-	   (assert ((me 'check-point) point) "Bad point: rectangular")
+	   (if (not ((me 'check-point) point))
+	       (error "Bad point: rectangular" point me))
 	   (get-coordinates point me
 	     (lambda ()
 	       (let ((prep (manifold-point-representation point)))
 		 (if (fix:= (s:dimension prep)
 			    (manifold 'embedding-dimension))
 		     prep
-		     (error "Bad point: rectangular" point)))))))
-	(else (error "Bad message: coordinate-transformer" m))))
+		     (error "Bad point: rectangular" point me)))))))
+	((manifold) manifold)
+	(else (error "Bad message: rectangular" m me))))
     me))
 
 (attach-coordinate-system 'polar/cylindrical 'origin R^n
@@ -502,13 +486,15 @@ USA.
 		  manifold
 		  me
 		  coords))
-	       (error "Bad coordinates: polar/cylindrical" coords))))
+	       (error "Bad coordinates: polar/cylindrical"
+		      coords me))))
 	((check-point)
 	 (lambda (point)
 	   (my-manifold-point? point manifold)))
 	((point->coords)
 	 (lambda (point)
-	   (assert ((me 'check-point) point) "Bad point: polar/cylindrial")
+	   (if (not ((me 'check-point) point))
+	       (error "Bad point: polar/cylindrial" point me))
 	   (get-coordinates point me
 	     (lambda ()
 	       (let ((prep (manifold-point-representation point)))
@@ -516,14 +502,20 @@ USA.
 			  (fix:= (s:dimension prep)
 				 (manifold 'embedding-dimension)))
 		     (let ((x (ref prep 0)) (y (ref prep 1)))
-		       (s:generate (s:dimension prep) 'up
-				   (lambda (i)
-				     (cond ((= i 0)
-					    (sqrt (+ (square x) (square y))))
-					   ((= i 1) (atan y x))
-					   (else (ref prep i))))))
-		     (error "Bad point: polar/cylindrial" point)))))))
-	(else (error "Bad message: coordinate-transformer" m))))
+		       (let ((rsq (+ (square x) (square y))))
+			 (if (and (number? rsq) (= rsq 0))
+			     (error "polar/cylindrical singular"
+				    point me))
+			 (s:generate (s:dimension prep) 'up
+				     (lambda (i)
+				       (cond ((= i 0) (sqrt rsq))
+					     ((= i 1) (atan y x))
+					     (else (ref prep i)))))))
+		     (error "Bad point: polar/cylindrial"
+			    point me)))))))
+	((manifold) manifold)
+	(else
+	 (error "Bad message: polar/cylindrical" m me))))
     me))
 
 (attach-coordinate-system 'spherical/cylindrical 'origin R^n
@@ -545,21 +537,22 @@ USA.
 		     (phi (ref coords 2)))
 		 (make-manifold-point
 		  (s:generate (s:dimension coords) 'up
-			      (lambda (i)
-				(cond ((= i 0) (* r (sin theta) (cos phi)))
-				      ((= i 1) (* r (sin theta) (sin phi)))
-				      ((= i 2) (* r (cos theta)))
-				      (else (ref coords i)))))
+		     (lambda (i)
+		       (cond ((= i 0) (* r (sin theta) (cos phi)))
+			     ((= i 1) (* r (sin theta) (sin phi)))
+			     ((= i 2) (* r (cos theta)))
+			     (else (ref coords i)))))
 		  manifold
 		  me
 		  coords))
-	       (error "Bad coordinates: spherical/cylindrical" coords))))
+	       (error "Bad coordinates: spherical/cylindrical"
+		      coords me))))
 	((check-point)
-	 (lambda (point)
-	   (my-manifold-point? point manifold)))
+	 (lambda (point) (my-manifold-point? point manifold)))
 	((point->coords)
 	 (lambda (point)
-	   (assert ((me 'check-point) point) "Bad point: spherical/cylindrial")
+	   (if (not ((me 'check-point) point))
+	       (error "Bad point: spherical/cylindrial" point me))
 	   (get-coordinates point me
 	     (lambda ()
 	       (let ((prep (manifold-point-representation point)))
@@ -569,15 +562,22 @@ USA.
 		     (let ((x (ref prep 0)) 
 			   (y (ref prep 1))
 			   (z (ref prep 2)))
-		       (let ((r (sqrt (+ (square x) (square y) (square z)))))
+		       (let ((r (sqrt
+				 (+ (square x) (square y) (square z)))))
+			 (if (and (number? r) (= r 0))
+			     (error "spherical/cylindrical singular"
+				    point me))
 			 (s:generate (s:dimension prep) 'up
 				     (lambda (i)
 				       (cond ((= i 0) r)
 					     ((= i 1) (acos (/ z r)))
 					     ((= i 2) (atan y x))
 					     (else (ref prep i)))))))
-		     (error "Bad point: spherical/cylindrial" point)))))))
-	(else (error "Bad message: coordinate-transformer" m))))
+		     (error "Bad point: spherical/cylindrial"
+			    point me)))))))
+	((manifold) manifold)
+	(else
+	 (error "Bad message: spherical/cylindrical" m me))))
     me))
 
 ;;; For R4 only
@@ -604,13 +604,14 @@ USA.
 		  me
 		  coords))
 	       (error "Bad coordinates: spacetime-spherical"
-		      coords))))
+		      coords me))))
 	((check-point)
 	 (lambda (point)
 	   (my-manifold-point? point manifold)))
 	((point->coords)
 	 (lambda (point)
-	   (assert ((me 'check-point) point) "Bad point: spacetime-spherical")
+	   (if (not ((me 'check-point) point))
+	       (error "Bad point: spacetime-spherical" point me))
 	   (get-coordinates point me
 	     (lambda ()
 	       (let ((prep (manifold-point-representation point)))
@@ -620,12 +621,15 @@ USA.
 			   (y (ref prep 2))
 			   (z (ref prep 3)))
 		       (let ((r (sqrt (+ (square x) (square y) (square z)))))
+			 (if (and (number? r) (= r 0))
+			     (error "spacetime-spherical singular" point me))
 			 (up t
 			     r
 			     (acos (/ z r))
 			     (atan y x))))
-		     (error "Bad point: spacetime-spherical" point)))))))
-	(else (error "Bad message: coordinate-transformer" m))))
+		     (error "Bad point: spacetime-spherical" point me)))))))
+	((manifold) manifold)
+	(else (error "Bad message: spacetime-spherical" m me))))
     me))
 
 (define R1 (make-manifold R^n 1))
@@ -649,7 +653,7 @@ USA.
 (define spacetime (make-manifold R^n 4))
 (define spacetime-rect
   (coordinate-system-at 'rectangular 'origin spacetime))
-(define spacetime-spher
+(define spacetime-sphere
   (coordinate-system-at 'spacetime-spherical 'origin spacetime))
 
 #|
@@ -759,19 +763,19 @@ USA.
 |#
 |#
 
-;;; The surface of the sphere
+;;; The surface of the sphere, specialized to two dimensions.
 
-(define S^2 (specify-manifold 'S2))
+(define S^2-type (specify-manifold 'S^2))
 
-(define (S2-coordinates orientation)
+(define (S^2-coordinates orientation)
   (let ((orientation^-1 (invert orientation)))
     (lambda (manifold)
       (define (me m)
 	(define (coordinates-ok? coords)
 	  (and (up? coords)
 	       (fix:= (s:dimension coords) 2)
-	       (or (not (number? (ref coords 0))) ;Singularity check
-		   (not (= (ref coords 0) 0)))))
+	       (or (not (number? (ref coords 0)))
+		   (not (< (ref coords 0) 0)))))
 	(case m
 	  ((check-coordinates) coordinates-ok?)
 	  ((coords->point)
@@ -787,12 +791,13 @@ USA.
 		    manifold
 		    me
 		    coords))
-		 (error "Bad coordinates: spherical" coords))))
+		 (error "Bad coordinates: S^2-spherical" coords me))))
 	  ((check-point)
 	   (lambda (point) (my-manifold-point? point manifold)))
 	  ((point->coords)
 	   (lambda (point)
-	     (assert ((me 'check-point) point) "Bad point: spherical")
+	     (if (not ((me 'check-point) point))
+		 (error "Bad point: S^2-spherical" point me))
 	     (get-coordinates point me
 	       (lambda ()
 		 (let ((prep
@@ -804,23 +809,33 @@ USA.
 		       (let ((x (ref prep 0))
 			     (y (ref prep 1))
 			     (z (ref prep 2)))
+			 ;; (if (and (number? x) (= x 0))
+			 ;;     (error "S^2-spherical singular" point me))
 			 (up (acos z) (atan y x)))
-		       (error "Bad point: spherical" point)))))))
-	  (else (error "Bad message: coordinate-transformer" m))))
+		       (error "Bad point: S^2-spherical" point me)))))))
+	  ((manifold) manifold)
+	  ((orientation) orientation)
+	  (else (error "Bad message: S^2-spherical" m me))))
       me)))
 
-(attach-patch 'north-pole S^2)
+(attach-patch 'north-pole S^2-type)
 
-(attach-coordinate-system 'spherical 'north-pole S^2
-  (S2-coordinates (down (up 1 0 0) (up 0 1 0) (up 0 0 1))))
+(attach-coordinate-system 'spherical 'north-pole S^2-type
+  (S^2-coordinates (down (up 1 0 0) (up 0 1 0) (up 0 0 1))))
 
-(attach-patch 'tilted S^2)
+(attach-patch 'tilted S^2-type)
 
-(attach-coordinate-system 'spherical 'tilted S^2
-  (S2-coordinates (down (up 1 0 0) (up 0 0 1) (up 0 -1 0))))
+(attach-coordinate-system 'spherical 'tilted S^2-type
+  (S^2-coordinates (down (up 1 0 0) (up 0 0 1) (up 0 -1 0))))
 
 
-(define S2 (make-manifold S^2 2 3))
+(attach-patch 'south-pole S^2-type)
+
+(attach-coordinate-system 'spherical 'south-pole S^2-type
+  (S^2-coordinates (down (up 1 0 0) (up 0 1 0) (up 0 0 -1))))
+
+
+(define S2 (make-manifold S^2-type 2 3))
 
 (define S2-spherical
   (coordinate-system-at 'spherical 'north-pole S2))
@@ -836,6 +851,677 @@ USA.
 #| Result:
 (up (acos (* -1 (sin phi) (sin theta)))
     (atan (cos theta) (* (sin theta) (cos phi))))
+|#
+|#
+
+(define S^n-type (specify-manifold 'S^n))
+
+;; Manifold points are represented by
+;;(up 
+;;    (* (sin theta0) (cos theta1) )
+;;    (* (sin theta0) (sin theta1) (cos theta2) )
+;;    ...
+;;    (* (sin theta0) (sin theta1) ... (sin theta_n-1) )
+;;    (cos theta0)
+;;    )
+
+;;; Notice that the (cos theta0) has been rotated to the bottom
+;;; to be compatable with the traditional S^2 convention.
+;;
+;; The first n-1 angles  must be nonzero to avoid the coordinate singularity.
+;;
+;; S^n-coordinates takes an orientation function that takes the dimension 
+;; of the embedding space (1+the dimension of the manifold) and produces the
+;; matrix that shifts the location of the "north pole".
+
+(define (S^n-coordinates orientation-function)
+  (define (list-top-to-bottom l)
+    (append (cdr l) (list (car l))))
+  (define (list-bottom-to-top l)
+    (cons (car (last-pair l)) (butlast l)))  
+  (lambda (manifold)
+    (let* ((n (manifold 'dimension))
+	   (orientation-matrix (orientation-function (+ n 1)))
+	   (orientation-inverse-matrix (invert orientation-matrix)))
+      (define (me m)
+	(case m
+	  ((check-coordinates)
+	   (lambda (coords)
+	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
+		 (and (up? coords)
+		      (fix:= (s:dimension coords) (manifold 'dimension))
+		      (let ((remaining-coords (butlast (up-structure->list coords))))
+			(every (lambda (coord)
+				 (or (not (number? coord)) (not (< coord 0))))
+			       remaining-coords))))))
+	  ((coords->point)
+	   (lambda (coords)
+	     (if (not ((me 'check-coordinates) coords))
+		 (error "Bad coordinates: S^n-spherical" coords me))
+	     (if (fix:= n 1)
+		 (let ((pt (up (cos coords) (sin coords))))
+		   (make-manifold-point (* orientation-matrix pt)
+					manifold me coords))
+		 (let* ((coordl (up-structure->list coords))
+			(sines (map sin coordl)) (cosines (map cos coordl))
+			(pt
+			 (list->up-structure
+			  (list-top-to-bottom
+			   (make-initialized-list (fix:+ n 1)
+			     (lambda (i)
+			       (if (fix:= i n)
+				   (apply * sines)
+				   (apply *
+					  (cons (list-ref cosines i)
+						(list-head sines i))))))))))
+		   (make-manifold-point (* orientation-matrix pt)
+					manifold me coords)))))
+	  ((check-point)
+	   (lambda (point) (my-manifold-point? point manifold)))
+	  ((point->coords)
+	   (lambda (point)
+	     (if (not ((me 'check-point) point))
+		 (error "Bad point: S^n-spherical" point me))
+	     (define (safe-atan y x)
+	       (if (and (number? y) (number? x) (= y 0) (= x 0))
+		   (warn "S^n-spherical singular" point me))  
+	       (atan y x))
+	     (let* ((pt
+		     (reverse
+		      (list-bottom-to-top
+		       (up-structure->list
+			(* orientation-inverse-matrix
+			   (manifold-point-representation point)))))) )
+	       (if (fix:= n 1)
+		   (safe-atan (ref pt 1) (ref pt 0))
+	           (let lp ((r (car pt)) (rest (cdr pt))
+			    (ans (list (safe-atan (car pt) (cadr pt)))))
+		     (if (null? (cdr rest))
+			 (list->up-structure ans)
+			 (let ((r (sqrt (+ (square (car rest)) (square r)))))
+			   (lp r
+			       (cdr rest)
+			       (cons (safe-atan r (cadr rest)) ans)))))))))
+	  ((manifold) manifold)
+	  ((orientation) orientation-function)
+	  (else (error "S^n-spherical: Bad message" m me))))
+      me)))
+	 
+(attach-patch 'north-pole S^n-type)
+(attach-coordinate-system 'spherical 'north-pole S^n-type
+  (S^n-coordinates m:make-identity))
+
+(attach-patch 'tilted S^n-type)
+(attach-coordinate-system 'spherical 'tilted S^n-type
+  (S^n-coordinates
+   (let ((c (cos :pi/2)) (s (sin :pi/2)))
+     (lambda (n)
+       (s:generate n 'down
+         (lambda (col)
+	   (s:generate n 'up
+		       (lambda (row)
+			 (cond ((and (= row (- n 2)) (= col (- n 1)) -1))
+			       ((and (= row (- n 1)) (= col (- n 2)) +1))
+			       ((and (= row col) (< row (- n 2))) +1)
+			       (else 0))))))))))
+
+(define S1 (make-manifold S^n-type 1))
+(define S1-circular (coordinate-system-at 'spherical 'north-pole S1))
+(define S1-tilted (coordinate-system-at 'spherical 'tilted S1))
+
+#|
+(define m ((S1-circular '->point) 'theta))
+
+(pe (manifold-point-representation m))
+; Result: (up (cos theta) (sin theta))
+
+(pe ((compose (S1-circular '->coords) (S1-circular '->point)) 'theta))
+; Result: theta
+
+(pe ((compose (S1-circular '->coords) (S1-tilted '->point)) 'theta))
+; Result: (atan (cos theta) (* -1 (sin theta)))
+
+|#                      
+
+(define S2p (make-manifold S^n-type 2))
+(define S2p-spherical (coordinate-system-at 'spherical 'north-pole S2p))
+(define S2p-tilted (coordinate-system-at 'spherical 'tilted S2p))
+
+#|
+(define m ((S2p-spherical '->point) (up 'theta 'phi)))
+
+(pe (manifold-point-representation m))
+; Result: (up (* (sin theta) (cos phi))
+;             (* (sin phi) (sin theta))
+;             (cos theta))
+
+(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
+     (up 'theta 'phi)))
+; Result: (up theta phi)
+
+(pe ((compose (S2p-spherical '->coords) (S2p-tilted '->point))
+     (up 'theta 'phi)))
+; Result: (up (atan (sqrt (+ (* (expt (cos theta) 2) (expt (cos phi) 2))
+;			     (expt (sin phi) 2)))
+;		    (* -1 (sin theta) (cos phi)))
+;	      (atan (* (sin phi) (sin theta)) (cos theta)))
+
+(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
+     (up 1 0)))
+;(up 1. 0.)
+
+(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
+     (up 0 1)))
+;(up 0 0)
+;Should be warned singular!
+|#                      
+
+(define S3 (make-manifold S^n-type 3))
+(define S3-spherical (coordinate-system-at 'spherical 'north-pole S3))
+(define S3-tilted (coordinate-system-at 'spherical 'tilted S3))
+#|
+(pe ((compose (S3-spherical '->coords)
+	      (S3-spherical '->point))
+     (up 'a 'b 'c)))
+; Result: (up a b c)
+
+(pe ((compose (S3-spherical '->coords)
+	      (S3-tilted '->point))
+     (up 'a 'b 'c)))
+; Result:
+;(up
+; (atan
+;  (sqrt
+;   (+ (* (expt (sin c) 2) (expt (sin b) 2) (expt (cos a) 2))
+;      (* (expt (sin c) 2) (expt (cos b) 2))
+;      (expt (cos c) 2)))
+;  (* (sin c) (sin b) (sin a)))
+; (atan (sqrt (+ (* (expt (sin b) 2) (expt (sin a) 2) (expt (cos c) 2))
+;                (expt (cos a) 2)))
+;       (* (sin a) (cos b)))
+; (atan (* -1 (cos a)) (* (sin b) (sin a) (cos c))))
+
+(pe ((compose (S3-spherical '->coords)
+	      (S3-spherical '->point))
+     (up 0 0 0)))
+;(up 0 0 0)
+;Should be warned singular!
+|#                      
+
+;;; Stereographic Projection from the final coordinate.
+;;
+;;  The default pole is p = (0 0 ... 0 1)
+;;  We fire a ray through m = (m_0 ... m_n)
+;;  x(t) = p + t(m - p)
+;;
+;;  x(0) = p, x(1) = m
+;;  x_n(t) = 1-t(1+m_n), 0 = x_n(1/(1+m_n))
+;;  
+;;  The orientation function should return an orthogonal (n+1)-by-(n+1)
+;;  matrix.  It can be interpreted as moving the pole / plane of projection
+;;  and possibly reflecting.
+;;
+(define (S^n-stereographic orientation-function)
+  (lambda (manifold)
+    (let* ((n (manifold 'dimension))
+	   (orientation-matrix (orientation-function (+ n 1)))
+	   (orientation-inverse-matrix (invert orientation-matrix)))
+      (define (me m)
+	(case m
+	  ((check-coordinates)
+	   (lambda (coords)
+	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
+		 (and (up? coords)
+		      (fix:= (s:dimension coords) n)))))
+	  ((coords->point)
+	   (lambda (coords)
+	     (if (not ((me 'check-coordinates) coords))
+		 (error "Bad coordinates: S^n-stereographic"
+			coords me))
+	     (let* ((coords (if (fix:= n 1) (up coords) coords))
+		    (delta (dot-product coords coords))
+		    (xn (/ (- delta 1) (+ 1 delta)))
+		    (pt (s:generate
+			 (fix:+ n 1) 'up
+			 (lambda (i)
+			   (if (fix:= i n) xn
+			       (/ (* 2 (ref coords i))
+				  (+ 1 delta)))))))
+	       (make-manifold-point (* orientation-matrix pt)
+				    manifold me coords))))
+	  ((check-point)
+	   (lambda (point) (my-manifold-point? point manifold)))
+	  ((point->coords)
+	   (lambda (point)
+	     (if (not ((me 'check-point) point))
+		 (error "Bad point: S^n" point me))
+	     (let* ((n (manifold 'dimension))
+		    (pt (* orientation-inverse-matrix
+			   (manifold-point-representation point))))
+	       (if (and (number? (ref pt n)) (= (ref pt n) 1))
+		   (error "S^n-stereographic singular" point me))
+	       (let ((coords
+		      (s:generate n 'up
+				  (lambda (i)
+				    (/ (ref pt i)
+				       (- 1 (ref pt n)))))))
+		 (if (fix:= n 1) (ref coords 0) coords)))))
+	  ((manifold) manifold)
+	  ((orientation) orientation-function)
+	  (else (error "S^n-stereographic: Bad message" m me))))
+      me)))
+
+(attach-coordinate-system 'stereographic 'north-pole S^n-type
+ (S^n-stereographic m:make-identity))
+
+(attach-patch 'south-pole S^n-type)
+(attach-coordinate-system 'stereographic 'south-pole S^n-type
+ (S^n-stereographic
+  (lambda (n)
+    (m:generate n n
+		(lambda (i j)
+		  (if (= i j)
+		      (if (= j n) -1 1)
+		      0))))))
+
+
+#|
+(define S1 (make-manifold S^n-type 1))
+|#
+
+(define S1-slope
+  (coordinate-system-at 'stereographic 'north-pole S1))
+
+#|
+(define m ((S1-slope '->point) 's))
+
+(pe (manifold-point-representation m))
+; Result:  
+;(up (/ (* 2 s)
+;       (+ 1 (expt s 2)))
+;    (/ (+ -1 (expt s 2))
+;       (+ 1 (expt s 2))))
+
+(pe  (manifold-point-representation
+      ((compose (S1-slope '->point)
+		(S1-slope '->coords))
+       m)))
+; Result: 
+;(up (/ (* 2 s)
+;       (+ 1 (expt s 2)))
+;    (/ (+ -1 (expt s 2))
+;       (+ 1 (expt s 2))))
+
+
+(pe ((compose (S1-slope '->coords)
+	      (S1-slope '->point))
+     's))
+; Result: s
+|#     
+
+#|
+(define S2p (make-manifold S^n-type 2))
+|#     
+
+(define S2p-stereographic (coordinate-system-at 'stereographic 'north-pole S2p))
+(define S2p-Riemann S2p-stereographic)
+
+#|
+(define m ((S2p-Riemann '->point) (up 'x 'y)))
+
+(pe (manifold-point-representation m))
+; Result: 
+;(up (/ (* 2 x) 
+;       (+ 1 (expt x 2) (expt y 2)))
+;    (/ (* 2 y)
+;       (+ 1 (expt y 2) (expt x 2)))
+;    (/ (+ -1 (expt x 2) (expt y 2))
+;       (+ +1 (expt x 2) (expt y 2))))
+
+(pe (manifold-point-representation
+     ((compose (S2p-Riemann '->point) (S2p-Riemann '->coords))
+      m)))
+; Result: 
+;(up (/ (* 2 x)
+;       (+ 1 (expt x 2) (expt y 2)))
+;    (/ (* 2 y)
+;       (+ 1 (expt x 2) (expt y 2)))
+;    (/ (+ -1 (expt x 2) (expt y 2))
+;       (+ 1 (expt x 2) (expt y 2))))
+
+(pe ((compose (S2p-Riemann '->coords) (S2p-Riemann '->point))
+    (up 'x 'y)))
+; Result:  (up x y)
+
+(pe (manifold-point-representation
+      ((S2p-Riemann '->point)
+       (up (cos 'theta) (sin 'theta)))))
+; Result: (up (cos theta) (sin theta) 0)
+; The equator is invariant.
+|#              
+
+;;; Gnomic Projection of the sphere
+;;
+;;  We map the nothern hemisphere to the plane by firing a ray from the origin.
+;;  The coordinates are given by the intersection with the z = 1 plane.
+;;  x(t) = t*m
+;;  x_n(t) = t*m_n, 1 = x_n(1/m_n)
+;;
+;;  orientation-function should should return an n+1-by-n+1 orthogonal matrix.
+;;  It can be interpreted as moving the plane of projection, and point mapped to
+;;  the origin, as well as possibly reflecting.
+;;
+;;  Given the coordinates x we have  <x,x> = (1-m_n^2)/m_n^2
+;;  1 + <x,x> = (m_n^2 + 1 - m_n^2)/m_n^2
+;;  m_n = sqrt(1/(1+<x,x>))
+;;  where positive square root is sufficient for the nothern hemisphere.
+
+(define (S^n-gnomic orientation-function)
+ (lambda (manifold)
+   (let* ((n (manifold 'dimension))
+	  (orientation-matrix (orientation-function (+ n 1)))
+	  (orientation-inverse-matrix (invert orientation-matrix)))
+     (define (me m)
+	(case m
+	  ((check-coordinates)
+	   (lambda (coords)
+	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
+		 (and (up? coords) (fix:= (s:dimension coords) n)))))
+	  ((coords->point)
+	   (lambda (coords)
+	     (if (not ((me 'check-coordinates) coords))
+		 (error "Bad coordinates: S^n" coords me))
+	     (let* ((coords (if (fix:= n 1) (up coords) coords))
+		    (delta (dot-product coords coords))
+		    (d (sqrt (+ 1 delta)))
+		    (xn (/ 1 d))
+		    (pt (s:generate
+			 (fix:+ n 1) 'up
+			 (lambda (i)
+			   (if (fix:= i n)
+			       xn
+			       (/ (ref coords i) d))))))
+	       (make-manifold-point (* orientation-matrix pt)
+				    manifold me coords))))
+	  ((check-point)
+	   (lambda (point) (my-manifold-point? point manifold)))
+	  ((point->coords)
+	   (lambda (point)
+	     (if (not ((me 'check-point) point))
+		 (error "Bad point: S^n-gnomic" point me))
+	     (let* ((n (manifold 'dimension))
+		    (pt (* orientation-inverse-matrix
+			   (manifold-point-representation point))))
+	       (if (and (number? (ref pt n)) (not (> 0 (ref pt n))))
+		   (error "Point not covered by S^n-gnomic coordinate patch."
+			  point me))
+	       (let ((coords
+		      (s:generate n 'up
+				  (lambda (i)
+				    (/ (ref pt i)
+				       (ref pt n))))))
+		 (if (fix:= n 1) (ref coords 0) coords)))))
+	  ((manifold) manifold)
+	  ((orientation) orientation-function)
+	  (else (error "S^n: Bad message" m me))))
+     me)))
+
+(attach-coordinate-system 'gnomic 'north-pole S^n-type
+ (S^n-gnomic m:make-identity))
+
+#|
+(define S1 (make-manifold S^n-type 1))
+|#
+
+(define S1-gnomic (coordinate-system-at 'gnomic 'north-pole S1))
+
+#|
+(define m ((S1-gnomic '->point) 's))
+
+(pe (manifold-point-representation m))
+; Result:  (up (/ s (sqrt (+ 1 (expt s 2))))
+;              (/ 1 (sqrt (+ 1 (expt s 2)))))
+
+(pe  (manifold-point-representation
+      ((compose (S1-gnomic '->point) (S1-gnomic '->coords)) m)))
+; Result: (up (/ s (sqrt (+ 1 (expt s 2))))
+;             (/ 1 (sqrt (+ 1 (expt s 2)))))
+
+(pe ((compose (S1-slope '->coords) (S1-slope '->point)) 's))
+; Result: s
+
+|#     
+
+
+#|
+(define S2p (make-manifold S^n-type 2))
+|#
+
+(define S2p-gnomic (coordinate-system-at 'gnomic 'north-pole S2p))
+
+#|
+(define S2p-stereographic (coordinate-system-at 'stereographic 'north-pole S2p))
+(define m ((S2p-gnomic '->point) (up 'x 'y)))
+
+
+(pe (manifold-point-representation m))
+; Result: (up (/ x (sqrt (+ 1 (expt x 2) (expt y 2))))
+;             (/ y (sqrt (+ 1 (expt x 2) (expt y 2))))
+;             (/ 1 (sqrt (+ 1 (expt x 2) (expt y 2)))))
+
+(pe (manifold-point-representation
+     ((compose (S2p-gnomic '->point) (S2p-gnomic '->coords))
+      m)))
+; Result: (up (/ x (sqrt (+ 1 (expt x 2) (expt y 2))))
+;             (/ y (sqrt (+ 1 (expt x 2) (expt y 2))))
+;             (/ 1 (sqrt (+ 1 (expt x 2) (expt y 2)))))
+
+(pe ((compose (S2p-gnomic '->coords) (S2p-gnomic '->point))
+    (up 'x 'y)))
+; Result:  (up x y)
+
+
+(pe (manifold-point-representation
+      ((S2p-gnomic '->point)
+       (up (cos 'theta) (sin 'theta)))))
+; Result: (up (/ (cos theta) (sqrt 2))
+;             (/ (sin theta) (sqrt 2)) 
+;             (/ 1 (sqrt 2)))
+; The unit circle on the plane represents the intersection of S2 and
+;      z = (/ 1 (sqrt 2))
+
+; Straight lines in the gnomic coordinates are geodesics.
+; We compute a straight line, then transform it back to stereographic coordinates.
+
+(define q ((S2p-stereographic '->point) (up -1.5 1.5)))
+(define p ((S2p-stereographic '->point) (up 1.5 0)))
+
+(pe (simplify (simplify ((S2p-stereographic '->coords)
+			 ((S2p-gnomic '->point)
+			  (+ (* 't ((S2p-gnomic '->coords) p))
+			     (* (- 1 't) ((S2p-gnomic '->coords) q))))))))
+; Result: 
+;(up
+; (/ (+ (* 3.257142857142857 t) -.8571428571428571)
+;    (+ -1
+;       (sqrt (+ (* 11.343673469387754 (expt t 2))
+;                (* -7.053061224489795 t)
+;                2.4693877551020407))))
+; (/ (+ (* -.8571428571428571 t) .8571428571428571)
+;    (+ -1
+;       (sqrt (+ (* 11.343673469387754 (expt t 2))
+;                (* -7.053061224489795 t)
+;                2.4693877551020407)))))
+|#              
+
+#|
+;; Now a fun example synthesizing the to projective coordinates.
+
+(define S3 (make-manifold S^n-type 3))
+|#
+
+(define S3-gnomic (coordinate-system-at 'gnomic 'north-pole S3))
+(define S3-stereographic (coordinate-system-at 'stereographic 'south-pole S3))
+
+#|
+; S3 is one-to-one with the quaternions.
+; We interpret the first three components of the embedding space as the
+;    i,j,k imaginary party and the 4th component as the real part.
+; The gnomic projection removes the double-cover of quaternions to rotations.
+; The solid unit-sphere of the stereographic projection from the south pole likewise.
+
+(pe ((S3-gnomic '->coords) ((S3-stereographic '->point) (up 'x 'y 'z))))
+(up (/ (* 2 x) (+ -1 (expt x 2) (expt y 2) (expt z 2)))
+    (/ (* 2 y) (+ -1 (expt y 2) (expt x 2) (expt z 2)))
+    (/ (* 2 z) (+ -1 (expt z 2) (expt x 2) (expt y 2))))
+
+(pe ((S3-stereographic '->coords) ((S3-gnomic '->point) (up 'x 'y 'z))))
+(up (/ x (+ -1 (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2)))))
+    (/ y (+ -1 (sqrt (+ 1 (expt y 2) (expt x 2) (expt z 2)))))
+    (/ z (+ -1 (sqrt (+ 1 (expt z 2) (expt x 2) (expt y 2))))))
+
+(pe (euclidean-norm ((S3-stereographic '->coords)
+		     ((S3-gnomic '->point) (up 'x 'y 'z)))))
+
+(/ (sqrt (+ (expt x 2) (expt y 2) (expt z 2)))
+   (sqrt (+ 2
+	    (expt x 2) (expt y 2) (expt z 2)
+	    (* -2
+	       (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2)))))))
+|#
+
+;;; SO(3).  Points are represented by 3x3 (down (up ...) ...)
+
+;;; There is only one instance of an SOn manifold defined, SO3.
+;;; As a consequence the name is not SOn but rather SO3-type.
+
+(define SO3-type (specify-manifold 'SO3))
+
+(define Euler-chart
+  (lambda (manifold)
+    (define (me m)
+      (case m
+	((check-coordinates)
+	 (lambda (coords)
+	     (and (up? coords)
+		  (fix:= (s:dimension coords) 3)
+		  (or (not (number? (ref coords 0)))
+		      (not (= (ref coords 0) 0))))))
+	((coords->point)
+	 (lambda (coords)
+	   (if (not ((me 'check-coordinates) coords))
+	       (error "Bad coordinates: Euler-angles" coords me))
+	   (let ((theta (ref coords 0))
+		 (phi (ref coords 1))
+		 (psi (ref coords 2)))
+	     (let ((Mx-theta (rotate-x-tuple theta))
+		   (Mz-phi (rotate-z-tuple phi))
+		   (Mz-psi (rotate-z-tuple psi)))
+	       (let ((the-point (* Mz-phi Mx-theta Mz-psi)))
+		 (make-manifold-point 
+		  the-point
+		  manifold
+		  me
+		  coords))))))
+	((check-point)
+	 (lambda (point) (my-manifold-point? point manifold)))
+	((point->coords)
+	 (lambda (point)
+	   (if (not ((me 'check-point) point))
+	       (error "Bad manifold point: Euler-angles" point me))
+	   (get-coordinates point me
+	     (lambda ()
+	       (let ((the-point
+		      (manifold-point-representation point)))
+		 (let ((theta (acos (ref the-point 2 2)))
+		       (phi (atan (ref the-point 2 0)
+				  (- (ref the-point 2 1))))
+		       (psi (atan (ref the-point 0 2)
+				  (ref the-point 1 2))))
+		   (up theta phi psi)))))))
+	((manifold) manifold)
+	(else (error "Euler-chart: Bad message" m me)) ))
+    me))
+	   
+(define alternate-chart
+  (lambda (manifold)
+    (define (me m)
+      (case m
+	((check-coordinates)
+	 (lambda (coords)
+	     (and (up? coords)
+		  (fix:= (s:dimension coords) 3)
+		  (or (not (number? (ref coords 0)))
+		      (and (not (<= (ref coords 0) (- pi/2)))
+			   (not (>= (ref coords pi/2))))))))
+	((coords->point)
+	 (lambda (coords)
+	   (if (not ((me 'check-coordinates) coords))
+	       (error "Bad coordinates: alternate-angles" coords me))
+	   (let ((theta (ref coords 0))
+		 (phi (ref coords 1))
+		 (psi (ref coords 2)))
+	     (let ((Mx-theta (rotate-x-tuple theta))
+		   (Mz-phi (rotate-z-tuple phi))
+		   (My-psi (rotate-y-tuple psi)))
+	       (let ((the-point (* Mz-phi Mx-theta My-psi)))
+		 (make-manifold-point the-point manifold me coords))))))
+	((check-point)
+	 (lambda (point) (my-manifold-point? point manifold)))
+	((point->coords)
+	 (lambda (point)
+	   (if (not ((me 'check-point) point))
+	       (error "Bad manifold point: alternate-angles" point me))
+	   (get-coordinates point me
+	     (lambda ()
+	       (let ((the-point
+		      (manifold-point-representation point)))
+		 (let ((theta (asin (ref the-point 1 2)))
+		       (phi
+			(atan (- (ref the-point 1 0))
+			      (ref the-point 1 1)))
+		       (psi
+			(atan (- (ref the-point 0 2))
+			      (ref the-point 2 2))))
+		   (up theta phi psi)))))))
+	((manifold) manifold)
+	(else (error "alternate-chart: Bad message" m me))))
+    me))	   
+
+(attach-patch 'Euler-patch SO3-type)
+
+(attach-coordinate-system 'Euler 'Euler-patch SO3-type Euler-chart)
+
+(attach-patch 'alternate-patch SO3-type)
+
+(attach-coordinate-system 'alternate 'alternate-patch SO3-type alternate-chart)
+
+
+(define SO3 (make-manifold SO3-type 3))
+
+(define Euler-angles (coordinate-system-at 'Euler 'Euler-patch SO3))
+
+(define alternate-angles (coordinate-system-at 'alternate 'alternate-patch SO3))
+
+#|
+(pec ((compose (alternate-angles '->coords)
+	       (Euler-angles '->point))
+      (up 'theta 'phi 'psi)))
+#| Result:
+(up
+ (asin (* (cos psi) (sin theta)))
+ (atan (+ (* (cos theta) (sin phi) (cos psi)) (* (cos phi) (sin psi)))
+       (+ (* (cos phi) (cos theta) (cos psi)) (* -1 (sin psi) (sin phi))))
+ (atan (* -1 (sin psi) (sin theta)) (cos theta)))
+|#
+
+(pec ((compose (Euler-angles '->coords)
+	       (alternate-angles '->point)
+	       (alternate-angles '->coords)
+	       (Euler-angles '->point))
+      (up 'theta 'phi 'psi)))
+#| Result:
+(up theta phi psi)
 |#
 |#
 
@@ -907,374 +1593,12 @@ USA.
 ;Value: -177.75
 |#
 
-;;; SO(3).  Points are represented by 3x3 (down (up ...) ...)
+;;; Adding in stuff to S^2-type manifolds
 
-;;; There is only one instance of an SOn manifold defined, SO3.
-;;; As a consequence the name is not SOn but rather SO3-type.
-
-(define SO3-type (specify-manifold 'SO3))
-
-(define Euler-chart
-  (lambda (manifold)
-    (define (me m)
-      (case m
-	((check-coordinates)
-	 (lambda (coords)
-	     (and (up? coords)
-		  (fix:= (s:dimension coords) 3)
-		  (or (not (number? (ref coords 0)))
-		      (not (= (ref coords 0) 0))))))
-	((coords->point)
-	 (lambda (coords)
-	   (if (not ((me 'check-coordinates) coords))
-	       (error "Bad coordinates: Euler-angles" coords))
-	   (let ((theta (ref coords 0))
-		 (phi (ref coords 1))
-		 (psi (ref coords 2)))
-	     (let ((Mx-theta (rotate-x-tuple theta))
-		   (Mz-phi (rotate-z-tuple phi))
-		   (Mz-psi (rotate-z-tuple psi)))
-	       (let ((the-point (* Mz-phi Mx-theta Mz-psi)))
-		 (make-manifold-point 
-		  the-point
-		  manifold
-		  me
-		  coords))))))
-	((check-point)
-	 (lambda (point) (my-manifold-point? point manifold)))
-	((point->coords)
-	 (lambda (point)
-	   (if (not ((me 'check-point) point))
-	       (error "Bad manifold point: Euler-angles" point))
-	   (get-coordinates point me
-	     (lambda ()
-	       (let ((the-point
-		      (manifold-point-representation point)))
-		 (let ((theta (acos (ref the-point 2 2)))
-		       (phi (atan (ref the-point 2 0)
-				  (- (ref the-point 2 1))))
-		       (psi (atan (ref the-point 0 2)
-				  (ref the-point 1 2))))
-		   (up theta phi psi)))))))))
-    me))
-	   
-(define alternate-chart
-  (lambda (manifold)
-    (define (me m)
-      (case m
-	((check-coordinates)
-	 (lambda (coords)
-	     (and (up? coords)
-		  (fix:= (s:dimension coords) 3)
-		  (or (not (number? (ref coords 0)))
-		      (and (not (<= (ref coords 0) (- pi/2)))
-			   (not (>= (ref coords pi/2))))))))
-	((coords->point)
-	 (lambda (coords)
-	   (if (not ((me 'check-coordinates) coords))
-	       (error "Bad coordinates: alternate-angles" coords))
-	   (let ((theta (ref coords 0))
-		 (phi (ref coords 1))
-		 (psi (ref coords 2)))
-	     (let ((Mx-theta (rotate-x-tuple theta))
-		   (Mz-phi (rotate-z-tuple phi))
-		   (My-psi (rotate-y-tuple psi)))
-	       (let ((the-point (* Mz-phi Mx-theta My-psi)))
-		 (make-manifold-point 
-		  the-point
-		  manifold
-		  me
-		  coords))))))
-	((check-point)
-	 (lambda (point) (my-manifold-point? point manifold)))
-	((point->coords)
-	 (lambda (point)
-	   (if (not ((me 'check-point) point))
-	       (error "Bad manifold point: alternate-angles" point))
-	   (get-coordinates point me
-	     (lambda ()
-	       (let ((the-point
-		      (manifold-point-representation point)))
-		 (let ((theta (asin (ref the-point 1 2)))
-		       (phi
-			(atan (- (ref the-point 1 0))
-			      (ref the-point 1 1)))
-		       (psi
-			(atan (- (ref the-point 0 2))
-			      (ref the-point 2 2))))
-		   (up theta phi psi)))))))))
-    me))	   
-
-(attach-patch 'Euler-patch SO3-type)
-
-(attach-coordinate-system 'Euler 'Euler-patch SO3-type Euler-chart)
-
-(attach-patch 'alternate-patch SO3-type)
-
-(attach-coordinate-system 'alternate 'alternate-patch SO3-type alternate-chart)
-
-
-(define SO3 (make-manifold SO3-type 3))
-
-(define Euler-angles (coordinate-system-at 'Euler 'Euler-patch SO3))
-
-(define alternate-angles (coordinate-system-at 'alternate 'alternate-patch SO3))
-
-#|
-(pec ((compose (alternate-angles '->coords)
-	       (Euler-angles '->point))
-      (up 'theta 'phi 'psi)))
-#| Result:
-(up
- (asin (* (cos psi) (sin theta)))
- (atan (+ (* (cos theta) (sin phi) (cos psi)) (* (cos phi) (sin psi)))
-       (+ (* (cos phi) (cos theta) (cos psi)) (* -1 (sin psi) (sin phi))))
- (atan (* -1 (sin psi) (sin theta)) (cos theta)))
-|#
-
-(pec ((compose (Euler-angles '->coords)
-	       (alternate-angles '->point)
-	       (alternate-angles '->coords)
-	       (Euler-angles '->point))
-      (up 'theta 'phi 'psi)))
-#| Result:
-(up theta phi psi)
-|#
-|#
-
-(define S^n-type (specify-manifold 'S^n))
-
-;; Manifold points are represented by
-;;(up (* (sin theta0) (sin theta1) ... (sin theta_n-1))
-;;    ...
-;;    (* (sin theta0) (sin theta1) (cos theta2) )
-;;    (* (sin theta0) (cos theta1) )
-;;    (cos theta0)
-
-;; The first n-1 angles  must be nonzero to avoid the coordinate singularity.
-;;
-;; S^n-coordinates takes an orientation function that takes the dimension 
-;; of the embedding space (1+the dimension of the manifold) and produces the
-;; matrix that shifts the location of the "north pole".
-
-
-(define (list-top-to-bottom l)
-  (append (cdr l) (list (car l))))
-
-(define (list-bottom-to-top l)
-  (cons (car (last-pair l)) (butlast l)))
-
-(define (S^n-coordinates orientation-function)
-  (lambda (manifold)
-    (let* ((n (manifold 'dimension))
-	   (orientation-matrix (orientation-function (+ n 1)))
-	   (orientation-inverse-matrix (invert orientation-matrix)))
-      (define (me m)
-	(case m
-	  ((check-coordinates)
-	   (lambda (coords)
-	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
-		 (and (up? coords)
-		      (fix:= (s:dimension coords) (manifold 'dimension))
-		      (let ((remaining-coords (butlast (up-structure->list coords))))
-			(every (lambda (coord)
-				 (or (not (number? coord)) (not (= coord 0))))
-			       remaining-coords))))))
-	  ((coords->point)
-	   (lambda (coords)
-	     (if (not ((me 'check-coordinates) coords))
-		 (error "Bad coordinates: S^n" coords))
-	     (if (fix:= n 1)
-		 (let ((pt (up (cos coords) (sin coords))))
-		   (make-manifold-point (* orientation-matrix pt) manifold me coords))
-		 (let* ((coordl (up-structure->list coords))
-			(sines (map sin coordl)) (cosines (map cos coordl))
-			(pt
-			 (list->up-structure
-			  (list-top-to-bottom
-			   (make-initialized-list (fix:+ n 1)
-			     (lambda (i)
-			       (if (fix:= i n)
-				   (apply * sines)
-				   (apply *
-					  (cons (list-ref cosines i)
-						(list-head sines i))))))))))
-		   (make-manifold-point (* orientation-matrix pt) manifold me coords)))))
-	  ((check-point)
-	   (lambda (point) (my-manifold-point? point manifold)))
-	  ((point->coords)
-	   (lambda (point)
-	     (if (not ((me 'check-point) point)) (error "Bad point: S^n" point))
-	     (let ((pt
-		    (reverse
-		     (list-bottom-to-top
-		      (up-structure->list
-		       (* orientation-inverse-matrix
-			  (manifold-point-representation point)))))))
-	       (if (fix:= n 1)
-		   (atan (ref pt 1) (ref pt 0))
-	           (let lp ((r (car pt)) (rest (cdr pt))
-			    (ans (list (atan (car pt) (cadr pt)))))
-		     (if (null? (cdr rest))
-			 (list->up-structure ans)
-			 (let ((r (sqrt (+ (square (car rest)) (square r)))))
-			   (lp r
-			       (cdr rest)
-			       (cons (atan r (cadr rest)) ans)))))))))
-	  (else (error "S^n: Bad message" m))))
-      me)))
-	 
-(attach-patch 'north-pole S^n-type)
-(attach-coordinate-system 'spherical 'north-pole S^n-type
-  (S^n-coordinates m:make-identity))
-
-(attach-patch 'tilted S^n-type)
-(attach-coordinate-system 'spherical 'tilted S^n-type
-  (S^n-coordinates
-   (let ((c (cos :pi/2)) (s (sin :pi/2)))
-     (lambda (n)
-       (s:generate n 'down
-         (lambda (col)
-	   (s:generate n 'up
-		       (lambda (row)
-			 (cond ((and (= row (- n 2)) (= col (- n 1)) -1))
-			       ((and (= row (- n 1)) (= col (- n 2)) +1))
-			       ((and (= row col) (< row (- n 2))) +1)
-			       (else 0))))))))))
-#|
-(define S1 (make-manifold S^n-type 1))
-(define S1-circular (coordinate-system-at 'spherical 'north-pole S1))
-(define S1-tilted (coordinate-system-at 'spherical 'tilted S1))
-
-(define m ((S1-circular '->point) 'theta))
-
-(pe (manifold-point-representation m))
-; Result: (up (cos theta) (sin theta))
-
-(pe ((compose (S1-circular '->coords) (S1-circular '->point)) 'theta))
-; Result: theta
-
-(pe ((compose (S1-circular '->coords) (S1-tilted '->point)) 'theta))
-; Result: (atan (cos theta) (* -1 (sin theta)))
-
-|#                      
-
-#|
-(define S2p (make-manifold S^n-type 2))
-(define S2p-spherical (coordinate-system-at 'spherical 'north-pole S2p))
-(define S2p-tilted (coordinate-system-at 'spherical 'tilted S2p))
-
-(define m ((S2p-spherical '->point) (up 'theta 'phi)))
-
-(pe (manifold-point-representation m))
-; Result: (up (* (sin theta) (cos phi))
-;             (* (sin phi) (sin theta))
-;             (cos theta))
-
-(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
-     (up 'theta 'phi)))
-; Result: (up theta phi)
-
-(pe ((compose (S2p-spherical '->coords) (S2p-tilted '->point))
-     (up 'theta 'phi)))
-; Result: (up (atan (sqrt (+ (* (expt (cos theta) 2) (expt (cos phi) 2))
-;			     (expt (sin phi) 2)))
-;		    (* -1 (sin theta) (cos phi)))
-;	      (atan (* (sin phi) (sin theta)) (cos theta)))
-
-(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
-     (up 1 0)))
-(up 1. 0.)
-
-(pe ((compose (S2p-spherical '->coords) (S2p-spherical '->point))
-     (up 0 1)))
-; Result: Errors out.
-|#                      
-
-#|
-(define S3 (make-manifold S^n-type 3))
-(define S3-spherical (coordinate-system-at 'spherical 'north-pole S3))
-(define S3-tilted (coordinate-system-at 'spherical 'tilted S3))
-(pe ((compose (S3-spherical '->coords)
-	      (S3-spherical '->point))
-     (up 'a 'b 'c)))
-; Result: (up a b c)
-
-(pe ((compose (S3-spherical '->coords)
-	      (S3-tilted '->point))
-     (up 'a 'b 'c)))
-; Result: (up a
-;	      (atan (sqrt (+ (* (expt (sin b) 2) (expt (cos c) 2))
-;			     (expt (cos b) 2)))
-;		    (* (sin b) (sin c)))
-;	      (atan (* -1 (cos b)) (* (sin b) (cos c))))
-
-(pe ((compose (S3-spherical '->coords)
-	      (S3-spherical '->point))
-     (up 0 0 0)))
-; Result: Errors out.
-|#                      
-
-;;; Stereographic Projection from the final coordinate.
-;;
-;;  The default pole is p = (0 0 ... 0 1)
-;;  We fire a ray through m = (m_0 ... m_n)
-;;  x(t) = p + t(m - p)
-;;
-;;  x(0) = p, x(1) = m
-;;  x_n(t) = 1-t(1+m_n), 0 = x_n(1/(1+m_n))
-;;  
-;;  The orientation function should return an orthogonal (n+1)-by-(n+1)
-;;  matrix.  It can be interpreted as moving the pole / plane of projection
-;;  and possibly reflecting.
-;;
-(define (S^n-stereographic orientation-function)
- (lambda (manifold)
-   (let* ((n (manifold 'dimension))
-	   (orientation-matrix (orientation-function (+ n 1)))
-	   (orientation-inverse-matrix (invert orientation-matrix)))
-     (define (me m)
-	(case m
-	  ((check-coordinates)
-	   (lambda (coords)
-	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
-		 (and (up? coords)
-		      (fix:= (s:dimension coords) (manifold 'dimension))))))
-	  ((coords->point)
-	   (lambda (coords)
-	     (if (not ((me 'check-coordinates) coords))
-		 (error "Bad coordinates: S^n" coords))
-	     (let* ((coords (if (fix:= n 1) (up coords) coords))
-		    (delta (dot-product coords coords))
-		    (xn (/ (- 1 delta) (+ 1 delta)))
-		    (pt (s:generate
-			 (fix:+ n 1) 'up
-			 (lambda (i)
-			   (if (fix:= i n) xn
-			       (/ (* 2 (ref coords i))
-				  (+ 1 delta)))))))
-	       (make-manifold-point (* orientation-matrix pt) manifold me coords))))
-	  ((check-point)
-	   (lambda (point) (my-manifold-point? point manifold)))
-	  ((point->coords)
-	   (lambda (point)
-	     (if (not ((me 'check-point) point)) (error "Bad point: S^n" point))
-	     (let* ((n (manifold 'dimension))
-		    (pt (* orientation-inverse-matrix (manifold-point-representation point)))
-		    (coords
-		     (s:generate n 'up
-				 (lambda (i)
-				   (/ (ref pt i)
-				      (+ 1 (ref pt n)))))))
-	       (if (fix:= n 1) (ref coords 0) coords))))
-	     (else (error "S^n: Bad message" m))))
-     me)))
-
-(attach-coordinate-system 'stereographic 'north-pole S^n-type
+(attach-coordinate-system 'stereographic 'north-pole S^2-type
  (S^n-stereographic m:make-identity))
 
-(attach-patch 'south-pole S^n-type)
-(attach-coordinate-system 'stereographic 'south-pole S^n-type
+(attach-coordinate-system 'stereographic 'south-pole S^2-type
  (S^n-stereographic
   (lambda (n)
     (m:generate n n
@@ -1283,247 +1607,22 @@ USA.
 		      (if (= j n) -1 1)
 		      0))))))
 
-
-#|
-(define S1 (make-manifold S^n-type 1))
-(define S1-slope (coordinate-system-at 'stereographic 'north-pole S1))
-
-(define m ((S1-slope '->point) 's))
-
-(pe (manifold-point-representation m))
-; Result:  (up (/ (* 2 s)
-;                 (+ 1 (expt s 2)))
-;              (/ (+ 1 (* -1 (expt s 2)))
-;                 (+ 1 (expt s 2))))
-
-(pe  (manifold-point-representation
-      ((compose (S1-slope '->point) (S1-slope '->coords)) m)))
-; Result: (up (/ (* 2 s)
-;                (+ 1 (expt s 2)))
-;             (/ (+ 1 (* -1 (expt s 2)))
-;                (+ 1 (expt s 2))))
-
-
-(pe ((compose (S1-slope '->coords) (S1-slope '->point)) 's))
-; Result: s
-
-|#     
-
-#|
-(define S2p (make-manifold S^n-type 2))
-(define S2p-riemann (coordinate-system-at 'stereographic 'north-pole S2p))
-
-
-(define m ((S2p-riemann '->point) (up 'x 'y)))
-
-(pe (manifold-point-representation m))
-; Result: (up (/ (* 2 x)
-;                (+ 1 (expt x 2) (expt y 2)))
-;             (/ (* 2 y)
-;                (+ 1 (expt x 2) (expt y 2)))
-;             (/ (+ 1 (* -1 (expt x 2)) (* -1 (expt y 2)))
-;                (+ 1 (expt x 2) (expt y 2))))
-
-(pe (manifold-point-representation
-     ((compose (S2p-riemann '->point) (S2p-riemann '->coords))
-      m)))
-; Result: (up (/ (* 2 x)
-;                 (+ 1 (expt x 2) (expt y 2)))
-;             (/ (* 2 y)
-;                (+ 1 (expt x 2) (expt y 2)))
-;             (/ (+ 1 (* -1 (expt x 2)) (* -1 (expt y 2)))
-;                (+ 1 (expt x 2) (expt y 2))))
-
-(pe ((compose (S2p-riemann '->coords) (S2p-riemann '->point))
-    (up 'x 'y)))
-; Result:  (up x y)
-
-(pe (manifold-point-representation
-      ((S2p-riemann '->point)
-       (up (cos 'theta) (sin 'theta)))))
-; Result: (up (cos theta) (sin theta) 0)
-; The equator is invariant.
-|#              
-
-;;; Gnomic Projection of the sphere
-;;
-;;  We map the nothern hemisphere to the plane by firing a ray from the origin.
-;;  The coordinates are given by the intersection with the z = 1 plane.
-;;  x(t) = tm
-;;  x_n(t) = tm_n, 1 = x_n(1/m_n)
-;;
-;;  orientation-function should should return an n+1-by-n+1 orthogonal matrix.
-;;  It can be interpreted as moving the plane of projection, and point mapped to
-;;  the origin, as well as possibly reflecting.
-;;
-;;  Given the coordinates x we have  <x,x> = (1-m_n^2)/m_n^2
-;;  1 + <x,x> = (m_n^2 + 1 - m_n^2)/m_n^2
-;;  m_n = sqrt(1/(1+<x,x>))
-;;  where positive square root is sufficient for the nothern hemisphere.
-
-
-
-
-(define (S^n-gnomic orientation-function)
- (lambda (manifold)
-   (let* ((n (manifold 'dimension))
-	   (orientation-matrix (orientation-function (+ n 1)))
-	   (orientation-inverse-matrix (invert orientation-matrix)))
-     (define (me m)
-	(case m
-	  ((check-coordinates)
-	   (lambda (coords)
-	     (or (and (fix:= n 1) (fix:= (s:dimension coords) 1))
-		 (and (up? coords)
-		      (fix:= (s:dimension coords) (manifold 'dimension))))))
-	  ((coords->point)
-	   (lambda (coords)
-	     (if (not ((me 'check-coordinates) coords))
-		 (error "Bad coordinates: S^n" coords))
-	     (let* ((coords (if (fix:= n 1) (up coords) coords))
-		    (delta (dot-product coords coords))
-		    (xn (sqrt (/ (+ 1  delta))))
-		    (pt (s:generate
-			 (fix:+ n 1) 'up
-			 (lambda (i)
-			   (if (fix:= i n) xn
-			       (* (ref coords i) xn))))))
-	       (make-manifold-point (* orientation-matrix pt) manifold me coords))))
-	  ((check-point)
-	   (lambda (point) (my-manifold-point? point manifold)))
-	  ((point->coords)
-	   (lambda (point)
-	     (if (not ((me 'check-point) point))
-		 (error "Bad point: S^n" point))
-	     (let* ((n (manifold 'dimension))
-		    (pt (* orientation-inverse-matrix (manifold-point-representation point))))
-;	       (if (not (> 0 (ref pt n)))
-;		   (error "Point not covered by gnomic S^n coordinate patch."))
-	       (let ((coords
-		      (s:generate n 'up
-				  (lambda (i)
-				    (/ (ref pt i) (ref pt n))))))
-		 (if (fix:= n 1) (ref coords 0) coords)))))
-	  (else (error "S^n: Bad message" m))))
-     me)))
-
-(attach-coordinate-system 'gnomic 'north-pole S^n-type
+(attach-coordinate-system 'gnomic 'north-pole S^2-type
  (S^n-gnomic m:make-identity))
 
-#|
-(define S1 (make-manifold S^n-type 1))
-(define S1-gnomic (coordinate-system-at 'gnomic 'north-pole S1))
+(attach-coordinate-system 'gnomic 'south-pole S^2-type
+ (S^n-gnomic
+  (lambda (n)
+    (m:generate n n
+		(lambda (i j)
+		  (if (= i j)
+		      (if (= j n) -1 1)
+		      0))))))
 
-(define m ((S1-gnomic '->point) 's))
+(define S2-stereographic
+  (coordinate-system-at 'stereographic 'north-pole S2))
+(define S2-Riemann S2-stereographic)
 
-(pe (manifold-point-representation m))
-; Result:  (up (/ s (sqrt (+ 1 (expt s 2))))
-;              (/ 1 (sqrt (+ 1 (expt s 2)))))
-
-(pe  (manifold-point-representation
-      ((compose (S1-gnomic '->point) (S1-gnomic '->coords)) m)))
-; Result: (up (/ s (sqrt (+ 1 (expt s 2))))
-;             (/ 1 (sqrt (+ 1 (expt s 2)))))
-
-(pe ((compose (S1-slope '->coords) (S1-slope '->point)) 's))
-; Result: s
-
-|#     
-
-
-#|
-(define S2p (make-manifold S^n-type 2))
-(define S2p-gnomic (coordinate-system-at 'gnomic 'north-pole S2p))
-(define S2p-stereographic (coordinate-system-at 'stereographic 'north-pole S2p))
-
-(define m ((S2p-gnomic '->point) (up 'x 'y)))
-
-
-(pe (manifold-point-representation m))
-; Result: (up (/ x (sqrt (+ 1 (expt x 2) (expt y 2))))
-;             (/ y (sqrt (+ 1 (expt x 2) (expt y 2))))
-;             (/ 1 (sqrt (+ 1 (expt x 2) (expt y 2)))))
-
-(pe (manifold-point-representation
-     ((compose (S2p-gnomic '->point) (S2p-gnomic '->coords))
-      m)))
-; Result: (up (/ x (sqrt (+ 1 (expt x 2) (expt y 2))))
-;             (/ y (sqrt (+ 1 (expt x 2) (expt y 2))))
-;             (/ 1 (sqrt (+ 1 (expt x 2) (expt y 2)))))
-
-(pe ((compose (S2p-gnomic '->coords) (S2p-gnomic '->point))
-    (up 'x 'y)))
-; Result:  (up x y)
-
-
-(pe (manifold-point-representation
-      ((S2p-gnomic '->point)
-       (up (cos 'theta) (sin 'theta)))))
-; Result: (up (/ (cos theta) (sqrt 2))
-;             (/ (sin theta) (sqrt 2)) (/ 1 (sqrt 2)))
-; The unit circle on the plane represents the intersection of S2 and
-;      z = (/ 1 (sqrt 2))
-
-; Straight lines in the gnomic coordinates are geodesics.
-; We compute a straight line, then transform it back to stereographic coordinates.
-
-(define q ((S2p-stereographic '->point) (up -1.5 1.5)))
-(define p ((S2p-stereographic '->point) (up 1.5 0)))
-
-(pe (simplify (simplify ((S2p-stereographic '->coords)
-			 ((S2p-gnomic '->point)
-			  (+ (* 't ((S2p-gnomic '->coords) p))
-			     (* (- 1 't) ((S2p-gnomic '->coords) q))))))))
-; Result: 
-;(up
-; (/
-;  (+ .25449329927964376 (* -.9670745372626465 t))
-;  (+ .29690884915958443
-;     (sqrt (+ .21768854346574557 (expt t 2) (* -.6217616580310881 t)))))
-; (/
-;  (+ -.25449329927964376 (* .25449329927964376 t))
-;  (+ .29690884915958443
-;     (sqrt (+ .21768854346574557 (expt t 2) (* -.6217616580310881 t))))))
-;
-; We discover that geodesics on the nothern hemisphere correspond to
-|#              
-
-#|
-;; Now a fun example synthesizing the to projective coordinates.
-
-(define S3 (make-manifold S^n-type 3))
-(define S3-gnomic (coordinate-system-at 'gnomic 'north-pole S3))
-(define S3-stereographic (coordinate-system-at 'stereographic 'south-pole S3))
-
-; S3 is one-to-one with the quaternions.
-; We interpret the first three components of the embedding space as the
-;    i,j,k imaginary party and the 4th component as the real part.
-; The gnomic projection removes the double-cover of quaternions to rotations.
-; The solid unit-sphere of the stereographic projection from the south pole likewise.
-
-(pe ((S3-gnomic '->coords) ((S3-stereographic '->point) (up 'x 'y 'z))))
-(up (/ (* -2 x) (+ -1 (expt x 2) (expt y 2) (expt z 2)))
-    (/ (* -2 y) (+ -1 (expt x 2) (expt y 2) (expt z 2)))
-    (/ (* -2 z) (+ -1 (expt x 2) (expt y 2) (expt z 2))))
-
-(pe ((S3-stereographic '->coords) ((S3-gnomic '->point) (up 'x 'y 'z))))
-(up (/ x (+ 1 (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2)))))
-    (/ y (+ 1 (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2)))))
-    (/ z (+ 1 (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2))))))
-
-(pe (euclidean-norm ((S3-stereographic '->coords)
-		     ((S3-gnomic '->point) (up 'x 'y 'z)))))
-(/
- (sqrt (+ (expt x 2) (expt y 2) (expt z 2)))
- (sqrt
-  (+ 2
-     (expt x 2)
-     (expt y 2)
-     (expt z 2)
-     (* 2 (sqrt (+ 1 (expt x 2) (expt y 2) (expt z 2)))))))
-|#
-            
-
-
-
+(define S2-gnomic
+  (coordinate-system-at 'gnomic 'north-pole S2))
 

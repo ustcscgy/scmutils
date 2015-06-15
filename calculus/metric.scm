@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -106,7 +106,6 @@ USA.
        ((D (D (lambda (v)
 		(dot-product (Qd v) (Qd v)))))
 	(zero-like xi)))))
-|#
 
 (define ((coordinate-system->metric-components coordsys) xi)
   (let* ((n (coordsys 'dimension))
@@ -120,6 +119,26 @@ USA.
 			      (lambda (j)
 				(dot-product (ref h i)
 					     (ref h j))))))))
+|#
+
+(define (coordinate-system->metric-components coordsys)
+  (let* ((n (coordsys 'dimension))
+	 (xi->x	;assumes internal rectangular representation
+	  (compose manifold-point-representation
+		   (point coordsys))))
+    (embedding-map->metric-components n xi->x)))
+
+(define (embedding-map->metric-components n xi->rectangular)
+  (let ((h (D xi->rectangular)))
+    (if (= n 1)
+	(down (down (dot-product h h)))
+	(s:generate n 'down
+		    (lambda (i)
+		      (s:generate n 'down
+				  (lambda (j)
+				    (dot-product (ref h i)
+						 (ref h j)))))))))
+
 #|
 ((coordinate-system->metric-components R3-spherical) (up 'r 'theta 'phi))
 #|
@@ -128,7 +147,7 @@ USA.
       (down 0 0 (* (expt r 2) (expt (sin theta) 2))))
 |#
 |#
-
+
 (define (coordinate-system->metric coordinate-system)
   (let* ((basis (coordinate-system->basis coordinate-system))
 	 (1form-basis (basis->1form-basis basis))
@@ -143,6 +162,19 @@ USA.
 			   (list vector-field? vector-field?))
   the-metric))
 
+#|
+(s:map/r (lambda (v1)
+	   (s:map/r (lambda (v2)
+		      (((coordinate-system->metric R3-spherical) v1 v2)
+		       ((point R3-spherical) (up 'r 'theta 'phi))))
+		    (coordinate-system->vector-basis R3-spherical)))
+	 (coordinate-system->vector-basis R3-spherical))
+#|
+(down (down 1 0 0)
+      (down 0 (expt r 2) 0)
+      (down 0 0 (* (expt r 2) (expt (sin theta) 2))))
+|#
+|#
 
 (define (coordinate-system->inverse-metric coordinate-system)
   (let* ((basis (coordinate-system->basis coordinate-system))
@@ -151,13 +183,30 @@ USA.
 	  (/ 1
 	     (coordinate-system->metric-components coordinate-system)))
 	 (Chi (chart coordinate-system)))
-  (define ((the-metric v1 v2) m)
+  (define ((the-inverse-metric w1 w2) m)
     (let ((gcoeffs (->components (Chi m))))
-      (* (* gcoeffs (vector-basis v1))
-	 (vector-basis v2))))
-  (declare-argument-types! the-metric
+      (* (* gcoeffs
+	    (s:map/r (lambda (e) ((w1 e) m))
+		     vector-basis))
+	 (s:map/r (lambda (e) ((w2 e) m))
+		  vector-basis))))
+  (declare-argument-types! the-inverse-metric
 			   (list 1form-field? 1form-field?))
-  the-metric))
+  the-inverse-metric))
+
+#|
+(s:map/r (lambda (w1)
+	   (s:map/r (lambda (w2)
+		      (((coordinate-system->inverse-metric R3-spherical) w1 w2)
+		       ((point R3-spherical) (up 'r 'theta 'phi))))
+		    (coordinate-system->1form-basis R3-spherical)))
+	 (coordinate-system->1form-basis R3-spherical))
+#|
+(up (up 1 0 0)
+    (up 0 (/ 1 (expt r 2)) 0)
+    (up 0 0 (/ 1 (* (expt r 2) (expt (sin theta) 2)))))
+|#
+|#
 
 ;;; Symbolic metrics are often useful for testing.
 
@@ -214,11 +263,28 @@ USA.
 |#
 |#
 
+(define (components->metric components basis)
+  (let ((1form-basis (basis->1form-basis basis)))
+    (define (the-metric v1 v2)
+      (* (1form-basis v1) (* components (1form-basis v2))))
+    the-metric))
+
+#|
+;;; Code below is OK
 (define ((metric->components metric basis) m)
   (let ((vector-basis (basis->vector-basis basis)))
     (s:map/r (lambda (e_i)
 	       (s:map/r (lambda (e_j)
 			  ((metric e_i e_j) m))
+			vector-basis))
+	     vector-basis)))
+|#
+
+(define (metric->components metric basis)
+  (let ((vector-basis (basis->vector-basis basis)))
+    (s:map/r (lambda (e_i)
+	       (s:map/r (lambda (e_j)
+			  (metric e_i e_j))
 			vector-basis))
 	     vector-basis)))
 
@@ -236,6 +302,20 @@ USA.
 	 g^ij)))
   the-coeffs)    
 
+#|
+;;; This code seriously degrades performance, use version above.
+(define (metric->inverse-components metric basis)
+  (let ((g_ij (metric->components metric basis))
+	(1form-basis (basis->1form-basis basis)))
+    (let ((g^ij
+	   (s:inverse (typical-object 1form-basis)
+		      g_ij
+		      (typical-object 1form-basis))))
+      g^ij)))
+|#
+
+#|
+;;; Code below is OK
 (define (metric:invert metric basis)
   (define (the-inverse-metric w1 w2)
     (lambda (m)
@@ -243,6 +323,17 @@ USA.
 	    (g^ij ((metric->inverse-components metric basis) m)))
 	(* (* g^ij ((s:map/r w1 vector-basis) m))
 	   ((s:map/r w2 vector-basis) m)))))
+  (declare-argument-types! the-inverse-metric
+			   (list 1form-field? 1form-field?))
+  the-inverse-metric)
+|#
+
+(define (metric:invert metric basis)
+  (define (the-inverse-metric w1 w2)
+    (let ((vector-basis (basis->vector-basis basis))
+	  (g^ij (metric->inverse-components metric basis)))
+      (* (* g^ij (s:map/r w1 vector-basis))
+	 (s:map/r w2 vector-basis))))
   (declare-argument-types! the-inverse-metric
 			   (list 1form-field? 1form-field?))
   the-inverse-metric)
@@ -311,6 +402,9 @@ USA.
 
 ;;; Raising and lowering indices...
 
+;;; To make a vector field into a one-form field 
+;;;  ie a (1,0) tensor into a (0,1) tensor
+
 (define ((lower metric) u)
   (define (omega v)
     (metric v u))
@@ -319,19 +413,99 @@ USA.
 	    ,(diffop-name metric))))
 
 (define vector-field->1form-field lower)
+(define drop1 lower)
 
-  
+
+;;; To make a one-form field  into a vector field
+;;;  ie a (0,1) tensor into a (1,0) tensor
+
 (define (raise metric basis)
   (let ((gi (metric:invert metric basis)))
     (lambda (omega)
-      (contract (lambda (e_i e~i)
-		  (* (gi omega e~i) e_i))
-		basis))))
+      (define v
+	(contract (lambda (e_i e~i)
+		    (* (gi omega e~i) e_i))
+		  basis))
+      (procedure->vector-field v
+	`(raise ,(diffop-name omega)
+		,(diffop-name metric))))))
 
 (define 1form-field->vector-field raise)
+(define raise1 raise)
 
-;;; Note: raise needs an extra argument -- the coordinate system -- why?
+;;; For making a (2,0) tensor into a (0,2) tensor
 
+(define ((drop2 metric-tensor basis) tensor)
+  (define (omega v1 v2)
+    (contract
+     (lambda (e1 w1)
+       (contract
+	(lambda (e2 w2)
+	  (* (metric-tensor v1 e1)
+	     (tensor w1 w2)
+	     (metric-tensor e2 v2)))
+	basis))
+     basis))
+  (declare-argument-types! omega (list vector-field? vector-field?))
+  omega)
+
+
+;;; For making a (0,2) tensor into a (2,0) tensor
+
+(define (raise2 metric-tensor basis)
+  (let ((gi (metric:invert metric-tensor basis)))
+    (lambda (tensor02)
+      (define (v2 omega1 omega2)
+	(contract
+	 (lambda (e1 w1)
+	   (contract
+	    (lambda (e2 w2)
+	      (* (gi omega1 w1)
+		 (tensor02 e1 e2)
+		 (gi w2 omega2)))
+	    basis))
+	 basis))
+      (declare-argument-types! v2 (list 1form-field? 1form-field?))
+      v2)))
+
+
+;;; To compute the trace of a (0,2) tensor
+
+(define (trace2down metric-tensor basis)
+  (let ((inverse-metric-tensor
+         (metric:invert metric-tensor basis)))
+    (lambda (tensor02)
+      (define f
+	(contract
+	 (lambda (e1 w1)
+	   (contract
+	    (lambda (e2 w2)
+	      (* (inverse-metric-tensor w1 w2)
+		 (tensor02 e1 e2)))
+	    basis))
+	 basis))
+      (declare-argument-types! f (list function?))
+      f)))
+
+
+;;; To compute the trace of a (2,0) tensor
+
+(define ((trace2up metric-tensor basis) tensor20)
+  (define f
+    (contract
+     (lambda (e1 w1)
+       (contract
+	(lambda (e2 w2)
+	  (* (metric-tensor e1 e2)
+	     (tensor20 w1 w2)))
+	basis))
+     basis))
+  (declare-argument-types! f (list function?))
+  f)
+
+
+
+;;; Note: raise needs an extra argument -- the basis -- why?
 #|
 (pec
  ((((lower (g-R2 'a 'b 'c))

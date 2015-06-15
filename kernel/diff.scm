@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -527,6 +527,19 @@ USA.
 
 (define diff:cosh
   (diff:unary-op g:cosh g:sinh))
+
+
+(define (diff:abs x)
+  (let ((f (finite-part x)))
+    ((cond ((g:< f 0)
+	    (diff:unary-op (lambda (x) x) (lambda (x) -1)))
+	   ((g:= f 0)
+	    (error "Derivative of ABS undefined at zero"))
+	   ((g:> f 0)
+	    (diff:unary-op (lambda (x) x) (lambda (x) +1)))
+	   (else
+	    (error "Derivative of ABS at" x)))
+     x)))
 
 ;;; Funny functions -- needs singularity distributions?
 ;;; known-real? means provably real.  e.g. a polynomial in *known-reals*
@@ -541,35 +554,45 @@ USA.
   |#
   (if (not (known-real? (finite-part z)))
       (error "Not real -- DIFF:CONJUGATE" z))
-  (diff:unary-op (lambda (x) x) (lambda (x) 1)))
+  ((diff:unary-op (lambda (x) x) (lambda (x) 1)) z))
 
 
 (define (diff:real-part z)
   (if (not (known-real? (finite-part z)))
       (error "Not real -- DIFF:REAL-PART" z))
-  (diff:unary-op (lambda (x) x) (lambda (x) 1)))
+  ((diff:unary-op (lambda (x) x) (lambda (x) 1)) z))
 
 (define (diff:imag-part z)
   (if (not (known-real? (finite-part z)))
       (error "Not real -- DIFF:IMAG-PART" z))
-  (diff:unary-op (lambda (x) 0) (lambda (x) 0)))
+  ((diff:unary-op (lambda (x) 0) (lambda (x) 0)) z))
 
 (define (diff:magnitude z)
   #|
   (if (not (known-real? (finite-part z)))
       (error "Not real -- DIFF:MAGNITUDE" z))
   ;; Could be z or -z
+  (error "Unimplemented -- DIFF:MAGNITUDE" z)
   |#
-  (error "Unimplemented -- DIFF:MAGNITUDE" z))
+  (diff:abs z))
 
 (define (diff:angle z)
   #|
   (if (not (known-real? (finite-part z)))
       (error "Not real -- DIFF:ANGLE" z))
   ;; Could be 1 or -1
+  (error "Unimplemented -- DIFF:ANGLE" z)
   |#
-  (error "Unimplemented -- DIFF:ANGLE" z))
-
+  (let ((f (finite-part z)))
+    ((cond ((g:< f 0)
+	    (diff:unary-op (lambda (x) x) (lambda (x) :zero)))
+	   ((g:= f 0)
+	    (error "Derivative of ABS undefined at zero"))
+	   ((g:> f 0)
+	    (diff:unary-op (lambda (x) x) (lambda (x) :zero)))
+	   (else
+	    (error "Derivative of ABS at" z)))
+     z)))
 
 (define (diff:type x) differential-type-tag)
 (define (diff:type-predicate x) differential?)
@@ -622,13 +645,105 @@ USA.
 (assign-operation 'atan2           diff:atan2            differential? not-compound?)
 (assign-operation 'atan2           diff:atan2            not-compound? differential?)
 
-;;; The following are not completely thought out!  Needs more work.  What about abs?
+(assign-operation 'abs             diff:abs              differential?)
+
+;;; The following are not completely thought out!  Needs more work.
 
 (assign-operation 'conjugate       diff:conjugate        differential?)
 (assign-operation 'real-part       diff:real-part        differential?)
 (assign-operation 'imag-part       diff:imag-part        differential?)
 (assign-operation 'magnitude       diff:magnitude        differential?)
 (assign-operation 'angle           diff:angle            differential?)
+
+;;; This stuff allows derivatives to work in code where there are
+;;; conditionals if the finite parts are numerical.
+
+#|
+;;; These kill system
+(define (diff:unary-comparator p)
+  (define (p? x)
+    (p (finite-part x)))
+  p?)
+
+(assign-operation 'zero? (diff:unary-comparator g:zero?) differential?)
+(assign-operation 'one?  (diff:unary-comparator g:one?)  differential?)
+|#
+
+#|
+;;; These slow down derivatives!
+(define (diff:zero? x)
+  (and (number? (infinitesimal-part x))
+       (n:zero? (infinitesimal-part x))
+       (g:zero? (finite-part x))))
+
+(assign-operation 'zero? diff:zero? differential?)
+
+(define (diff:one? x)
+  (and (number? (infinitesimal-part x))
+       (n:zero? (infinitesimal-part x))
+       (g:one? (finite-part x))))
+
+(assign-operation 'one? diff:one? differential?)
+|#
+
+
+;;; Evan these slow down derivatives!
+(define (diff:zero? x)
+  (let ((f (finite-part x)))
+    (and (number? f)
+	 (n:zero? f)
+	 (let ((i (infinitesimal-part x)))
+	   (and (number? i)
+		(n:zero? i))))))
+
+(assign-operation 'zero? diff:zero? differential?)
+
+(define (diff:one? x)
+    (let ((f (finite-part x)))
+    (and (number? f)
+	 (n:one? f)
+	 (let ((i (infinitesimal-part x)))
+	   (and (number? i)
+		(n:zero? i))))))
+
+(assign-operation 'one? diff:one? differential?)
+
+
+#|
+;;; this does not slow down derivatives!
+(define (diff:zero? x) #f)
+
+(assign-operation 'zero? diff:zero? differential?)
+
+
+(define (diff:one? x) #f)
+
+(assign-operation 'one? diff:one? differential?)
+|#
+
+
+(define (diff:binary-comparator p)
+  (define (bp? x y)
+    (let ((xe (finite-part x))
+	  (ye (finite-part y)))
+      (p xe ye)))
+  bp?)
+
+
+(assign-operation '= (diff:binary-comparator g:=) differential? not-compound?)
+(assign-operation '= (diff:binary-comparator g:=) not-compound? differential?)
+
+(assign-operation '< (diff:binary-comparator g:<) differential? not-compound?)
+(assign-operation '< (diff:binary-comparator g:<) not-compound? differential?)
+
+(assign-operation '<= (diff:binary-comparator g:<=) differential? not-compound?)
+(assign-operation '<= (diff:binary-comparator g:<=) not-compound? differential?)
+
+(assign-operation '> (diff:binary-comparator g:>) differential? not-compound?)
+(assign-operation '> (diff:binary-comparator g:>) not-compound? differential?)
+
+(assign-operation '>= (diff:binary-comparator g:>=) differential? not-compound?)
+(assign-operation '>= (diff:binary-comparator g:>=) not-compound? differential?)
 
 ;;; The derivative of a univariate function over R is a value
 ;;;  ((derivative (lambda (x) (expt x 5))) 'a)
@@ -780,16 +895,77 @@ USA.
 	  (else (extract obj))))
   (dist obj))
 
-(define ((hide-tag-in-procedure external-tag procedure) x)
-  (let ((internal-tag (make-differential-tag)))
-    (hide-tag-in-object internal-tag
-      (((replace-differential-tag external-tag internal-tag) procedure) x))))
-     
 (define (hide-tag-in-object tag object)
   (cond ((procedure? object)
 	 (hide-tag-in-procedure tag object))
 	(else object)))
+
+(define ((hide-tag-in-procedure external-tag procedure) . args)
+  (let ((internal-tag (make-differential-tag)))
+    (hide-tag-in-object internal-tag
+      (apply (wrap-procedure-differential-tags external-tag internal-tag procedure) args))))
+
+(define (wrap-procedure-differential-tags external-tag internal-tag procedure)
+  (let ((new
+	 (lambda args
+	   ((replace-differential-tag internal-tag external-tag)
+	    (apply procedure
+		   (map (replace-differential-tag external-tag internal-tag)
+			args))))))
+    (cond ((function? procedure)
+	   new)
+	  ((operator? procedure)
+	   (make-operator new 'composition (operator-subtype procedure)))
+	  (else
+	   (error "Unknown procedure type -- WRAP-PROCEDURE-DIFFERENTIAL-TAGS:"
+		  external-tag internal-tag procedure)))))
 
+(define ((replace-differential-tag oldtag newtag) object)
+  (cond ((differential? object)
+	 (terms->differential
+	  (map (lambda (term)
+		 (if (memv oldtag (differential-tags term))
+		     (make-differential-term
+		      (insert-differential-tag newtag
+                       (remove-differential-tag oldtag
+                        (differential-tags term)))
+		      (differential-coefficient term))
+		     term))
+	       (differential-term-list object))))
+	((procedure? object)
+	 (wrap-procedure-differential-tags oldtag newtag object))
+	((structure? object)
+	 (s:map/r (replace-differential-tag oldtag newtag) object))
+	((matrix? object)
+	 ((m:elementwise (replace-differential-tag oldtag newtag)) object))
+	((series? object)
+	 (make-series (g:arity object)
+		      (map-stream (replace-differential-tag oldtag newtag)
+				  (series->stream object))))
+	(else object)))
+
+(define (remove-differential-tag tag tags)
+  (delv tag tags))
+
+(define (insert-differential-tag tag tags)
+  (cond ((null? tags) (list tag))
+	((<dt tag (car tags)) (cons tag tags))
+	((=dt tag (car tags))
+	 (error "INSERT-DIFFERENTIAL-TAGS:" tag tags))
+	(else
+	 (cons (car tags)
+	       (insert-differential-tag tag (cdr tags))))))
+
+#|     
+;;; 2011 buggy version: did not handle derivative functions with multiple args
+;;; (define ((f x) y z) (* x y z))
+;;; (((D f) 2) 3 4) should return 12, but gets error.
+
+(define ((hide-tag-in-procedure external-tag procedure) x)
+  (let ((internal-tag (make-differential-tag)))
+    (hide-tag-in-object internal-tag
+      (((replace-differential-tag external-tag internal-tag) procedure) x))))
+
 (define ((replace-differential-tag oldtag newtag) object)
   (cond ((differential? object)
 	 (terms->differential
@@ -823,15 +999,4 @@ USA.
 		      (map-stream (replace-differential-tag oldtag newtag)
 				  (series->stream object))))
 	(else object)))
-
-(define (remove-differential-tag tag tags)
-  (delv tag tags))
-
-(define (insert-differential-tag tag tags)
-  (cond ((null? tags) (list tag))
-	((<dt tag (car tags)) (cons tag tags))
-	((=dt tag (car tags))
-	 (error "INSERT-DIFFERENTIAL-TAGS:" tag tags))
-	(else
-	 (cons (car tags)
-	       (insert-differential-tag tag (cdr tags))))))
+|#

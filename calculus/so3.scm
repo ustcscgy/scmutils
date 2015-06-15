@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,6 +26,7 @@ USA.
 
 ;;;  review aspects of SO3
 
+;;; Euler-angles coordinate system is also defined in manifold.scm
 (define Euler-angles
   (coordinate-system-at 'Euler 'Euler-patch SO3))
 (define Euler-angles-chi (Euler-angles '->coords))
@@ -34,6 +35,7 @@ USA.
 (define Euler-angles-basis (coordinate-system->basis Euler-angles))
 
 ;;; for the moment define
+;;; alternate-angles coordinate system is also defined in manifold.scm
 (define alternate-angles
   (coordinate-system-at 'alternate 'alternate-patch SO3))
 (define alternate-angles-chi (alternate-angles '->coords))

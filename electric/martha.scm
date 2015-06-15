@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,17 +35,13 @@ USA.
 (define (contents branch) (cadr branch))
 (define (tag type-tag contents) (list type-tag contents))
 
-
 (define (make-impedance contents)
   (tag 'impedance contents))
-
 (define (make-admittance contents)
   (tag 'admittance contents))
-  
 
 (define (impedance? x)
   (and (pair? x) (eq? (car x) 'impedance)))
-
 (define (admittance? x)
   (and (pair? x) (eq? (car x) 'admittance)))
 
@@ -53,24 +49,31 @@ USA.
 ;;; Conversions
 
 (define (admittance branch)
-  (cond ((admittance? branch) (contents branch))
-	((impedance? branch) (/ 1 (contents branch)))
-	((1-port? branch)
-	 (/ (vector-ref (contents branch) 1)
-	    (vector-ref (contents branch) 0)))
-	(else
-	 (error "Unknown branch type -- ADMITTANCE"
-		branch))))
+  (coerce-to-function
+   (cond ((admittance? branch) (contents branch))
+	 ((impedance? branch) (/ 1 (contents branch)))
+	 ((1-port? branch)
+	  (/ (vector-ref (contents branch) 1)
+	     (vector-ref (contents branch) 0)))
+	 (else
+	  (error "Unknown branch type -- ADMITTANCE"
+		 branch)))))
 
 (define (impedance branch)
-  (cond ((admittance? branch) (/ 1 (contents branch)))
-	((impedance? branch) (contents branch))
-	((1-port? branch)
-	 (/ (vector-ref (contents branch) 0)
-	    (vector-ref (contents branch) 1)))
-	(else
-	 (error "Unknown branch type -- IMPEDANCE"
-		branch))))
+  (coerce-to-function
+   (cond ((admittance? branch) (/ 1 (contents branch)))
+	 ((impedance? branch) (contents branch))
+	 ((1-port? branch)
+	  (/ (vector-ref (contents branch) 0)
+	     (vector-ref (contents branch) 1)))
+	 (else
+	  (error "Unknown branch type -- IMPEDANCE"
+		 branch)))))
+
+;;; Useful:
+(define (zerofun s) 0)
+(define (onefun s) 1)
+(define (monefun s) -1)
 
 ;;; Branch Impedances
 
@@ -85,11 +88,10 @@ USA.
 
 
 (define (short)
-  (make-impedance 0))
+  (make-impedance zerofun))
 
 (define (open)
-  (make-admittance 0))
-
+  (make-admittance zerofun))
 
 
 ;;; Wiring functions for combining branches 
@@ -103,7 +105,6 @@ USA.
    (+ (admittance b1) (admittance b2))))
 
 
-
 ;;;; A 1-port object is a vector [V I]
 
 (define (make-1-port vi)
@@ -111,9 +112,9 @@ USA.
 
 (define (branch->1-port-vector branch)
   (cond ((admittance? branch)
-	 (vector 1 (contents branch)))
+	 (vector onefun (contents branch)))
 	((impedance? branch)
-	 (vector (contents branch) 1))
+	 (vector (contents branch) onefun))
 	(else
 	 (error "Unknown branch type -- MAKE-1-PORT"
 		branch))))
@@ -155,15 +156,23 @@ USA.
 		(vector h21 h22)))))
 
 
-;;; V1 = A*V2 + B*I2;  I1 = C*V2 + D*I2
+;;; I1 = G11*V1 + G12*I2;  V2 = G21*V1 + G22*I2
+
+(define (make-g-matrix g11 g12 g21 g22)
+  (tag 'g-matrix
+       (array->matrix
+	(vector (vector g11 g12)
+		(vector g21 g22)))))
+
+
+;;; V1 = A*V2 - B*I2;  I1 = C*V2 - D*I2
 
 (define (make-abcd-matrix A B C D)
   (tag 'abcd-matrix
        (array->matrix
 	(vector (vector A B)
 		(vector C D)))))
-
-
+
 (define (z-matrix? x)
   (and (pair? x) (eq? (car x) 'z-matrix)))
 
@@ -173,9 +182,13 @@ USA.
 (define (h-matrix? x)
   (and (pair? x) (eq? (car x) 'h-matrix)))
 
+(define (g-matrix? x)
+  (and (pair? x) (eq? (car x) 'g-matrix)))
+
 (define (abcd-matrix? x)
   (and (pair? x) (eq? (car x) 'abcd-matrix)))
-
+
+
 ;;; Conversions
 
 (define (y->z y-matrix)
@@ -209,7 +222,7 @@ USA.
 (print-expression (z->y (y->z general-y-matrix)))
 (matrix-by-rows (list y11 y12) (list y21 y22))
 |#
-
+
 (define (z->abcd z-matrix)
   (let ((z11 (matrix-ref z-matrix 0 0))
 	(z12 (matrix-ref z-matrix 0 1))
@@ -238,7 +251,8 @@ USA.
     (y->abcd general-y-matrix)))
 (matrix-by-rows (list 0 0) (list 0 0))
 |#
-
+
+
 (define (abcd->z abcd-matrix)
   (let ((a (matrix-ref abcd-matrix 0 0))
 	(b (matrix-ref abcd-matrix 0 1))
@@ -259,7 +273,7 @@ USA.
  (abcd->z (z->abcd general-z-matrix)))
 (matrix-by-rows (list z11 z12) (list z21 z22))
 |#
-
+
 (define (abcd->y abcd-matrix)
   (let ((a (matrix-ref abcd-matrix 0 0))
 	(b (matrix-ref abcd-matrix 0 1))
@@ -345,7 +359,7 @@ USA.
 (print-expression (y->h (h->y general-h-matrix)))
 (matrix-by-rows (list h11 h12) (list h21 h22))
 |#
-
+
 (define (h->abcd h-matrix)
   (let ((h11 (matrix-ref h-matrix 0 0))
 	(h12 (matrix-ref h-matrix 0 1))
@@ -374,12 +388,32 @@ USA.
 (print-expression (abcd->h (h->abcd general-h-matrix)))
 (matrix-by-rows (list h11 h12) (list h21 h22))
 |#
+
+
+;;; Temporary kludge
+
+(define g->h m:invert)
+
+(define h->g m:invert)
+
+(define g->z (compose h->z g->h))
+
+(define g->y (compose h->y g->h))
+
+(define g->abcd (compose h->abcd g->h))
+
+(define z->g (compose h->g z->h))
+
+(define y->g (compose h->g y->h))
+
+(define abcd->g (compose h->g abcd->h))
 
 (define (z-matrix 2-port)
   (cond ((abcd-matrix? 2-port) (abcd->z (contents 2-port)))
 	((z-matrix? 2-port) (contents 2-port))
 	((y-matrix? 2-port) (y->z (contents 2-port)))
 	((h-matrix? 2-port) (h->z (contents 2-port)))
+	((g-matrix? 2-port) (g->z (contents 2-port)))
 	(else
 	 (error "Unknown 2-port type -- Z-matrix" 2-port))))
 
@@ -388,6 +422,7 @@ USA.
 	((z-matrix? 2-port) (z->y (contents 2-port)))
 	((y-matrix? 2-port) (contents 2-port))
 	((h-matrix? 2-port) (h->y (contents 2-port)))
+	((g-matrix? 2-port) (g->y (contents 2-port)))
 	(else
 	 (error "Unknown 2-port type -- Y-matrix" 2-port))))
 
@@ -396,14 +431,25 @@ USA.
 	((z-matrix? 2-port) (z->h (contents 2-port)))
 	((y-matrix? 2-port) (y->h (contents 2-port)))
 	((h-matrix? 2-port) (contents 2-port))
+	((g-matrix? 2-port) (g->h (contents 2-port)))
 	(else
 	 (error "Unknown 2-port type -- H-matrix" 2-port))))
+
+(define (g-matrix 2-port)
+  (cond ((abcd-matrix? 2-port) (abcd->g (contents 2-port)))
+	((z-matrix? 2-port) (z->g (contents 2-port)))
+	((y-matrix? 2-port) (y->g (contents 2-port)))
+	((h-matrix? 2-port) (h->g (contents 2-port)))
+	((g-matrix? 2-port) (contents 2-port))
+	(else
+	 (error "Unknown 2-port type -- G-matrix" 2-port))))
 
 (define (abcd-matrix 2-port)
   (cond ((abcd-matrix? 2-port) (contents 2-port))
 	((z-matrix? 2-port) (z->abcd (contents 2-port)))
 	((y-matrix? 2-port) (y->abcd (contents 2-port)))
 	((h-matrix? 2-port) (h->abcd (contents 2-port)))
+	((g-matrix? 2-port) (g->abcd (contents 2-port)))
 	(else
 	 (error "Unknown 2-port type -- ABCD-matrix" 2-port))))
 
@@ -411,17 +457,16 @@ USA.
 
 (define (shunt->2-port branch)		;WP
   (let ((y (admittance branch)))
-    (make-abcd-matrix 1 0 y 1)))
+    (make-abcd-matrix onefun zerofun y onefun)))
 
 (define (series->2-port branch)		;WS
   (let ((z (impedance branch)))
-    (make-abcd-matrix 1 z 0 1)))
+    (make-abcd-matrix onefun z zerofun onefun)))
 
 (define (cascade 2-port-1 2-port-2)	;WC
   (tag 'abcd-matrix
        (matrix*matrix (abcd-matrix 2-port-1)
 		      (abcd-matrix 2-port-2))))
-
 
 
 ;;; Terminate takes a 2-port and a 1-port and makes a 1-port
@@ -436,7 +481,7 @@ USA.
    (matrix-ref (z-matrix 2-port) 0 0)))
 
 (define (terminate-short 2-port)	;WTS
-  (make-impedance
+  (make-admittance
    (matrix-ref (y-matrix 2-port) 0 0)))
 
 
@@ -450,10 +495,15 @@ USA.
        (matrix+matrix (z-matrix tp-1)
 		      (z-matrix tp-2))))
 
-(define (parallel-series tp-1 tp-2)	;WPS
+(define (series-parallel tp-1 tp-2)	;WSP
   (tag 'h-matrix
        (matrix+matrix (h-matrix tp-1)
 		      (h-matrix tp-2))))
+
+(define (parallel-series tp1 tp2)	;WPS
+  (tag 'g-matrix
+   (matrix+matrix (g-matrix tp1)
+		  (g-matrix tp2))))
 
 (define (flip-i/o tp)			;WN
   (cond ((z-matrix? tp)
@@ -500,41 +550,27 @@ USA.
       (array->matrix
        (vector (vector (/ d det) (/ (- b) det))
 	       (vector (/ (- c) det) (/ a det)))))))
-
-
-(define (series-parallel tp1 tp2)	;WSP
-  (flip-i/o
-   (parallel-series (flip-i/o tp1)
-		    (flip-i/o tp2))))
-
 
 ;;; Important 2-port formation procedures
 
 ;;; From parameters
 
 (define (make-2-port-from-z z11 z12 z21 z22)
-  (make-z-matrix (lambda (s) z11)
-		 (lambda (s) z12)
-		 (lambda (s) z21)
-		 (lambda (s) z22)))
+  (make-z-matrix (lambda (s) z11) (lambda (s) z12)
+		 (lambda (s) z21) (lambda (s) z22)))
 
 (define (make-2-port-from-y y11 y12 y21 y22)
-  (make-y-matrix (lambda (s) y11)
-		 (lambda (s) y12)
-		 (lambda (s) y21)
-		 (lambda (s) y22)))
+  (make-y-matrix (lambda (s) y11) (lambda (s) y12)
+		 (lambda (s) y21) (lambda (s) y22)))
 
 (define (make-2-port-from-h h11 h12 h21 h22)
-  (make-h-matrix (lambda (s) h11)
-		 (lambda (s) h12)
-		 (lambda (s) h21)
-		 (lambda (s) h22)))
+  (make-h-matrix (lambda (s) h11) (lambda (s) h12)
+		 (lambda (s) h21) (lambda (s) h22)))
 
 (define (make-2-port-from-abcd A B C D)
-  (make-abcd-matrix (lambda (s) A)
-		    (lambda (s) B)
-		    (lambda (s) C)
-		    (lambda (s) D)))
+  (make-abcd-matrix (lambda (s) A) (lambda (s) B)
+		    (lambda (s) C) (lambda (s) D)))
+
 
 ;;; From branches
 
@@ -559,10 +595,10 @@ USA.
 
 
 (define (connect-thru)			;WTHRU
-  (make-abcd-matrix 1 0 0 -1))
+  (make-abcd-matrix onefun zerofun zerofun onefun))
 
 (define (polarity-reverse)		;WR
-  (make-abcd-matrix -1 0 0 1))
+  (make-abcd-matrix monefun 0 0 monefun))
 
 (define (mutual-inductor L1 M L2)	;L'
   (make-z-matrix (lambda (s) (* L1 s))
@@ -571,22 +607,19 @@ USA.
 		 (lambda (s) (* L2 s))))
 
 (define (ideal-transformer N)		;IT
-  (make-abcd-matrix (lambda (s) N)
-		    0
-		    0
-		    (lambda (s) (/ -1 N))))
+  (make-abcd-matrix (constant N) (constnt 0) zerofun (constant (/ 1 N))))
 
 (define (vcvs A)
-  (make-abcd-matrix (lambda (s) (/ 1 A)) 0 0 0))
+  (make-abcd-matrix (/ 1 A) zerofun zerofun zerofun))
 
 (define (ccvs rm)
-  (make-z-matrix 0 0 (lambda (s) rm) 0))
+  (make-z-matrix zerofun zerofun rm zerofun))
 
 (define (vccs gm)
-  (make-y-matrix 0 0 (lambda (s) gm) 0))
+  (make-y-matrix zerofun zerofun gm zerofun0))
 
 (define (cccs A)
-  (make-h-matrix 0 0 (lambda (s) A) 0))
+  (make-h-matrix zerofun zerofun A zerofun))
 
 
 (define (opamp A #!optional Rout Rin principal-pole)	;OPAMP
@@ -596,7 +629,7 @@ USA.
 	     (make-abcd-matrix
 	      (lambda (s)
 		(/ (+ s principal-pole) A))
-	      0 0 0))))
+	      zerofun zerofun zerofun))))
     (if (default-object? Rout)
 	o1
 	(let ((o2 (cascade o1 (series->2-port (resistor Rout)))))
@@ -608,7 +641,7 @@ USA.
 (define (fet Cgs Cgd gm)		;FET
   (make-y-matrix (lambda (s) (* (+ Cgs Cgd) s))
 		 (lambda (s) (* -1 Cgd s))
-		 (lambda (s) (- gm (* Cgd S)))
+		 (lambda (s) (- gm (* Cgd s)))
 		 (lambda (s) (* Cgd s))))
 
 (define (bjt Rx Rpi Cpi Cmu gm)		;HYBRIDPI
@@ -661,7 +694,7 @@ USA.
 (define (coax-Z_0 ro ri #!optional k)
   (set! k (if (default-object? k) 1 k))
   (* (/ 1 (* :2pi (sqrt k))) Z_0 (log (/ ro ri))))
-
+
 (define (coax length ro ri #!optional k Rs Rdc)
   (set! k (if (default-object? k) 1 k))
   (set! Rs (if (default-object? Rs) Cu:Rs Rs))
@@ -701,7 +734,7 @@ USA.
 					(* 0.2805 m/inch)
 					(* 0.122 m/inch))
 				  (shunt->2-port (resistor 50))))))
-	      (* 2pi +i f 1e9))))))	;GHz
+	      (* :2pi +i f 1e9))))))	;GHz
       '(0.5 1.0 1.5 2.0 2.5 3.0)))
 (-1.140579449589373
  -1.613016234061262
@@ -816,7 +849,8 @@ USA.
 			 (cascade (t-network (inductor 'L_1)
 					     (capacitor 'C)
 					     (inductor 'L_2))
-				  (shunt->2-port (resistor 'R_2)))))
+				  (shunt->2-port
+				   (resistor 'R_2)))))
 	       0 1)
    's))
 (/
@@ -832,7 +866,8 @@ USA.
 |#
 
 #|
-Elliptic filter from Omar Wing "Circuit Theory with Computer Methods" p510
+;;; Elliptic filter from Omar Wing "Circuit Theory with Computer
+;;; Methods" p510
 
 (define wing
   (cascade (l-network (resistor 1)
@@ -905,20 +940,21 @@ Elliptic filter from Omar Wing "Circuit Theory with Computer Methods" p510
  -33.53234170141037
  -31.35788373997261)
 
-(print-expression ((magnitude (voltage-transfer-ratio twin-tee)) 's))
+(print-expression
+ ((magnitude (voltage-transfer-ratio twin-tee)) 's))
 (magnitude
  (/ (+ 250000 (expt s 2))
     (+ 250000 (* 2000 s) (expt s 2))))
 
 (define Vo/Vi
   (abstract-to-function (list 's)
-			(simplify ((magnitude (voltage-transfer-ratio twin-tee)) 's))))
+    (simplify ((magnitude (voltage-transfer-ratio twin-tee)) 's))))
 
 (print-expression (Vo/Vi (* 2pi +i 'f)))
 (magnitude
  (/ (+ -6332.573977646111 (expt f 2))
     (+ -6332.573977646111 (expt f 2) (* -318.30988618379064i f))))
-
+
 (define win (frame 50.0 100.0 0.0 .25))
 
 (plot-function win

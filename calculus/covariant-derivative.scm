@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -29,7 +29,14 @@ USA.
 
 ;;; More complete covariant derivative procedure
 
-(define (covariant-derivative Cartan)
+(define (covariant-derivative Cartan #!optional map)
+  (cond ((default-object? map)
+	 (covariant-derivative-ordinary Cartan))
+	(else
+	 (covariant-derivative-ordinary
+	  (Cartan->Cartan-over-map Cartan map)))))
+
+(define (covariant-derivative-ordinary Cartan)
   (assert (Cartan? Cartan))
   (define (nabla X)
     (define (nabla_X V)
@@ -41,6 +48,8 @@ USA.
 	     (((covariant-derivative-argument-types Cartan) X) V))
 	    ((function? V)
 	     (((covariant-derivative-function Cartan) X) V))
+	    ((structure? V)
+	     (s:map/r nabla_X V))
 	    (else
 	     (error "Bad input -- covariant-derivative"))))
     (make-operator nabla_X `(nabla ,(diffop-name X))))
@@ -560,59 +569,15 @@ USA.
 
 ;;; Over a map
 
-(define (covariant-derivative-over-map Cartan map)
-  (assert (Cartan? Cartan))
-  (define (nabla X)
-    (define (nabla_X V)
-      (cond ((function? V) (X V))
-	    ((vector-field? V)
-	     (((covariant-derivative-over-map-vector Cartan map) X) V))
-	    ((form-field? V)
-	     (((covariant-derivative-over-map-form Cartan map) X) V))
-	    (else
-	     (error "Bad input -- covariant-derivative"))))
-    (make-operator nabla_X `(nabla ,(diffop-name X))))
-  nabla)
-
-(define (((covariant-derivative-over-map-vector Cartan map) V) U-over-map)
-  (let ((Cartan-over-map (Cartan->Cartan-over-map Cartan map)))
-    (let ((basis (Cartan->basis Cartan-over-map))
-	  (Cartan-forms (Cartan->forms Cartan-over-map)))
-      (let ((vector-basis (basis->vector-basis basis))
-	    (1form-basis (basis->1form-basis basis)))
-	(let ((u-components (1form-basis U-over-map)))
-	  (let ((deriv-components
-		 (+ (V u-components)
-		    (* (Cartan-forms ((differential map) V)) u-components))))
-	    (define (the-derivative f)
-	      (* (vector-basis f) deriv-components))
-	    (procedure->vector-field the-derivative
-	      `((nabla ,(diffop-name V)) ,(diffop-name U-over-map)))))))))
-
-(define (((covariant-derivative-over-map-form Cartan map) V) tau)
-  (let ((k (get-rank tau))
-	(nabla_V ((covariant-derivative-over-map-vector Cartan map) V)))
-    (procedure->nform-field
-     (lambda vectors
-       (assert (= k (length vectors)))
-       (- (V (apply tau vectors))
-	  (sigma (lambda (i)
-		   (apply tau
-			  (list-with-substituted-coord vectors i
-				(nabla_V (list-ref vectors i)))))
-		 0 (- k 1))))
-     k
-     `((nabla ,(diffop-name V)) ,(diffop-name tau)))))
-
 (define (Cartan->Cartan-over-map Cartan map)
   (let ((basis (basis->basis-over-map map (Cartan->basis Cartan)))
 	(Cartan-forms
 	 (s:map/r (form-field->form-field-over-map map)
 		  (Cartan->forms Cartan))))
-    (make-Cartan Cartan-forms basis)))
+    (make-Cartan (compose Cartan-forms (differential map)) basis)))
 
 #|
-(define M (make-manifold S^2 2 3))
+(define M (make-manifold S^2-type 2 3))
 (define spherical
   (coordinate-system-at 'spherical 'north-pole M))
 (define-coordinates (up theta phi) spherical)
@@ -652,7 +617,7 @@ USA.
  (s:map/r 
   (lambda (omega)
     ((omega
-      (((covariant-derivative-over-map sphere-Cartan gamma:N->M) 
+      (((covariant-derivative sphere-Cartan gamma:N->M) 
         d/dt) 
        w))
      ((the-real-line '->point) 'tau)))
@@ -672,7 +637,7 @@ USA.
  (s:map/r
   (lambda (omega)
     ((omega
-      (((covariant-derivative-over-map sphere-Cartan gamma:N->M)
+      (((covariant-derivative sphere-Cartan gamma:N->M)
 	d/dt)
        ((differential gamma:N->M) d/dt)))
      ((the-real-line '->point) 't)))
@@ -739,7 +704,7 @@ USA.
  (s:map/r
   (lambda (omega)
     ((omega
-      (((covariant-derivative-over-map (Christoffel->Cartan CG) gamma:N->M)
+      (((covariant-derivative (Christoffel->Cartan CG) gamma:N->M)
 	d/dt)
        u))
      ((the-real-line '->point) 't)))
@@ -762,7 +727,7 @@ USA.
  (s:map/r
   (lambda (omega)
     ((omega
-      (((covariant-derivative-over-map (Christoffel->Cartan CG) gamma:N->M)
+      (((covariant-derivative (Christoffel->Cartan CG) gamma:N->M)
 	d/dt)
        ((differential gamma:N->M) d/dt)))
      ((the-real-line '->point) 't)))
@@ -813,7 +778,7 @@ USA.
        (s:map/r 
 	(lambda (w)
 	  ((w
-	    (((covariant-derivative-over-map Cartan mu:N->M) d/dt)
+	    (((covariant-derivative Cartan mu:N->M) d/dt)
 	     ((differential mu:N->M) d/dt)))
 	   ((R1-rect '->point) 'tau)))
 	(basis->1form-basis
@@ -1179,7 +1144,7 @@ USA.
 	 source-m)
   (assert (= (dimension source-coordsys) 1))
   (let ((e (coordinate-system->vector-basis source-coordsys)))
-    (((((covariant-derivative-over-map Cartan-on-target gamma)
+    (((((covariant-derivative Cartan-on-target gamma)
 	e)
        ((differential gamma) e))
       (chart target-coordsys))
@@ -1223,14 +1188,14 @@ USA.
 	 source-m)
   (assert (= (dimension source-coordsys) 1))
   (let ((e (coordinate-system->vector-basis source-coordsys)))
-    (((((covariant-derivative-over-map Cartan-on-target gamma)
+    (((((covariant-derivative Cartan-on-target gamma)
 	e)				;d/dt
        vector-over-gamma)
       (chart target-coordsys))
      source-m)))
 
 #|
-(define M (make-manifold S^2 2 3))
+(define M (make-manifold S^2-type 2 3))
 (define S2-spherical
   (coordinate-system-at 'spherical 'north-pole M))
 (define-coordinates (up theta phi) S2-spherical)

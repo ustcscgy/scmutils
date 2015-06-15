@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -30,27 +30,12 @@ USA.
   (if (environment-bound? scmutils-base-environment system-name)
       (write-line `(clobbering ,system-name)))
   (let ((n (length base-units)))    
-    (environment-define scmutils-base-environment '*unitless*
-			(make-vector n 0))
-    (environment-define scmutils-base-environment 'unitless
-			(make-unit system-name
-				   (access *unitless*
-					   scmutils-base-environment)
-				   1))
-    (environment-define scmutils-base-environment '*angular* ; may be reset by SI-units
-			(access *unitless* scmutils-base-environment))
-    (environment-define scmutils-base-environment 'angular
-			(make-unit system-name
-				   (access *angular*
-					   scmutils-base-environment)
-				   1))
     (let ((base-specs
 	   (map (lambda (base-spec i)
 		  (let* ((unit-name (car base-spec))
 			 (exponents
 			  (make-initialized-vector n
-						   (lambda (j)
-						     (if (fix:= i j) 1 0))))
+			    (lambda (j) (if (fix:= i j) 1 0))))
 			 (unit (make-unit system-name exponents 1)))
 		    (if (environment-bound? scmutils-base-environment
 					    unit-name)
@@ -88,6 +73,8 @@ USA.
 (define (alternate-units system)
   (car (cddddr system)))
 
+;;; Data may be entered and results may be presented in derived units.
+
 (define (define-derived-unit system unit-name tex description content
 	                     #!optional scale-factor)
   (assert (unit-system? system))
@@ -110,7 +97,8 @@ USA.
 		    (list unit-spec))))
 
 
-
+;;; Data may be entered in additional units but results will not be
+;;; presented in additional units.
 
 (define (define-additional-unit system unit-name tex description content
 	                        #!optional scale-factor)
@@ -133,7 +121,7 @@ USA.
 	    (append (car (cddddr system))
 		    (list unit-spec))))
 
-
+
 (define *multiplier-names* '())
 
 (define (define-multiplier name tex-string log-value)
@@ -146,7 +134,7 @@ USA.
 		      name
 		      (expt 10 log-value)))
 
-(define *constants* '())
+(define *numerical-constants* '())
 
 (define (define-constant name tex-string description value units
 	                #!optional uncertainty)
@@ -154,7 +142,7 @@ USA.
       (write-line `(clobbering ,name)))
   (let ((constant (literal-number name)))
     (cond ((with-units? value)
-	   (assert (equal? (u:units value) units))))
+	   (assert (same-units? (u:units value) units))))
     (set! value (g:simplify (u:value value)))
     (add-property! constant 'name name)
     (add-property! constant 'numerical-value value)
@@ -164,7 +152,7 @@ USA.
     (if (real? value) (declare-known-reals name))
     (if (not (default-object? uncertainty))
 	(add-property! constant 'uncertainty uncertainty))
-    (set! *constants* (cons constant *constants*))
+    (set! *numerical-constants* (cons constant *numerical-constants*))
     (environment-define scmutils-base-environment
 			name
 			(with-units value units))
@@ -172,7 +160,7 @@ USA.
 
 (define (numerical-constants #!optional units? constants)
   (if (default-object? units?) (set! units? #t))
-  (if (default-object? constants) (set! constants *constants*))
+  (if (default-object? constants) (set! constants *numerical-constants*))
   (for-each (lambda (c)
 	      (environment-assign!
 	       scmutils-base-environment
@@ -186,7 +174,7 @@ USA.
 
 (define (symbolic-constants #!optional units? constants)
   (if (default-object? units?) (set! units? #t))
-  (if (default-object? constants) (set! constants *constants*))
+  (if (default-object? constants) (set! constants *numerical-constants*))
   (for-each (lambda (c)
 	      (environment-assign!
 	       scmutils-base-environment
@@ -199,7 +187,7 @@ USA.
 	    constants))
 
 (define (get-constant-data name)
-  (find-matching-item *constants*
+  (find-matching-item *numerical-constants*
     (lambda (c) (eq? (get-property c 'name) name))))
 
 ;;; & is used to attach units to a number, or to check that a number
@@ -221,26 +209,107 @@ USA.
 
 (define *unit-constructor* '&)
 
+(define unit-environment generic-environment)
+
+(define (express-as num target-unit-expression)
+  (let ((target-unit-expression-value
+	 (eval target-unit-expression unit-environment)))
+    (cond ((with-units? target-unit-expression-value)
+	   (let ((target-val (u:value target-unit-expression-value))
+		 (target-units (u:units target-unit-expression-value)))
+	     (express-in-given-units (g:/ num target-val)
+				     target-units
+				     target-unit-expression)))
+	  ((units? target-unit-expression-value)
+	   (express-in-given-units num
+				   target-unit-expression-value
+				   target-unit-expression))
+	  (else num))))
+
+(define (express-in-given-units num target-unit target-unit-expression)
+  (cond ((with-units? num)
+	 (let ((value (g:* (unit-scale (u:units num)) (u:value num)))
+	       (vect (unit-exponents (u:units num))))
+	   (if (not (equal? vect (unit-exponents target-unit)))
+	       (error "Cannot express in given units"
+		      num target-unit target-unit-expression))
+	   (list *unit-constructor*
+		 (g:/ (expression value) (unit-scale target-unit))
+		 target-unit-expression)))
+	((units? num)
+	 (list *unit-constructor*
+	       (g:/ (unit-scale num) (unit-scale target-unit))
+	       target-unit-expression))
+	(else num)))
+
 (define (with-units->expression system num)
   (assert (unit-system? system))
   (cond ((with-units? num)
 	 (let ((value (g:* (unit-scale (u:units num)) (u:value num)))
 	       (vect (unit-exponents (u:units num))))
-	   (list *unit-constructor*
-		 (expression value)
-		 (exponent-vector->unit-expression system vect))))
+	   (make-unit-description value vect system)))
 	((units? num)
-	 (list *unit-constructor*
-	       (unit-scale num)
-	       (exponent-vector->unit-expression system
-						 (unit-exponents num))))
+	 (make-unit-description (unit-scale num)
+				(unit-exponents num)
+				system))
 	(else num)))
+
+(define (make-unit-description value exponent-vector system)
+  (let ((available
+	 (or (find-unit-description exponent-vector
+				    (base-units system))
+	     (find-unit-description exponent-vector
+				    (derived-units system)))))
+    (if available
+	(let ((unit-name (car available))
+	      (scale (unit-scale (list-ref available 3))))
+	  (list *unit-constructor*
+		(g:simplify (g:/ value scale))
+		unit-name))
+	(list *unit-constructor*
+	      (g:simplify value)
+	      (unit-expresson (vector->list exponent-vector)
+			      (map car (base-units system)))))))
 
-(define (exponent-vector->unit-expression system vect)
-  (or (find-unit vect (base-units system))
-      (find-unit vect (derived-units system))
-      (unit-expresson (vector->list vect)
-		      (map car (base-units system)))))
+
+(define (find-unit-description vect ulist)
+  (find-matching-item ulist
+    (lambda (entry)
+      (equal? (unit-exponents (list-ref entry 3))
+	      vect))))
+
+(define (find-unit-name vect ulist)
+  (let ((v (find-unit-description vect ulist)))
+    (if v (car v) #f)))
+
+(define (unit-expresson exponents base-unit-names)
+  (cons '*
+	(apply append
+	       (map (lambda (exponent base-name)
+		      (cond ((g:zero? exponent) '())
+			    ((g:one? exponent) (list base-name))
+			    (else
+			     (list (list 'expt base-name exponent)))))
+		    exponents
+		    base-unit-names))))
+
+#|
+(with-units->expression SI &foot)
+;Value: (& .3048 &meter)
+
+(with-units->expression SI (& 2 &foot))
+;Value: (& .6096 &meter)
+
+(with-units->expression SI (/ (* :k (& 300 &kelvin)) :e))
+;Value: (& .02585215707677003 &volt)
+
+(with-units->expression SI :c)
+;Value: (& 299792458. (* &meter (expt &second -1)))
+
+(with-units->expression SI :h)
+;Value: (& 6.6260755e-34 (* (expt &meter 2) &kilogram (expt &second -1)))
+|#
+
 
 #|
 ;;; Work in progress
@@ -256,42 +325,4 @@ USA.
 #|
 (3 1/1000)
 |#
-|#
-
-
-(define (find-unit vect ulist)
-  (let ((v
-	 (find-matching-item ulist
-	   (lambda (entry)
-	     (equal? (unit-exponents (list-ref entry 3))
-		     vect)))))
-    (if v (car v) #f)))
-
-(define (unit-expresson exponents base-unit-names)
-  (cons '*
-	(apply append
-	       (map (lambda (exponent base-name)
-		      (cond ((g:zero? exponent) '())
-			    ((g:one? exponent) (list base-name))
-			    (else
-			     (list (list 'expt base-name exponent)))))
-		    exponents
-		    base-unit-names))))
-
-
-#|
-(with-units->expression SI foot)
-;Value: (& .3048 meter)
-
-(with-units->expression SI (& 2 foot))
-;Value: (& .6096 meter)
-
-(with-units->expression SI (/ (* :k (& 300 kelvin)) :e))
-;Value: (& .02585215707677003 volt)
-
-(with-units->expression SI :c)
-;Value: (& 299792458. (* meter (expt second -1)))
-
-(with-units->expression SI :h)
-;Value: (& 6.6260755e-34 (* (expt meter 2) kilogram (expt second -1)))
 |#

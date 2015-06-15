@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -68,6 +68,10 @@ USA.
 ;;;  only ok if components selected by partials are unstructured 
 ;;;  (e.g. real)
 (define commute-partials? true)
+
+;;; allows division through by numbers
+;;; e.g. (/ (+ (* 4 x) 5) 3) => (+ 4/3 x) 5/3)
+(define divide-numbers-through-simplify? true)
 
 ;;; however, we have control over the defaults
 
@@ -105,6 +109,11 @@ USA.
   (assert (boolean? doit?) "argument must be a boolean.")
   (clear-memoizer-tables)
   (set! sin-cos-simplify? doit?))
+
+(define (divide-numbers-through-simplify doit?)
+  (assert (boolean? doit?) "argument must be a boolean.")
+  (clear-memoizer-tables)
+  (set! divide-numbers-through-simplify? doit?))
 
 ;;; The following predicates are used in trig rules.
 
@@ -1029,6 +1038,45 @@ USA.
      (: a) )
    ))
 
+(define divide-numbers-through
+  (rule-system
+   ( (* 1 (? factor))
+     none
+     (: factor) )
+   
+   ( (* 1 (?? factors))
+     none
+     (* (:: factors)) )
+
+   ( (/ (? n number?) (? d number?))
+     none
+     (: (/ n d)) )
+
+   ( (/ (+ (?? terms)) (? d number?))
+     none
+     (+ (:: (map (lambda (term) `(/ ,term ,d))
+		 terms))) )
+
+   ( (/ (* (? n number?) (?? factors)) (? d number?))
+     none
+     (* (: (/ n d)) (:: factors)) )
+
+
+   ( (/ (? n) (* (? d number?) (? factor)))
+     none
+     (/ (/ (: n) (: d)) (: factor)) )
+
+   ( (/ (? n) (* (? d number?) (?? factors)))
+     none
+     (/ (/ (: n) (: d)) (* (:: factors))) )
+
+
+   ( (/ (? n) (? d number?))
+     none
+     (* (: (n:invert d)) (: n)) )
+
+   ))
+
 ;;;; simplifiers defined using these rule sets
 
 ;;; assuming that expression comes in canonical it goes out canonical
@@ -1255,7 +1303,9 @@ USA.
     (occurs-in? '(sin cos) exp))
   (define (partials? exp)
     (occurs-in? '(partial) exp))
-  ((compose (only-if sqrt?
+  ((compose (only-if (lambda (exp) divide-numbers-through-simplify?)
+		     divide-numbers-through)
+	    (only-if sqrt?
 		     (compose
 		      clear-square-roots-of-perfect-squares
 		      (simplify-until-stable (compose universal-reductions

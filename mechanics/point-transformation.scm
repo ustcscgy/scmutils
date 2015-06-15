@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -30,19 +30,19 @@ USA.
 (define (F->CT F)
   (define (CT H-state)
     (let ((t (time H-state))
-          (q (coordinate H-state))
-          (p (momentum H-state)))
-      (->H-state t
-                 (F H-state)
-                 (* p (s:inverse 
-		       (compatible-shape q)
-		       (((partial 1) F) H-state)
-		       (compatible-shape p)
-		       )))))
+	  (q (coordinate H-state))
+	  (p (momentum H-state)))
+      (let ((qo (F H-state)))
+	(->H-state t
+		   qo
+		   (* p
+		      (s:inverse (compatible-shape qo)
+				 (((partial 1) F) H-state)
+				 (compatible-shape p)))))))
   CT)
 
 #|
-;;; For display in book
+;;; For display in book -- assumes flat coordinates
 
 (define ((F->CT F) H-state)
   (->H-state (time H-state)

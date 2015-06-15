@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -228,19 +228,13 @@ I'll keep looking at it.
       (* 0.5 (+ a b))))
       
 
+#|
 ;;; Produces a uniformly distributed x such that 0 <= x < 1.
+;;; Defined in statistics/gauss.scm
 
 (define (uniform-random) (random 1.))
-
-#| ;;;Old version
-
-(define uniform-random
-  (let* ((random-max (expt 2 23))
-	 (frandom-max (exact->inexact random-max)))
-    (lambda ()
-      (/ (random random-max)
-	 frandom-max))))
 |#
+
 
 ;;; *INTEGRATE-N* is the number of step sizes used before aborting
 ;;;   to smaller intervals.  n = 10 seems to work well.

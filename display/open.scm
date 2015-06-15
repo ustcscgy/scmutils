@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -456,4 +456,77 @@ USA.
 			   (/ (- x1 x0) numx))))))))
 #|
 (plot-f (frame 0 7 -1 1) cos)
+|#
+
+(define gnuplot
+  (let ((count 0))
+    (lambda (fs x0 x1 dx #!optional style save-data?)
+      (let* ((fs (if (list? fs) fs (list fs)))
+	     (style (if (default-object? style) "" style))
+	     (dirname (->namestring (user-homedir-pathname)))
+	     (file-name (string-append dirname
+				       "temp-display"
+				       (number->string count)))
+	     (clean (if (default-object? save-data?)
+			(string-append " ; /bin/rm " file-name ".*")
+			""))
+	     (data-file-name (string-append "\"" file-name ".data" "\""))
+	     (gnuplot-invoke-string
+	      (string-append "gnuplot -persist " file-name ".gnuplot"))
+	     (gnuplot-control-string
+	      (let flp ((fcol 1)
+			(ss (string-append data-file-name
+					   " using 1:2"
+					    " " style " ")))
+		(if (= fcol (length fs))
+		    (string-append "plot" ss)
+		    (flp (+ fcol 1)
+			 (string-append ss ", "
+					data-file-name
+					" using 1:" (number->string (+ fcol 2))
+					" " style " "))))))
+	(with-output-to-file (string-append file-name ".data")
+	  (lambda ()
+	    (let loop ((x x0))
+	      (begin
+		(newline)
+		(write x)
+		(for-each (lambda (f)
+			    (display " ")
+			    (write (f x)))
+			  fs))
+	      (let ((nx (+ x dx)))
+		(if (< (* (- nx x0) (- nx x1)) 0.)
+		    (loop nx))))))
+	(with-output-to-file (string-append file-name ".gnuplot")
+	  (lambda () (display gnuplot-control-string)))
+
+	(run-shell-command
+	 (string-append "cd " dirname ";"
+			gnuplot-invoke-string
+			" > /dev/null 2>&1"
+			clean)
+	 'output #f
+	 'shell-file-name "/bin/sh")
+	(set! count (+ count 1))
+	(if (default-object? save-data?)
+	    "done" 
+	    `(data-file-name-is ,data-file-name))
+	))))
+
+#|
+;;; Gnuplot can be used to plot any number of functions, with optional style.
+;;; May add further argument to save data files.
+
+(gnuplot sin 0 10 .01)
+#| "done" |#
+
+(gnuplot (list sin cos) 0 10 .01)
+#| "done" |#
+
+(gnuplot (list sin cos sqrt) 0 10 .01 "with dots")
+#| "done" |#
+
+(gnuplot (list sin cos) 0 10 .01 "" #t)
+(data-file-name-is "\"/home/gjs/temp-display3.data\"")
 |#

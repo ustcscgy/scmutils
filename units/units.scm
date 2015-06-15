@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -40,56 +40,118 @@ USA.
 (define unit-type-tag '*unit*)
 
 (define (units? x)
-  (and (pair? x) (eq? (car x) unit-type-tag)))
+  (or (eq? x '&unitless)
+      (and (pair? x)
+	   (eq? (car x) unit-type-tag))))
 |#
 
+(define &unitless '&unitless)
+
 (define (unitless? x)
-  (equal? x unitless))
+  (eq? x &unitless))
+
+(define the-empty-vector (vector))
 
 (define (make-unit system exponents scale-factor)
-  (list unit-type-tag system exponents scale-factor))
+  (if (or (eq? exponents the-empty-vector)
+	  (vector-forall zero? exponents))
+      (if (equal? scale-factor 1)
+	  &unitless
+	  (list unit-type-tag system the-empty-vector scale-factor))
+      (list unit-type-tag system exponents scale-factor)))
 
-(define (unit-system u) (cadr u))
-(define (unit-exponents u) (caddr u))
-(define (unit-scale u) (cadddr u))
+
+
+(define (unit-system u)
+  (or (unitless? u) (cadr u)))
+
+(define (unit-exponents u)
+  (if (unitless? u) the-empty-vector (caddr u)))
+
+(define (unit-scale u)
+  (if (unitless? u) 1 (cadddr u)))
 
+(define (same-dimensions? u1 u2)
+  (let ((v1 (unit-exponents u1)) (v2 (unit-exponents u2)))
+    (let ((n (vector-length v1)))
+      (let lp ((i 0))
+	(or (fix:= i n)
+	    (and (n:= (vector-ref v1 i) (vector-ref v2 i))
+		 (lp (fix:+ i 1))))))))
+
 (define (same-units? u1 u2)
   (assert (and (units? u1) (units? u2)))
   (or (eq? u1 u2)
       (and (eq? (unit-system u1) (unit-system u2))
-	   (let ((v1 (unit-exponents u1)) (v2 (unit-exponents u2)))
-	     (let ((n (vector-length v1)))
-	       (let lp ((i 0))
-		 (or (fix:= i n)
-		     (and (n:= (vector-ref v1 i) (vector-ref v2 i))
-			  (lp (fix:+ i 1)))))))
+	   (same-dimensions? u1 u2)
 	   (n:= (unit-scale u1) (unit-scale u2)))))
 
+(define (<-units? u1 u2)
+  (assert (and (units? u1) (units? u2)))
+  (or (eq? u1 u2)
+      (and (eq? (unit-system u1) (unit-system u2))
+	   (same-dimensions? u1 u2)
+	   (n:< (unit-scale u1) (unit-scale u2)))))
+
+(define (<=-units? u1 u2)
+  (assert (and (units? u1) (units? u2)))
+  (or (eq? u1 u2)
+      (and (eq? (unit-system u1) (unit-system u2))
+	   (same-dimensions? u1 u2)
+	   (or (n:< (unit-scale u1) (unit-scale u2))
+	       (n:= (unit-scale u1) (unit-scale u2))))))
+
+
+(define (>-units? u1 u2)
+  (assert (and (units? u1) (units? u2)))
+  (or (eq? u1 u2)
+      (and (eq? (unit-system u1) (unit-system u2))
+	   (same-dimensions? u1 u2)
+	   (n:> (unit-scale u1) (unit-scale u2)))))
+
+(define (>=-units? u1 u2)
+  (assert (and (units? u1) (units? u2)))
+  (or (eq? u1 u2)
+      (and (eq? (unit-system u1) (unit-system u2))
+	   (same-dimensions? u1 u2)
+	   (or (n:> (unit-scale u1) (unit-scale u2))
+	       (n:= (unit-scale u1) (unit-scale u2))))))
+
 (define (*units u1 u2)
   (cond ((unitless? u1) u2)
 	((unitless? u2) u1)
 	(else (assert (and (units? u1) (units? u2)))
 	      (assert (and (eq? (unit-system u1) (unit-system u2))))
 	      (let ((v1 (unit-exponents u1)) (v2 (unit-exponents u2)))
-		(make-unit (unit-system u1)
-			   (make-initialized-vector (vector-length v1)
-						    (lambda (i)
-						      (n:+ (vector-ref v1 i)
-							   (vector-ref v2 i))))
-			   (n:* (unit-scale u1) (unit-scale u2)))))))
+		(cond ((eq? v1 the-empty-vector)
+		       (make-unit (unit-system u1)
+				  v2
+				  (n:* (unit-scale u1) (unit-scale u2))))
+		      ((eq? v2 the-empty-vector)
+		       (make-unit (unit-system u1)
+				  v1
+				  (n:* (unit-scale u1) (unit-scale u2))))
+		      (else
+		       (make-unit (unit-system u1)
+				  (make-initialized-vector (vector-length v1)
+							   (lambda (i)
+							     (n:+ (vector-ref v1 i)
+								  (vector-ref v2 i))))
+				  (n:* (unit-scale u1) (unit-scale u2)))))))))
 
 (define (invert-units u)
-  (assert (units? u))
   (let ((v (unit-exponents u)))
-    (make-unit (unit-system u)
-	       (make-initialized-vector (vector-length v)
-					(lambda (i)
-					  (n:* -1 (vector-ref v i))))
-	       (n:/ 1 (unit-scale u)))))
-
-
+    (if (eq? v the-empty-vector)
+	(make-unit (unit-system u)
+		   the-empty-vector
+		   (n:/ 1 (unit-scale u)))
+	(make-unit (unit-system u)
+		   (make-initialized-vector (vector-length v)
+					    (lambda (i)
+					      (n:* -1 (vector-ref v i))))
+		   (n:/ 1 (unit-scale u))))))
+
 (define (/units u1 u2)
-  (assert (and (units? u1) (units? u2)))
   (cond ((unitless? u1)
 	 (let ((v2 (unit-exponents u2)))
 	   (make-unit (unit-system u2)
@@ -100,12 +162,23 @@ USA.
 	((unitless? u2) u1)
 	(else (assert (and (eq? (unit-system u1) (unit-system u2))))
 	      (let ((v1 (unit-exponents u1)) (v2 (unit-exponents u2)))
-		(make-unit (unit-system u1)
-			   (make-initialized-vector (vector-length v1)
+		(cond ((eq? v1 the-empty-vector)
+		       (make-unit (unit-system u1)
+				  (make-initialized-vector (vector-length v2)
 						    (lambda (i)
-						      (n:- (vector-ref v1 i)
-							   (vector-ref v2 i))))
-			   (n:/ (unit-scale u1) (unit-scale u2)))))))
+						      (n:- 0 (vector-ref v2 i))))
+				  (n:/ (unit-scale u1) (unit-scale u2))))
+		      ((eq? v2 the-empty-vector)
+		       (make-unit (unit-system u1)
+				  v1
+				  (n:/ (unit-scale u1) (unit-scale u2))))
+		      (else
+		       (make-unit (unit-system u1)
+				  (make-initialized-vector (vector-length v1)
+							   (lambda (i)
+							     (n:- (vector-ref v1 i)
+								  (vector-ref v2 i))))
+				  (n:/ (unit-scale u1) (unit-scale u2)))))))))
 
 (define (expt-units u p)
   (cond ((unitless? u) u)
@@ -116,7 +189,12 @@ USA.
 						    (lambda (i)
 						      (n:* p (vector-ref v i))))
 			   (n:expt (unit-scale u) p))))))
-
+
+(assign-operation '= same-units? units? units?)
+(assign-operation '< <-units?    units? units?)
+(assign-operation '<= <=-units?    units? units?)
+(assign-operation '> >-units?    units? units?)
+(assign-operation '>= >=-units?    units? units?)
 
 (assign-operation '* *units units? units?)
 (assign-operation 'invert invert-units units?)

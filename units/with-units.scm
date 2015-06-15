@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -41,23 +41,25 @@ USA.
   (and (pair? x)
        (eq? (car x) with-units-type-tag)))
 |#
-
+
 (define (without-units? x)
   (not (with-units? x)))
 
 (define (unitless-quantity? x)
-  (equal? (u:units x) unitless))
+  (unitless? (u:units x)))
 
 (define (u:arity x)
   (g:arity (u:value x)))
 
 (define (u:value x)
   (cond ((with-units? x) (cadr x))
+	((units? x) 1)
 	(else x)))
 
 (define (u:units x)
   (cond ((with-units? x) (caddr x))
-	(else unitless)))
+	((units? x) x)
+	(else &unitless)))
 
 (define (units:= x y)
   (or (g:zero? x)
@@ -69,7 +71,7 @@ USA.
 
 
 (define (with-units value units)
-  (if (equal? units unitless)
+  (if (equal? units &unitless)
       value
       (list with-units-type-tag value units)))
 
@@ -80,11 +82,13 @@ USA.
 (define (u:type x)
   (g:type (u:value x)))
 
-(define (u:zero-like x)
-  (with-units (g:zero-like (u:value x)) (u:units x)))
+(define (u:zero-like x)			;can add to anything with same units
+  (with-units (g:zero-like (u:value x))
+    (u:units x)))
 
-(define (u:one-like x)
-  (with-units (g:one-like (u:value x)) (u:units x)))
+(define (u:one-like x)			;can multiply anything with same units
+  (with-units (g:one-like (u:value x))
+    &unitless))
 
 (define (u:zero? x)
   (g:zero? (u:value x)))
@@ -96,6 +100,22 @@ USA.
   (and (units:= x y)
        (g:= (u:value x) (u:value y))))
 
+(define (u:< x y)
+  (and (units:= x y)
+       (g:< (u:value x) (u:value y))))
+
+(define (u:<= x y)
+  (and (units:= x y)
+       (g:<= (u:value x) (u:value y))))
+
+(define (u:> x y)
+  (and (units:= x y)
+       (g:> (u:value x) (u:value y))))
+
+(define (u:>= x y)
+  (and (units:= x y)
+       (g:>= (u:value x) (u:value y))))
+
 (define (u:negate x)
   (with-units (g:negate (u:value x)) (u:units x)))
 
@@ -106,11 +126,17 @@ USA.
   (with-units (g:sqrt (u:value x)) (expt-units (u:units x) 1/2)))
 
 (define (u:sin x)
-  (with-units (g:sin (u:value x)) unitless))
+  (assert (unitless-quantity? x) "Arg to sin not dimensionless")
+  (with-units (g:sin (u:value x)) &unitless))
 
 (define (u:cos x)
-  (with-units (g:cos (u:value x)) unitless))
+  (assert (unitless-quantity? x) "Arg to cos not dimensionless")
+  (with-units (g:cos (u:value x)) &unitless))
 
+(define (u:exp x)
+  (assert (unitless-quantity? x) "Arg to exp not dimensionless")
+  (with-units (g:exp (u:value x)) &unitless))
+
 (define (u:+ x y)
   (cond ((g:zero? x) y)
 	((g:zero? y) x)
@@ -138,13 +164,39 @@ USA.
 (define (u:/ x y)
   (with-units (g:/ (u:value x) (u:value y))
     (/units (u:units x) (u:units y))))
+
+(define (u:*u x u)
+  (u:* x (with-units 1 u)))
 
+(define (u:u* u x)
+  (u:* (with-units 1 u) x))
+
+(define (u:t*u t u)
+  (u:*u (with-units t &unitless) u))
+
+(define (u:u*t t u)
+  (u:u* u (with-units t &unitless)))
+
+
+(define (u:/u x u)
+  (u:/ x (with-units 1 u)))
+
+(define (u:u/ u x)
+  (u:/ (with-units 1 u) x))
+
+(define (u:t/u t u)
+  (u:/u (with-units t &unitless) u))
+
+(define (u:u/t t u)
+  (u:u/ u (with-units t &unitless)))
+
 (define (u:expt x y)
   (if (unitless-quantity? y)
       (with-units (g:expt (u:value x) (u:value y))
 	(expt-units (u:units x) (u:value y)))
       (error "Exponent must be unitless: expt" x y)))
-
+
+
 (define (u:make-rectangular x y)
   (cond ((g:zero? y) x)
 	((g:zero? x)
@@ -197,7 +249,7 @@ USA.
 
 (assign-operation 'zero?            u:zero?            with-units?)
 
-;;; The following causes (/ (& 1 ampere) (& 1 volt)) to return
+;;; The following causes (/ (& 1 &ampere) (& 1 &volt)) to return
 ;Value 22: (*with-units* 1 #(0 0 0 1 0 0 0))
 ;(assign-operation 'one?             u:one?             with-units?)
 
@@ -209,10 +261,15 @@ USA.
 #|
 (assign-operation 'sin              u:sin              angular?)
 (assign-operation 'cos              u:cos              angular?)
+(assign-operation 'exp              u:cos              angular?)
 |#
 
 (assign-operation '=          u:=            with-units? with-units?)
-
+(assign-operation '<          u:<            with-units? with-units?)
+(assign-operation '<=         u:<=           with-units? with-units?)
+(assign-operation '>          u:>            with-units? with-units?)
+(assign-operation '>=         u:>=           with-units? with-units?)
+
 (assign-operation '+   u:+     with-units?             not-differential-or-compound?)
 (assign-operation '+   u:+     not-differential-or-compound?  with-units?)
 
@@ -222,8 +279,21 @@ USA.
 (assign-operation '*   u:*     with-units?             not-differential-or-compound?)
 (assign-operation '*   u:*     not-differential-or-compound?  with-units?)
 
-(assign-operation '/   u:/     with-units?             not-differential-or-compound?)
+(assign-operation '*   u:*u    with-units?               units?)
+(assign-operation '*   u:u*    units?                    with-units?)
+
+(assign-operation '*   u:t*u    not-d-c-u?               units?)
+(assign-operation '*   u:u*t    units?                   not-d-c-u?)
+
+
+(assign-operation '/   u:/     with-units?              not-differential-or-compound?)
 (assign-operation '/   u:/     not-differential-or-compound?  with-units?)
+
+(assign-operation '/   u:/u    with-units?               units?)
+(assign-operation '/   u:u/    units?                    with-units?)
+
+(assign-operation '/   u:t/u    not-d-c-u?                units?)
+(assign-operation '/   u:u/t    units?                    not-d-c-u?)
 
 ;(assign-operation 'dot-product  u:dot-product  with-units? with-units?)
 
@@ -246,8 +316,8 @@ USA.
 #|
 (pe (definite-integral
       (lambda (r)
-	(/ (* :G earth-mass (& 1 kilogram))
+	(/ (* :G earth-mass (& 1 &kilogram))
 	   (square (+ earth-radius r))))
-      (& 0 meter) (& 1 meter)))
-(& 9.824031599863007 joule)
+      (& 0 &meter) (& 1 &meter)))
+(& 9.824031599863007 &joule)
 |#

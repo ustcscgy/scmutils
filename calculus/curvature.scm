@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011 Massachusetts Institute of
-    Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
+    of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -43,6 +43,16 @@ USA.
 				 vector-field?
 				 vector-field?))
   the-Riemann-tensor)
+
+(define (Ricci nabla basis)
+  (define (Ricci-tensor u v)
+    (contract
+     (lambda (ei wi)
+       ((Riemann nabla) wi u ei v))
+     basis))
+  (declare-argument-types! Ricci-tensor
+			   (list vector-field? vector-field?))
+  Ricci-tensor)
 
 
 ;;; Hawking and Ellis page 34.
@@ -416,7 +426,7 @@ USA.
 	  (basis-over-mu (basis->basis-over-map mu:N->M M-basis))
 	  (1form-basis (basis->1form-basis basis-over-mu))
 	  (Cartan (Christoffel->Cartan G-S2-1))
-	  (nabla (covariant-derivative-over-map Cartan mu:N->M))
+	  (nabla (covariant-derivative Cartan mu:N->M))
 	  (nablau (nabla d/dt))
 	  (d1 (nablau (nablau ((differential mu:N->M) d/dn))))
 	  (d2 (((Riemann-curvature nabla) d/dn d/dt)
@@ -505,7 +515,7 @@ USA.
 	  (basis-over-mu (basis->basis-over-map mu:N->M M-basis))
 	  (1form-basis (basis->1form-basis basis-over-mu))
 	  (Cartan (Christoffel->Cartan G-S2-1))
-	  (nabla (covariant-derivative-over-map Cartan mu:N->M))
+	  (nabla (covariant-derivative Cartan mu:N->M))
 	  (nablau (nabla d/dt))
 	  (nablan (nabla d/dn))
 	  (deviation (nablan (nablau ((differential mu:N->M) d/dt)))))
@@ -591,7 +601,7 @@ shouldn't this be zero?
 	      (Cartan (Christoffel->Cartan G-S2-1)))
 	 (s:map/r 
 	  (lambda (w)
-	    ((w (((covariant-derivative-over-map Cartan mu:N->M) U)
+	    ((w (((covariant-derivative Cartan mu:N->M) U)
 		 ((differential mu:N->M) U)))
 	     ((the-real-line '->point) 'tau)))
 	  1form-basis))))
@@ -626,7 +636,7 @@ shouldn't this be zero?
 	 (s:map/r 
 	  (lambda (w)
 	    ((w
-	      (((covariant-derivative-over-map Cartan mu:N->M) U)
+	      (((covariant-derivative Cartan mu:N->M) U)
 	       transported-vector-over-map))
 	     ((the-real-line '->point) 'tau)))
 	  1form-basis))))
@@ -671,7 +681,7 @@ shouldn't this be zero?
 	 (s:map/r 
 	  (lambda (w)
 	    ((w
-	      (((covariant-derivative-over-map Cartan mu:N->M)
+	      (((covariant-derivative Cartan mu:N->M)
 		U)
 	       transported-vector-over-map))
 	     ((the-real-line '->point) 'tau)))
@@ -742,7 +752,7 @@ shouldn't this be zero?
 	      (s:map/r 
 	       (lambda (w)
 		 ((w
-		   (((covariant-derivative-over-map Cartan mu:N->M)
+		   (((covariant-derivative Cartan mu:N->M)
 		     U)
 		    transported-vector-over-map))
 		  ((the-real-line '->point) 'tau)))
@@ -800,7 +810,7 @@ shouldn't this be zero?
 	(s:map/r 
 	 (lambda (omega)
 	   ((omega
-	     (((covariant-derivative-over-map Cartan mu:N->M) d/dt) w))
+	     (((covariant-derivative Cartan mu:N->M) d/dt) w))
 	    ((the-real-line '->point) 'tau)))
 	 (basis->1form-basis basis-over-mu))))
 #| Result:
