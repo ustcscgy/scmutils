@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 

@@ -1,8 +1,8 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
-
-Copyright 2005 Massachusetts Institute of Technology
+Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
+    1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+    2006, 2007, 2008, 2009, 2010 Massachusetts Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -25,14 +25,17 @@ USA.
 
 ;;;; Special Relativity
 
-(define ::c '::c)			; The speed of light.
+#|
+;;; To make :c evaluate to the symbol :c execute
+(symbolic-constants #f (list (get-constant-data ':c)))
+|#
 
 ;;; Boosts: delta-t is a number; velocity, delta-x are 3-tuples.
 
 (define ((coordinate-boost space-velocity) 4vector-prime)
   (let ((delta-t-prime (4vector->time 4vector-prime))
 	(delta-x-prime (4vector->space 4vector-prime))
-	(beta (/ space-velocity ::c)))
+	(beta (/ space-velocity :c)))
     (let ((betasq (square beta)))
       (if (zero? betasq)
 	  (make-4vector delta-t-prime delta-x-prime)
@@ -40,9 +43,9 @@ USA.
 		(gamma (/ 1 (sqrt (- 1 betasq)))))
 	    (let ((alpha (/ (- gamma 1) betasq)))
 	      (let ((delta-t
-		     (* gamma (+ delta-t-prime (/ bx ::c))))
+		     (* gamma (+ delta-t-prime (/ bx :c))))
 		    (delta-x
-		     (+ (* gamma beta ::c delta-t-prime)
+		     (+ (* gamma beta :c delta-t-prime)
 			delta-x-prime
 			(* alpha beta bx))))
 		(make-4vector delta-t delta-x))))))))
@@ -59,7 +62,7 @@ USA.
 
 (define (Lorentz-length 4vector)
   (sqrt (- (square (4vector->space 4vector))
-	   (square (* ::c (4vector->time 4vector))))))
+	   (square (* :c (4vector->time 4vector))))))
 
 #|
 ;;; Test of booster
@@ -71,7 +74,7 @@ USA.
 
 (pec (Lorentz-length e-prime))
 #| Result:
-(sqrt (+ (* -1 (expt ::c 2) (expt tp 2))
+(sqrt (+ (* -1 (expt :c 2) (expt tp 2))
 	 (expt xp 2)
 	 (expt yp 2)
 	 (expt zp 2)))
@@ -84,7 +87,7 @@ USA.
  (Lorentz-length
   ((coordinate-boost (up 'vx 'vy 'vz)) e-prime)))
 #| Result:
-(sqrt (+ (* -1 (expt ::c 2) (expt tp 2))
+(sqrt (+ (* -1 (expt :c 2) (expt tp 2))
 	 (expt xp 2)
 	 (expt yp 2)
 	 (expt zp 2)))
@@ -184,8 +187,8 @@ USA.
 				   (up 'tau 0 0 0))))))
        (/ (ref foo 1) (ref foo 0))))
 #| Result:
-(/ (+ (* (expt ::c 2) va) (* (expt ::c 2) vb))
-   (+ (expt ::c 2) (* va vb)))
+(/ (+ (* (expt :c 2) va) (* (expt :c 2) vb))
+   (+ (expt :c 2) (* va vb)))
 |#
 |#
 
@@ -204,21 +207,21 @@ USA.
 ;;; segments, outgoing and incoming.
 
 (define (seg1 t)
-  (make-SR-coordinates A (up t (* 96/100 ::c t) 0 0)))
+  (make-SR-coordinates A (up t (* 96/100 :c t) 0 0)))
 
 (define (seg2 t)
   (let ((t2 (- t 25))) 
     (make-SR-coordinates A
-      (+ (up t2 (* -96/100 ::c t2) 0 0) (seg1 25)))))
+      (+ (up t2 (* -96/100 :c t2) 0 0) (seg1 25)))))
 
 ;;; We make frames that follow Diana for each segment of her
 ;;; trip. 
 
 (define D1
-  (make-SR-frame 'diana1 A (up (* 96/100 ::c) 0 0) (seg1 0)))
+  (make-SR-frame 'diana1 A (up (* 96/100 :c) 0 0) (seg1 0)))
 
 (define D2
-  (make-SR-frame 'diana2 A (up (* -96/100 ::c) 0 0) (seg2 0)))
+  (make-SR-frame 'diana2 A (up (* -96/100 :c) 0 0) (seg2 0)))
 
 ;;; After 25 years of Artemis's time, we look at Diana's
 ;;; view of things.
@@ -247,7 +250,7 @@ USA.
 
 (pec (Lorentz-length (seg1 't_a)))
 #| Result:
-(* +7/25i ::c t_a)
+(* +7/25i :c t_a)
 |#
 
 ;;; That the result is imaginary tells us that the path is
@@ -262,18 +265,18 @@ USA.
 
 (pec (seg1_d 'tau_d))
 #| Result:
-(up (* 25/7 tau_d) (* 24/7 ::c tau_d) 0 0)
+(up (* 25/7 tau_d) (* 24/7 :c tau_d) 0 0)
 |#
 
 (pec (Lorentz-length (seg1_d 'tau_d)))
 #| Result:
-(* +i ::c tau_d)
+(* +i :c tau_d)
 |#
 ;;; So, the Lorentz length is the proper time.
 
 (pec (seg1_d 7))
 #| Result:
-(up 25 (* 24 ::c) 0 0)
+(up 25 (* 24 :c) 0 0)
 |#
 ;;; In the 7 years that elapse on Diana's clock, 25 years
 ;;; have elapsed on Artemis's clock.
@@ -294,16 +297,16 @@ USA.
   ((A 'coords->event) 
    (make-SR-coordinates A (up 25 0 0 0)))))
 #| Result:
-(up 625/7 (* -600/7 ::c) 0 0)
+(up 625/7 (* -600/7 :c) 0 0)
 |#
 
 ;;; D sees A's clock is slow (25 years by A's clock is about
 ;;; 89 years by D's clock), but A's world line is still 25
 ;;; years long, even in D's coordinate description.
 
-(pec (Lorentz-length (up 625/7 (* -600/7 ::c) 0 0)))
+(pec (Lorentz-length (up 625/7 (* -600/7 :c) 0 0)))
 #| Result:
-(* +25i ::c)
+(* +25i :c)
 |#
 ;;; The result is imaginary, because the interval is
 ;;; time-like.
@@ -316,11 +319,11 @@ USA.
   ((A 'coords->event) 
    (make-SR-coordinates A (up 25 0 0 0)))))
 #| Result:
-(up -527/7 (* -600/7 ::c) 0 0)
+(up -527/7 (* -600/7 :c) 0 0)
 |#
 
-(pec (- (up -527/7 (* -600/7 ::c) 0 0)
-	(up 625/7 (* -600/7 ::c) 0 0)))
+(pec (- (up -527/7 (* -600/7 :c) 0 0)
+	(up 625/7 (* -600/7 :c) 0 0)))
 #| Result:
 (up -1152/7 0 0 0)
 |#
@@ -349,9 +352,9 @@ USA.
 (pec
  (Lorentz-length
   (- (up 14 0 0 0)
-     (up -527/7 (* -600/7 ::c) 0 0))))
+     (up -527/7 (* -600/7 :c) 0 0))))
 #| Result:
-(* +25i ::c)
+(* +25i :c)
 |#
 |#
 
@@ -367,7 +370,7 @@ USA.
 	  (dx (ref es 1))
 	  (dy (ref es 2))
 	  (dz (ref es 3)))
-      (+ (* g00 (square  ::c) (dt vf1) (dt vf2))
+      (+ (* g00 (square  :c) (dt vf1) (dt vf2))
 	 (* g11 (dx vf1) (dx vf2))
 	 (* g22 (dy vf1) (dy vf2))
 	 (* g33 (dz vf1) (dz vf2))
@@ -453,7 +456,7 @@ the-ether
   (((metric-over-map seg1_d Lorentz-metric) T1_d T1_d)
    ((the-real-line '->point) 5))))
 #| Result:
-(* +i ::c)
+(* +i :c)
 |#
 
 ;;; The 4-velocity of a time-like path, parameterized by its
@@ -477,7 +480,7 @@ the-ether
 	 ((the-real-line '->point) 5))))
     25))
 #| Result:
-(* 7 ::c)				; measured in length!
+(* 7 :c)				; measured in length!
 |#
 
 ;;; Note, this result is independent of sampling time.
@@ -488,7 +491,7 @@ the-ether
 	 ((the-real-line '->point) 3))))
     25))
 #| Result:
-(* 7 ::c)
+(* 7 :c)
 |#
 
 ;;; Now, on the second segment, Diana reverses course.  
@@ -505,7 +508,7 @@ the-ether
 	    ((the-real-line '->point) 5))))
        25)))
 #| Result:
-(* 14 ::c)
+(* 14 :c)
 |#
 
 ;;; So Diana has only aged 14 years while Artemis has aged
