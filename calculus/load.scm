@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -26,7 +26,6 @@ USA.
 (with-working-directory-pathname (directory-pathname (current-load-pathname))
   (lambda () 
     (load "dgutils" generic-environment)
-    (load "eq-properties" generic-environment)
 
     (load "coordinates" generic-environment)
     (load "manifold" generic-environment)
@@ -52,6 +51,9 @@ USA.
     ;; Hodge star depends on metric
     (load "gram-schmidt" generic-environment)
     (load "hodge-star" generic-environment)
+    (load "tensor" generic-environment)
 
     (load "special-relativity" generic-environment)
+
+    (load "speedup" generic-environment)
     ))

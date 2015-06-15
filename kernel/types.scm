@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -131,9 +131,12 @@ USA.
 ;;; NUMBER? is defined by Scheme system
 
 (define (abstract-number? x)
-  (or (and (pair? x)
-	   (eq? (car x) number-type-tag))
+  (or (literal-number? x)
       (symbol? x)))
+
+(define (literal-number? x)
+  (and (pair? x)
+       (eq? (car x) number-type-tag)))
 
 (define (numerical-quantity? x)
   (or (number? x)
@@ -159,6 +162,11 @@ USA.
 (define (compound-type-tag? x)
   ;; Will need to add tensors, etc.
   (memq x compound-type-tags))
+
+(define (not-compound? x)
+  (not (or (vector? x)
+	   (and (pair? x)
+		(compound-type-tag? (car x))))))
 
 (define (scalar? x)
   (not (or (vector? x)

@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -27,28 +27,9 @@ USA.
 
 (declare (usual-integrations))
 
-;;;(define *auditing-memoizers* #f)
-(define *auditing-memoizers* #t)
-
-;;; If auditing, information is stored in this weak alist:
+;;; A weak alist of memoized functions.
 
 (define *memoizers* '())
-
-(define (show-memoizer-statistics)
-  (for-each (lambda (m)
-	      (let ((f (weak-car m)) (s ((cadr (weak-cdr m)))))
-		(if f
-		    (pp `(,(car s) ,(cadr s) ,(cadddr s))))))
-	    *memoizers*)
-  'done)
-
-(define (clear-memoizer-tables)
-  (for-each (lambda (m)
-	      (let ((f (weak-car m)))
-		(if f ((caddr (weak-cdr m))))))
-	    *memoizers*)
-  'done)
-
 
 (define (memoizer-gc-daemon)
   (set! *memoizers*
@@ -56,6 +37,36 @@ USA.
   'done)
 
 (add-gc-daemon! memoizer-gc-daemon)
+
+;;;(define *auditing-memoizers* #f)
+(define *auditing-memoizers* #t)
+
+(define (show-memoizer-statistics)
+  (for-each (lambda (m)
+	      (let ((f (weak-car m)) (s ((cadr (weak-cdr m)))))
+		(if f
+		    (pp `(,(car s)
+			  ,(cadr s)
+			  ,(function-expression (cadddr (weak-cdr m))
+						f))))))
+	    *memoizers*)
+  'done)
+
+(define (function-expression f memo-f)
+  (or (object-name memo-f
+		   generic-environment
+		   rule-environment
+		   numerical-environment
+		   scmutils-base-environment)
+      (procedure-name f)))
+
+  
+(define (clear-memoizer-tables)
+  (for-each (lambda (m)
+	      (let ((f (weak-car m)))
+		(if f ((caddr (weak-cdr m))))))
+	    *memoizers*)
+  'done)
 
 ;;; Single-argument linear memoizer.  Can use weak alists for
 ;;; single-argument keys.
@@ -65,33 +76,38 @@ USA.
 	 (if (default-object? max-table-size)
 	     12
 	     max-table-size))
-	(finder (if (default-object? finder) weak-find-equal? finder))
+	(finder
+	 (if (default-object? finder) weak-find-equal? finder))
 	(table '())
 	(memo-hits 0)
 	(memo-misses 0))
-    (define (info)
-      (list memo-hits memo-misses table f))
-    (define (reset)
-      (set! memo-hits 0)
-      (set! memo-misses 0)
-      (set! table '()))
-    (define (memo-f x)
-      (let ((seen (finder x table)))
-	(if seen
-	    (begin (if *auditing-memoizers*
-		       (set! memo-hits (int:+ memo-hits 1)))
-		   seen)
-	    (let ((ans (f x)))
-	      (if *auditing-memoizers*
-		  (set! memo-misses (int:+ memo-misses 1)))
-	      (set! table
-		    (purge-list (cons (weak-cons x ans) table)
-				max-table-size))
-	      ans))))
-    (set! *memoizers*
-	  (cons (weak-cons memo-f (list max-table-size info reset))
-		*memoizers*))
-    memo-f))
+    (let ((info
+	   (lambda ()
+	     (list memo-hits memo-misses table)))
+	  (reset
+	   (lambda ()
+	     (set! memo-hits 0)
+	     (set! memo-misses 0)
+	     (set! table '())))
+	  (memo-f
+	   (lambda (x)
+	     (let ((seen (finder x table)))
+	       (if seen
+		   (begin (if *auditing-memoizers*
+			      (set! memo-hits (int:+ memo-hits 1)))
+			  seen)
+		   (let ((ans (f x)))
+		     (if *auditing-memoizers*
+			 (set! memo-misses (int:+ memo-misses 1)))
+		     (set! table
+			   (purge-list (cons (weak-cons x ans) table)
+				       max-table-size))
+		     ans))))))
+      (set! *memoizers*
+	    (cons (weak-cons memo-f
+			     (list max-table-size info reset f))
+		  *memoizers*))
+      memo-f)))
 
 ;;; A general linear-time memoizer for functions.  In this case the
 ;;; arg lists are ALWAYS unprotected, so we cannot use weak pairs in
@@ -103,48 +119,55 @@ USA.
 	 (if (default-object? max-table-size)
 	     12
 	     max-table-size))
-	(finder (if (default-object? finder) weak-find-equal-args? finder))
+	(finder
+	 (if (default-object? finder) weak-find-equal-args? finder))
 	(table '())
 	(memo-hits 0)
 	(memo-misses 0))
-    (define (info)
-      (list memo-hits memo-misses table f))
-    (define (reset)
-      (set! memo-hits 0)
-      (set! memo-misses 0)
-      (set! table '()))
-    (define (memo-f . x)
-      (let ((seen (finder x table)))
-	(if seen
-	    (begin (if *auditing-memoizers*
-		       (set! memo-hits (int:+ memo-hits 1)))
-		   seen)
-	    (let ((ans (apply f x)))
-	      (if *auditing-memoizers*
-		  (set! memo-misses (int:+ memo-misses 1)))
-	      (set! table
-		    (purge-list (cons (cons (list->weak-list x) ans) table)
-				max-table-size))
-	      ans))))
-    (set! *memoizers*
-	  (cons (weak-cons memo-f (list max-table-size info reset))
-		*memoizers*))
-    memo-f))
+    (let ((info
+	   (lambda ()
+	     (list memo-hits memo-misses table)))
+	  (reset
+	   (lambda ()
+	     (set! memo-hits 0)
+	     (set! memo-misses 0)
+	     (set! table '())))
+	  (memo-f
+	   (lambda x
+	     (let ((seen (finder x table)))
+	       (if seen
+		   (begin (if *auditing-memoizers*
+			      (set! memo-hits (int:+ memo-hits 1)))
+			  seen)
+		   (let ((ans (apply f x)))
+		     (if *auditing-memoizers*
+			 (set! memo-misses (int:+ memo-misses 1)))
+		     (set! table
+			   (purge-list (cons (cons (list->weak-list x)
+						   ans)
+					     table)
+				       max-table-size))
+		     ans))))))
+      (set! *memoizers*
+	    (cons (weak-cons memo-f
+			     (list max-table-size info reset f))
+		  *memoizers*))
+      memo-f)))
 
 ;;; Weak-alist searches.  These scan a weak alist for an object,
 ;;; returning the associated value if found.  They also clean up the
 ;;; alist by clobbering out value cells that have lost their key.
-;;; These also work for strong alists, but they are not modified.
+;;; These also work for strong alists, but strong alists are not
+;;; modified.
 
 (define (weak-finder same?)
   (define (the-finder obj weak-alist)
     (if (null? weak-alist)
 	#f
 	(let ((pair (car weak-alist)))
-	  
 	  (cond ((weak-pair? pair)
 		 (let ((a (weak-car pair)))
-		   (if a
+		   (if a		; assumes no key is #f
 		       (if (same? obj a)
 			   (weak-cdr pair)
 			   (the-finder obj (cdr weak-alist)))
@@ -153,8 +176,8 @@ USA.
 		((pair? pair)
 		 (let ((a (car pair)))
 		   (if (same? obj a)
-			   (cdr pair)
-			   (the-finder obj (cdr weak-alist)))))
+		       (cdr pair)
+		       (the-finder obj (cdr weak-alist)))))
 		(else
 		 (the-finder obj (cdr weak-alist)))))))
   the-finder)
@@ -223,60 +246,133 @@ USA.
 
 (define (hash-memoize-1arg f)
   (let ((table) (memo-hits) (memo-misses))
-    (define (info)
-      (list memo-hits memo-misses table f))
-    (define (reset)
-      (set! memo-hits 0)
-      (set! memo-misses 0)
-      (set! table
-	    ((weak-hash-table/constructor equal-hash-mod
-					  equal?
-					  #t))))
-    (reset)
-    (define (memo-f x)
-      (let ((seen (hash-table/get table x *not-seen*)))
-	(if (not (eq? seen *not-seen*))
-	    (begin (if *auditing-memoizers*
-		       (set! memo-hits (int:+ memo-hits 1)))
-		   seen)
-	    (let ((ans (f x)))
-	      (if *auditing-memoizers*
-		  (set! memo-misses (int:+ memo-misses 1)))
-	      (hash-table/put! table x ans)
-	      ans))))
-    (set! *memoizers*
-	  (cons (weak-cons memo-f (list -1 info reset))
-		*memoizers*))
-    memo-f))
+    (let ((info
+	   (lambda ()
+	     (list memo-hits memo-misses table)))
+	  (reset
+	   (lambda ()
+	     (set! memo-hits 0)
+	     (set! memo-misses 0)
+	     (set! table
+		   ((weak-hash-table/constructor equal-hash-mod
+						 equal?
+						 #t)))))
+	  (memo-f
+	   (lambda (x)
+	     (let ((seen (hash-table/get table x *not-seen*)))
+	       (if (not (eq? seen *not-seen*))
+		   (begin (if *auditing-memoizers*
+			      (set! memo-hits (int:+ memo-hits 1)))
+			  seen)
+		   (let ((ans (f x)))
+		     (if *auditing-memoizers*
+			 (set! memo-misses (int:+ memo-misses 1)))
+		     (hash-table/put! table x ans)
+		     ans))))))
+      (reset)
+      (set! *memoizers*
+	    (cons (weak-cons memo-f (list -1 info reset f))
+		  *memoizers*))
+      memo-f)))
 
 ;;; A general hash memoizer for functions.  In this case the arg lists
 ;;; are ALWAYS unprotected, so we cannot use a weak table here.
 
 (define (hash-memoize f)
   (let ((table) (memo-hits) (memo-misses))
-    (define (info)
-      (list memo-hits memo-misses table f))
-    (define (reset)
-      (set! memo-hits 0)
-      (set! memo-misses 0)
-      (set! table
-	    ((strong-hash-table/constructor equal-hash-mod
-					    equal?
-					    #t))))
-    (reset)
-    (define (memo-f . x)
-      (let ((seen (hash-table/get table x *not-seen*)))
-	(if (not (eq? seen *not-seen*))
-	    (begin (if *auditing-memoizers*
-		       (set! memo-hits (int:+ memo-hits 1)))
-		   seen)
-	    (let ((ans (apply f x)))
-	      (if *auditing-memoizers*
-		  (set! memo-misses (int:+ memo-misses 1)))
-	      (hash-table/put! table x ans)
-	      ans))))
-    (set! *memoizers*
-	  (cons (weak-cons memo-f (list -1 info reset))
-		*memoizers*))
-    memo-f))
+    (let ((info
+	   (lambda ()
+	     (list memo-hits memo-misses table)))
+	  (reset
+	   (lambda ()
+	     (set! memo-hits 0)
+	     (set! memo-misses 0)
+	     (set! table
+		   ((strong-hash-table/constructor equal-hash-mod
+						   equal?
+						   #t)))))
+	  (memo-f
+	   (lambda x
+	     (let ((seen (hash-table/get table x *not-seen*)))
+	       (if (not (eq? seen *not-seen*))
+		   (begin (if *auditing-memoizers*
+			      (set! memo-hits (int:+ memo-hits 1)))
+			  seen)
+		   (let ((ans (apply f x)))
+		     (if *auditing-memoizers*
+			 (set! memo-misses (int:+ memo-misses 1)))
+		     (hash-table/put! table x ans)
+		     ans))))))
+      (reset)
+      (set! *memoizers*
+	    (cons (weak-cons memo-f (list -1 info reset f))
+		  *memoizers*))
+      memo-f)))
 
+
+;;; To install and remove memoizers on named procedures
+
+(define (memoize-procedure! name #!optional memo-type environment)
+  (assert (symbol? name))
+  (if (default-object? environment)
+      (set! environment (nearest-repl/environment))
+      (assert (environment? environment)))
+  (assert (environment-bound? environment name))
+  (if (default-object? memo-type)
+      (set! memo-type 'linear)
+      (assert (memq memo-type '(linear hash))))
+  (if (environment-bound? environment '*memoized-procedures*)
+      (if (assq name (eval '*memoized-procedures* environment))
+	  (begin (warn name "rememoizing!")
+		 (unmemoize-procedure! name environment))))
+  (let ((proc (eval name environment)))
+    (assert (procedure? proc))
+    (let ((arity (procedure-arity proc)))
+      (let ((memoized-procedure
+	     (cond ((equal? arity '(0 . 0))
+		    (let ((ran? #f) (value))
+		      (lambda ()
+			(if ran?
+			    value
+			    (begin
+			      (set! value (proc))
+			      (set! ran? #t)
+			      value)))))
+		   ((equal? arity '(1 . 1))
+		    (case memo-type
+		      ((linear) (linear-memoize-1arg proc))
+		      ((hash) (hash-memoize-1arg proc))))
+		   (else
+		    (case memo-type
+		      ((linear) (linear-memoize proc))
+		      ((hash) (hash-memoize proc)))))))	
+	(if (not (environment-bound? environment
+				     '*memoized-procedures*))
+	    (environment-define environment
+				'*memoized-procedures*
+				(list (cons name proc)))
+	    (environment-assign! environment
+				 '*memoized-procedures*
+				 (cons (cons name proc)
+				       (eval '*memoized-procedures*
+					     environment))))
+	(environment-assign! environment
+			     name
+			     memoized-procedure)
+	'done))))
+
+(define (unmemoize-procedure! name #!optional environment)
+  (assert (symbol? name))
+  (if (default-object? environment)
+      (set! environment (nearest-repl/environment))
+      (assert (environment? environment)))
+  (assert (environment-bound? environment name))
+  (assert (environment-bound? environment '*memoized-procedures*))
+  (let ((vcell (assq name (eval '*memoized-procedures* environment))))
+    (assert vcell)
+    (environment-assign! environment (car vcell) (cdr vcell))
+    (environment-assign! environment
+			 '*memoized-procedures*
+			 (delete vcell
+				 (eval '*memoized-procedures* environment)))
+    'done!))

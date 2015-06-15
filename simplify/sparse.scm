@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -46,7 +46,7 @@ USA.
   (for-all? (sparse-exponents term) zero?))
 
 (define (sparse-constant? p)
-  (and (= (length p) 1)
+  (and (fix:= (length p) 1)
        (sparse-constant-term? (car p))))
 
 (define (sparse-one-term? t)
@@ -59,6 +59,31 @@ USA.
 
 (define (sparse-zero? p)
   (null? p))
+
+(define (sparse-zero-term? t)
+  (and (sparse-constant-term? t)
+       (= (sparse-coefficient t) 0)))
+
+
+(define (sparse-constant-term arity-n constant)
+  (sparse-term (make-list arity-n 0) constant))
+
+(define (sparse-one arity-n)
+  (list (sparse-constant-term arity-n 1)))
+
+
+(define (sparse-identity-term arity-n varnum)
+  (sparse-term (generate-list arity-n
+			      (lambda (i)
+				(if (fix:= i varnum) 1 0)))
+	       1))
+
+(define (sparse-linear arity-n varnum root)
+  (if (zero? root)
+      (list (sparse-identity-term arity-n varnum))
+      (list (sparse-identity-term arity-n varnum)
+	    (sparse-constant-term arity-n (- root)))))
+
 
 (define (sparse-term-> t1 t2)
   (sparse:>exponents? (sparse-exponents t1)
@@ -127,6 +152,13 @@ USA.
 (define (negate-term t)
   (sparse-term (sparse-exponents t) (- (sparse-coefficient t))))
 
+(define (sparse-multiply xlist ylist)
+  (let lp ((xlist xlist))
+    (if (null? xlist)
+	'()
+	(sparse-add (sparse-multiply-term (car xlist) ylist)
+		    (lp (cdr xlist))))))
+
 (define (sparse-multiply-term t x)
   (let ((exponents (sparse-exponents t))
 	(coeff (sparse-coefficient t)))
@@ -134,7 +166,6 @@ USA.
 	   (sparse-term (map + exponents (sparse-exponents term))
 			(* coeff (sparse-coefficient term))))
 	 x)))
-
 
 (define (sparse-abs p)
   (if (null? p)

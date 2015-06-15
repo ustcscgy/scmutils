@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -81,13 +81,15 @@ USA.
 (define n:asin asin)
 (define n:acos acos)
 (define n:atan atan)
-
+
 (define n:sinh sinh)
 (define n:cosh cosh)
 (define n:tanh tanh)
 (define n:sech sech)
 (define n:csch csch)
-
+
+(define n:abs abs)
+
 (define n:= =)
 
 (define n:+ +)
@@ -131,9 +133,11 @@ USA.
 
 (assign-operation 'zero?            n:zero?            number?)
 (assign-operation 'one?             n:one?             number?)
+(assign-operation 'identity?        n:one?             number?)
 
 (assign-operation 'negate           n:negate           number?)
 (assign-operation 'invert           n:invert           number?)
+(assign-operation 'square           n:square           number?)
 
 (assign-operation 'sqrt             n:sqrt             number?)
 
@@ -149,6 +153,12 @@ USA.
 (assign-operation 'sinh             n:sinh             number?)
 (assign-operation 'cosh             n:cosh             number?)
 
+(assign-operation 'abs              n:abs              number?)
+
+(assign-operation 'determinant      identity           number?)
+(assign-operation 'trace            identity           number?)
+
+
 (assign-operation '=          n:=            number? number?)
 
 (assign-operation '+          n:+            number? number?)
@@ -156,10 +166,10 @@ USA.
 (assign-operation '*          n:*            number? number?)
 (assign-operation '/          n:/            number? number?)
 
-(assign-operation 'dot-product          n:*            number? number?)
-
 (assign-operation 'expt       n:expt         number? number?)
 (assign-operation 'gcd        n:gcd          number? number?)
+
+(assign-operation 'dot-product  n:*          number? number?)
 
 (assign-operation 'make-rectangular    n:make-rectangular real? real?)
 (assign-operation 'make-polar          n:make-polar       real? real?)
@@ -292,15 +302,25 @@ USA.
 ;;; on lots of parts of the system. -- GJS
 
 (define (an:= x y)
-  (exact-zero? (simplify (g:- x y))))
+  (an:zero? (g:- x y)))
 
 (define (an:zero? x)
-  (exact-zero? (simplify x)))
+  (let* ((ex (expression x))
+	 (evars
+	  (list-difference (variables-in ex) symbolic-operators))
+	 (val
+	  (ignore-errors
+	   (lambda ()
+	     (apply (eval `(lambda ,evars ,ex) symbolic-environment)
+		    (map (lambda (x) (random 10000)) evars))))))
+    (if (and (not (condition? val)) (exact-zero? val))
+	(exact-zero? (new-simplify ex))
+	#f)))
 
 (define (an:one? x)
-  (exact-one? (simplify x)))
+  (exact-one? (default-simplify x)))
 
 ;;; Sigh.
-;;; (assign-operation '=              an:=            abstract-number? abstract-number?)
-;;; (assign-operation 'zero?          an:zero?        abstract-number?)
-;;; (assign-operation 'one?           an:one?         abstract-number?)
+;;; (assign-operation '=          an:=            abstract-number? abstract-number?)
+;;; (assign-operation 'zero?      an:zero?        abstract-number?)
+;;; (assign-operation 'one?       an:one?         abstract-number?)

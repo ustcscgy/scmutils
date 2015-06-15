@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -27,7 +27,7 @@ USA.
 
 (ge user-initial-environment)
 
-(add-subsystem-identification! "ScmUtils" '("Mechanics " " Summer 2005"))
+(add-subsystem-identification! "\n  ScmUtils" '("Mechanics " " Fall 2006"))
 
 (define scmutils-base-environment
   user-initial-environment)
@@ -78,6 +78,9 @@ USA.
   (access symbolic-environment scmutils-base-environment))
 (define rule-environment
   (access rule-environment scmutils-base-environment))
+
+(define symbolic-operators
+  (hash-table/key-list symbolic-operator-table))
 
 (in-scmutils-directory "./display"
 		       (lambda ()

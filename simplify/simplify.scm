@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -53,7 +53,9 @@ USA.
 (define *inhibit-expt-simplify* #t)
 
 (define (make-analyzer ->expression expression-> known-operators)
-  (let ((auxiliary-variable-table '())
+  (let ((auxiliary-variable-table
+	 ((weak-hash-table/constructor equal-hash-mod equal? #t)))
+	(reverse-table (make-eq-hash-table))
 	(uorder '())
 	(priority '()))
 
@@ -76,7 +78,9 @@ USA.
 
     ;; Set up new analysis
     (define (new-analysis)		
-      (set! auxiliary-variable-table '())
+      (set! auxiliary-variable-table
+	    ((weak-hash-table/constructor equal-hash-mod equal? #t)))
+      (set! reverse-table (make-eq-hash-table))
       (set! uorder '())
       (set! priority '())
       'done)
@@ -92,7 +96,7 @@ USA.
     (define (get-auxiliary-variable-defs)
       (map (lambda (entry)
 	     (list (cdr entry) (car entry)))
-	   auxiliary-variable-table))
+	   (hash-table->alist auxiliary-variable-table)))
 
     ;; Implementation -----------------------
 
@@ -136,15 +140,14 @@ USA.
 	  expr))
 
     (define (backsubstitute expr)
-      (cond ((pair? expr) (map backsubstitute expr))
-	      ((symbol? expr)
-	       (let ((v (rassq expr auxiliary-variable-table)))
-		 (if v
-		     (backsubstitute (car v))
-		     ;Can improve by doing only once.
-		     ; Could make new table on entry to back.
-		     expr)))
-	      (else expr)))
+      (define lp
+	(lambda (expr)
+	  (cond ((pair? expr) (map lp expr))
+		((symbol? expr)
+		 (let ((v (hash-table/get reverse-table expr #f)))
+		   (if v (lp v) expr)))
+		(else expr))))
+      (lp expr))
 
     (define (add-symbols! expr)
       (let ((new (map add-symbol! expr)))
@@ -157,14 +160,14 @@ USA.
 		as-seen
 		(let ((newvar
 		       (generate-uninterned-symbol "kernel")))
-		  (set! auxiliary-variable-table
-			(cons (cons expr newvar) auxiliary-variable-table))
+		  (hash-table/put! auxiliary-variable-table expr newvar)
+		  (hash-table/put! reverse-table newvar expr)
 		  newvar)))
 	  expr))
 
     (define (expression-seen expr)
-      (let ((entry (assoc expr auxiliary-variable-table)))
-	(and entry (cdr entry))))
+      (hash-table/get auxiliary-variable-table expr #f))
+
 
     (define (vless? var1 var2)
       (let ((in (memq var1 uorder)))
@@ -174,14 +177,7 @@ USA.
 		     (else true)))
 	      ((memq var2 uorder) false)
 	      (else
-	       (let ((in1 (rassq var1 auxiliary-variable-table))
-		     (in2 (rassq var2 auxiliary-variable-table)))
-		 (cond ((and in1 in2)
-			(memq in2 (memq in1 auxiliary-variable-table)))
-		       (in1 true)
-		       (in2 false)
-		       (else
-			(alphaless? var1 var2))))))))
+	       (alphaless? var1 var2)))))
 
     (vector simplify
 	    simplify-expression
@@ -206,19 +202,19 @@ USA.
 (define fpf:analyzer
   (make-analyzer fpf:->expression fpf:expression-> fpf:operators-known))
 
-(define fpf:simplify (default-simplifier fpf:analyzer))
+(define fpf:simplify (expression-simplifier fpf:analyzer))
 
 
 (define pcf:analyzer
   (make-analyzer poly:->expression poly:expression-> poly:operators-known))
 
-(define pcf:simplify (default-simplifier pcf:analyzer))
+(define pcf:simplify (expression-simplifier pcf:analyzer))
 
 
 (define rcf:analyzer
   (make-analyzer rcf:->expression rcf:expression-> rcf:operators-known))
 
-(define rcf:simplify (default-simplifier rcf:analyzer))
+(define rcf:simplify (expression-simplifier rcf:analyzer))
 #|
 ((initializer rcf:analyzer))
 

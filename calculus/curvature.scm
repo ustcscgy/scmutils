@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -108,18 +108,13 @@ USA.
 #| result:
 0					;four of these
 |#
-
-;;; unfortunately ...
 (pec (((Riemann (Christoffel->Cartan G-S2-1))
        dphi d/dtheta d/dphi d/dtheta)
       a-point))
-;Aborting!: out of memory
-;;; Difficulty is compositions of entering and leaving embedding manifold.
-;;; Undocumented and not blessed, but makes things that run out of
-;;; memory for this reason converge.  
-;;; (load "~gjs/algebra/speedups/simplify-function")
-;;; (load "/usr/local/scmutils/relativity/simplify-function")
-;;; Bad idea, unless can be made automatic.
+#| Result:
+1
+|#
+
 |#
 
 #|

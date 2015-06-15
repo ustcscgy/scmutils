@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -104,7 +104,7 @@ USA.
 (define (identity-simplification expr)
   (let ((t (type expr)))
     (if (eq? t '*number*)
-	(make-numerical-literal (simplify expr))
+	(make-numerical-literal (default-simplify expr))
 	expr)))
 
 ;;; In this system, expressions never contain vectors or matrices,
@@ -155,32 +155,37 @@ USA.
 	       matrix-by-cols))))
 
 (define (expression expr)
-  (internal-expression expr #t))
-
-(define (internal-expression expr row/col?)
   (define (exprlp expr)
-    (cond ((number? expr)
-	   expr)
-	  ((symbol? expr)
-	   expr)
-	  ((and row/col? (row? expr))
+    (cond ((number? expr) expr)
+	  ((symbol? expr) expr)	   
+	  ((null? expr) expr)
+	  ((differential? expr)
+	   `(make-differential-quantity
+	     (list ,@(map (lambda (term)
+			    `(make-differential-term
+			      ',(differential-tags term)
+			      ,(exprlp (differential-coefficient term))))
+			  (differential-term-list expr)))))
+	  ((row? expr)
 	   (cons down-constructor-name
 		 (let lp ((i 0))
 		   (if (fix:= i (s:length expr))
 		       '()
 		       (cons (exprlp (s:ref expr i))
 			     (lp (fix:+ i 1)))))))
-	  ((and row/col? (column? expr))
+	  ((column? expr)		;subsumes vector? below.
 	   (cons up-constructor-name
 		 (let lp ((i 0))
 		   (if (fix:= i (s:length expr))
 		       '()
 		       (cons (exprlp (s:ref expr i))
 			     (lp (fix:+ i 1)))))))
+#|	  
 	  ((vector? expr)
 	   (cons 'vector
 		 (vector->list
 		  ((vector-elementwise exprlp) expr))))
+|#
 	  ((quaternion? expr)
 	   (cons 'quaternion
 		 (vector->list
@@ -191,47 +196,63 @@ USA.
 		      (cons 'list (vector->list r)))
 		    (vector->list
 		     (matrix->array ((m:elementwise exprlp) expr))))))
-	  ((differential? expr)
-	   `(make-differential-quantity
-	     (list ,@(map (lambda (term)
-			    `(make-differential-term
-			      ',(differential-tags term)
-			      ,(exprlp (differential-coefficient term))))
-			  (differential-term-list expr)))))
+	  ((literal-number? expr)
+	   (exprlp (expression-of expr)))
 	  ((with-units? expr)
-	   (with-si-units->expression expr))
+	   (exprlp (with-si-units->expression expr)))
 	  ((pair? expr)
-	   (if (memq (car expr) abstract-type-tags)
-	       (exprlp (expression (expression-of expr)))
-	       (map exprlp expr)))
+	   (cond ((eq? (car expr) '???) expr)
+		 ((memq (car expr) abstract-type-tags)
+		  (exprlp (expression-of expr)))
+		 (else (map exprlp expr))))
 	  ((abstract-function? expr)
 	   (exprlp (f:expression expr)))
 	  ((operator? expr)
 	   (exprlp (operator-name expr)))
 	  ((procedure? expr)
-	   (let ((b (rlookup expr (environment-bindings generic-environment))))
-	     (if b
-		 (car b)
-		 (let ((u (unsyntax (procedure-lambda expr))))
-		   (if (pair? u)
-		       (case (car u)
-			 ((named-lambda) (caadr u))
-			 ((lambda) `(??? ,@(cadr u)))
-			 (else
-			  (error "Unknown procedure type" expr)))
-		       '???)))))
+	   (procedure-expression expr))
 	  (else (error "Bad expression" expr))))
   (exprlp expr))
 
 (define up-constructor-name 'up)
 (define down-constructor-name 'down)
 
+;;; Finds a name, if any, of the given object in the given
+;;; environments.  If none, value is #f.
+
+(define (object-name object #!rest environments)
+  (let lp ((environments environments))
+    (cond ((null? environments)	#f)
+	  ((rlookup object (environment-bindings (car environments)))
+	   => car)
+	  (else (lp (cdr environments))))))
+
+(define (procedure-name f)
+  (let ((u2 (unsyntax (procedure-lambda f))))
+    (if (pair? u2)
+	(case (car u2)
+	  ((named-lambda) (caadr u2))
+	  ((lambda) `(??? ,@(cadr u2)))
+	  (else
+	   (error "Unknown procedure type" f)))
+	'???)))
+
+(define (procedure-expression f)
+  (or (object-name f
+		   generic-environment
+		   rule-environment
+		   numerical-environment
+		   scmutils-base-environment)
+      (procedure-name f)))
+
+
 (define (generate-list-of-symbols base-symbol n)
   (generate-list n
     (lambda (i)
       (concatenate-names base-symbol
 			 (string->symbol (number->string i))))))
 
+#|
 (define (variables-in expr)
   (cond ((pair? expr)
 	 (reduce list-union
@@ -239,6 +260,25 @@ USA.
 		 (map variables-in expr)))
 	((symbol? expr) (list expr))
 	(else '())))
+|#
+
+(define (variables-in expr)
+  (let lp ((expr expr)
+	   (vars '())
+	   (cont (lambda (vars) vars)))
+    (cond ((pair? expr)
+	   (lp (car expr)
+	       vars
+	       (lambda (vars)
+		 (lp (cdr expr)
+		     vars
+		     cont))))
+	  ((symbol? expr)
+	   (if (memq expr vars)
+	       (cont vars)
+	       (cont (cons expr vars))))
+	  (else (cont vars)))))
+
 
 (define (pair-up vars vals table)
   (cond ((null? vars)

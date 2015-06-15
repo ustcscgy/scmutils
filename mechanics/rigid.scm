@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -89,6 +89,14 @@ USA.
     (list           1               0               0)
     (list           0     (cos angle) (- (sin angle)))
     (list           0     (sin angle)     (cos angle))))
+
+;;; Not used for Euler.
+(define (rotate-y-matrix angle)
+  (matrix-by-rows 
+    (list     (cos angle)     0  (sin angle))
+    (list               0     1            0)
+    (list (- (sin angle))     0  (cos angle))))
+
 
 (define (Euler->M angles)
   (let ((theta (ref angles 0))

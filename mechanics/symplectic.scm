@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -227,7 +227,7 @@ USA.
 (matrix-by-rows (list 0 (+ 1 (* -1 p))) (list (+ -1 p) 0))
 |#
 
-
+#|
 ;;; One particularly useful canonical transform is the 
 ;;;  Poincare transform, which is good for simplifying 
 ;;;  oscillators.
@@ -251,7 +251,7 @@ USA.
 			 (/ p (sqrt (* 2 I alpha))))))
 	(->H-state t theta I)))))
 
-#|
+
 
 (pe
  ((compose (polar-canonical-inverse 'alpha)

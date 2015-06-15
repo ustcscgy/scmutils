@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -37,6 +37,7 @@ USA.
 (load "ghelper"  scmutils-base-environment)
 (load "generic"  scmutils-base-environment)
 (load "mathutil" scmutils-base-environment)
+(load "strutl"   scmutils-base-environment)
 
 ;;; Magic apply extension to allow application
 ;;;  of things, such as vectors and numbers, that
@@ -63,23 +64,20 @@ USA.
 (define (diff-memoize f) (linear-memoize f))
 ;;;(define (diff-memoize f) (hash-memoize f))
 
+(load "matrices" scmutils-base-environment)
+(load "quaternion" scmutils-base-environment)
+(load "pseries"  scmutils-base-environment)
+(load "modarith" scmutils-base-environment)
+
 (load "diff"     scmutils-base-environment)
 (load "deriv"    scmutils-base-environment)
 (load "operator" scmutils-base-environment)
 (load "function" scmutils-base-environment)
 
-(load "matrices" scmutils-base-environment)
-
-(load "modarith" scmutils-base-environment)
 (load "numbers"  scmutils-base-environment)
+;;; The following two need to be loaded after NUMBERS, 
+;;;  because they use MAKE-NUMERICAL-COMBINATION.
 (load "vectors"  scmutils-base-environment)
-(load "quaternion" scmutils-base-environment)
-
-(load "strutl"   scmutils-base-environment)
-(load "pseries"  scmutils-base-environment)
-
-
-;;; The following must be loaded late, to enable  special-case SQUARE.
 (load "structs"  scmutils-base-environment)
 
 ;;; Literal-construction.
@@ -90,3 +88,5 @@ USA.
 
 ;;; Sets up generic environment
 (load "genenv"   scmutils-base-environment)
+
+(load "custom-repl" scmutils-base-environment)

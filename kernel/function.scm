@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -36,11 +36,11 @@ USA.
   (compose-bin operator f))
 
 (define ((f:binary operator) f1 f2)
-  (let ((a (joint-arity (g:arity f1) (g:arity f2))))
-    (if (not a)
-	(error "Functions have different arities" f1 f2))
-    (let ((f1 (if (function? f1) f1 (coerce-to-function f1)))
-	  (f2 (if (function? f2) f2 (coerce-to-function f2))))	
+  (let ((f1 (if (function? f1) f1 (coerce-to-function f1)))
+	(f2 (if (function? f2) f2 (coerce-to-function f2))))	
+    (let ((a (joint-arity (g:arity f1) (g:arity f2))))
+      (if (not a)
+	  (error "Functions have different arities" f1 f2))
       (cond ((equal? a *at-least-zero*)
 	     (lambda x
 	       (operator (apply f1 x) (apply f2 x))))

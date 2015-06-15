@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -61,6 +61,10 @@ USA.
 (define (canonicalize-object object table)
   (canonicalize-lp object (fringe object) table))
 
+
+(define canonicalizer-hits 0)
+(define canonicalizer-misses 0)
+
 (define (canonicalize-lp object features table)
   (if (not object)
       object
@@ -68,14 +72,20 @@ USA.
        (lambda (first-feature find-next-feature)
 	 (cond ((null? first-feature)
 		(let ((ans (object-in-table-enders object table)))
-		  (cond (ans ans)
+		  (cond (ans
+			 (set! canonicalizer-hits (int:+ canonicalizer-hits 1))
+			 ans)
 			(else
+			 (set! canonicalizer-misses (int:+ canonicalizer-misses 1))
 			 (add-table-ender! table object)
 			 object))))
 	       ((terminal-table? table)
 		(let ((ans (object-in-table-extenders object table)))
-		  (cond (ans ans)
+		  (cond (ans
+			 (set! canonicalizer-hits (int:+ canonicalizer-hits 1))
+			 ans)
 			(else
+			 (set! canonicalizer-misses (int:+ canonicalizer-misses 1))
 			 (add-table-extender! table object features)
 			 (if (worth-subindexing? table)
 			     (extend-index! table))

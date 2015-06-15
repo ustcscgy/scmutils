@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -29,115 +29,73 @@ USA.
 
 ;;; Unary Operators 
 
-(define (g:type x) (generic-apply 'type x))
-(define (g:type-predicate x) (generic-apply 'type-predicate x))
-(define (g:arity x) (generic-apply 'arity x))
+(define g:type (make-generic-operator 1 'type))
 
-;;; The default arity is #f.  Objects must define their arity.
+(define g:type-predicate (make-generic-operator 1 'type-predicate))
 
-(assign-operation 'arity       none?        any?)
+(define g:arity (make-generic-operator 1 'arity (lambda (x) #f)))
 
 
-(define (g:inexact? x)
-  (if (number? x)
-      (inexact? x)
-      (generic-apply 'inexact? x)))
+(define g:inexact?
+  (make-generic-operator 1 'inexact?))
 
-(define (g:zero-like x) (generic-apply-default :zero 'zero-like x))
-(define (g:one-like x) (generic-apply-default :one 'one-like x))
-(define (g:identity-like x) (generic-apply 'identity-like x))
+(define g:zero-like
+  (make-generic-operator 1 'zero-like (lambda (x) :zero)))
+
+(define g:one-like
+  (make-generic-operator 1 'one-like (lambda (x) :one)))
+
+(define g:identity-like
+  (make-generic-operator 1 'identity-like (lambda (x) g:identity)))
+
 
 ;;; Generic tests are conservative.  
 ;;; They will return #f unless the answer is known true.
 
+(define generic:zero?
+  (make-generic-operator 1 'zero? (lambda (x) #f)))
+
 (define (g:zero? x)
-  (if (number? x)
-      (exact-zero? x)
-      (generic-predicate 'zero? x)))
+    (if (number? x) (exact-zero? x) (generic:zero? x)))
+
+
+(define generic:one? (make-generic-operator 1 'one? (lambda (x) #f)))
+
 (define (g:one? x)
-  (if (number? x)
-      (exact-one? x)
-      (generic-predicate 'one? x)))
-(define (g:identity? x)
-  (if (number? x)
-      (exact-one? x)
-      (generic-predicate 'identity? x)))
+    (if (number? x) (exact-one? x) (generic:one? x)))
 
-(define (g:negate x)
-  (if (number? x)
-      (- x)
-      (generic-apply 'negate x)))
-(define (g:invert x)
-  (if (number? x)
-      (/ x)
-      (generic-apply 'invert x)))
 
-(define (g:square x)
-  (if (number? x)
-      (* x x)
-      (generic-apply-default-operation
-       (lambda (args) (g:* (car args) (car args)))
-       'square x)))
-
-(define (g:dot-product x y)
-  (cond ((and (number? x) (number? y)) (* x y))
-	(else (generic-apply 'dot-product x y))))
+(define g:identity? (make-generic-operator 1 'identity? (lambda (x) #f)))
 
-(define (g:sqrt x)
-  (if (number? x)
-      (n:sqrt x)
-      (generic-apply 'sqrt x)))
+(define g:negate (make-generic-operator 1 'negate))
 
-(define (g:exp x)
-  (if (number? x)
-      (exp x)
-      (generic-apply 'exp x)))
-(define (g:log x)
-  (if (number? x)
-      (log x)
-      (generic-apply 'log x)))
+(define g:invert (make-generic-operator 1 'invert))
 
-(define (g:sin x)
-  (if (number? x)
-      (sin x)
-      (generic-apply 'sin x)))
-(define (g:cos x)
-  (if (number? x)
-      (cos x)
-      (generic-apply 'cos x)))
+(define g:square (make-generic-operator 1 'square (lambda (x) (g:* x x))))
 
-(define (g:asin x)
-  (if (number? x)
-      (asin x)
-      (generic-apply 'asin x)))
-(define (g:acos x)
-  (if (number? x)
-      (acos x)
-      (generic-apply 'acos x)))
+(define g:sqrt (make-generic-operator 1 'sqrt))
 
-(define (g:sinh x)
-  (if (number? x)
-      (sinh x)
-      (generic-apply 'sinh x)))
-(define (g:cosh x)
-  (if (number? x)
-      (cosh x)
-      (generic-apply 'cosh x)))
+(define g:exp (make-generic-operator 1 'exp))
 
-(define (g:abs x)
-  (if (number? x)
-      (abs x)
-      (generic-apply 'abs x)))
+(define g:log (make-generic-operator 1 'log))
 
-(define (g:determinant x)
-  (if (number? x)
-      x
-      (generic-apply 'determinant x)))
+(define g:sin (make-generic-operator 1 'sin))
 
-(define (g:trace x)
-  (if (number? x)
-      x
-      (generic-apply 'trace x)))
+(define g:cos (make-generic-operator 1 'cos))
+
+(define g:asin (make-generic-operator 1 'asin))
+
+(define g:acos (make-generic-operator 1 'acos))
+
+(define g:sinh (make-generic-operator 1 'sinh))
+
+(define g:cosh (make-generic-operator 1 'cosh))
+
+(define g:abs (make-generic-operator 1 'abs))
+
+(define g:determinant (make-generic-operator 1 'determinant))
+
+(define g:trace (make-generic-operator 1 'trace))
 
 
 ;;; Duplicate of text in OPERATOR.SCM, except that the explicit type
@@ -150,40 +108,43 @@ USA.
   (if (default-object? arity) (set! arity (procedure-arity p)))
   (make-apply-hook p `(*operator* ,subtype ,name ,arity ,@opts)))
 
-#| ;;;Old
-(define (make-operator p #!optional name subtype #!rest opts)
-  (if (default-object? name) (set! name #f))
-  (if (default-object? subtype) (set! subtype #f))
-  (make-apply-hook p `(*operator* ,subtype ,name ,@opts)))
 
-(define (make-operator p . opt)
-  (make-apply-hook (lambda (x) (p x))
-		   `(*operator* ,p . ,opt)))
-|#
+(define generic:partial-derivative
+  (make-generic-operator 2 'partial-derivative))
 
 (define g:derivative
   (make-operator
    (lambda (f)
-     (generic-apply 'partial-derivative f '()))
+     (generic:partial-derivative f '()))
    'derivative))
 
 ;;; Binary Operators
 
+(define generic:= (make-generic-operator 2 '= (lambda (x y) #f)))
+
 (define (g:=:bin x y)
-  (if (and (number? x) (number? y))
-      (= x y)
-      (generic-predicate '= x y)))
+  (if (and (number? x) (number? y)) (= x y) (generic:= x y)))
+
+
+(define generic:+ (make-generic-operator 2 '+))
 
 (define (g:+:bin x y)
   (cond ((and (number? x) (number? y)) (+ x y))
 	((g:zero? x) y)
 	((g:zero? y) x)
-	(else (generic-apply '+ x y))))
+	(else (generic:+ x y))))
+
+
+(define generic:- (make-generic-operator 2 '-))
 
 (define (g:-:bin x y)
   (cond ((and (number? x) (number? y)) (- x y))
 	((g:zero? y) x)
-	(else (generic-apply '- x y))))
+	((g:zero? x) (g:negate y))
+	(else (generic:- x y))))
+
+
+(define generic:* (make-generic-operator 2 '*))
 
 (define (g:*:bin x y)
   (cond ((and (number? x) (number? y)) (* x y))
@@ -191,7 +152,7 @@ USA.
 	((exact-zero? y) (g:zero-like x))
 	((g:one? x) y)
 	((g:one? y) x)
-	(else (generic-apply '* x y))))
+	(else (generic:* x y))))
 
 ;;; In g:*:bin we test for exact (numerical) zero 
 ;;; because it is possible to produce a wrong-type 
@@ -204,12 +165,17 @@ USA.
 ;;; We are less worried about the zero? below,
 ;;; because any invertible matrix is square.
 
+
+(define generic:/ (make-generic-operator 2 '/))
+
 (define (g:/:bin x y)
   (cond ((and (number? x) (number? y)) (/ x y))
 	;; ((g:zero? x) (g:zero-like y))  ; Ancient bug!  No consequence.
 	((g:zero? x) x)
 	((g:one? y) x)
-	(else (generic-apply '/ x y))))
+	(else (generic:/ x y))))
+
+(define generic:expt (make-generic-operator 2 'expt))
 
 (define (g:expt x y)
   (cond ((and (number? x) (number? y)) (expt x y))
@@ -217,48 +183,46 @@ USA.
 	((g:one? x) x)
 	((g:zero? y) (g:one-like x))
 	((g:one? y) x)
-	(else (generic-apply 'expt x y))))
+	(else (generic:expt x y))))
 
-(define (g:gcd:bin x y)
-  (if (and (number? x) (number? y))
-      (gcd x y)
-      (generic-apply 'gcd x y)))
-
+
+(define g:gcd (make-generic-operator 2 'gcd))
+
+(define g:dot-product (make-generic-operator 2 'dot-product))
+
 ;;; Complex Operators
 
-(define (g:make-rectangular real imag)
-  (generic-apply 'make-rectangular real imag))
+(define g:make-rectangular (make-generic-operator 2 'make-rectangular))
+(define g:make-polar (make-generic-operator 2 'make-polar))
 
-(define (g:make-polar mag ang)
-  (generic-apply 'make-polar mag ang))
+(define g:real-part (make-generic-operator 1 'real-part))
+(define g:imag-part (make-generic-operator 1 'imag-part))
 
-(define (g:real-part z) (generic-apply 'real-part z))
-(define (g:imag-part z) (generic-apply 'imag-part z))
-(define (g:magnitude z) (generic-apply 'magnitude z))
-(define (g:angle z) (generic-apply 'angle z))
+(define g:magnitude (make-generic-operator 1 'magnitude))
+(define g:angle (make-generic-operator 1 'angle))
 
-(define (g:conjugate x) (generic-apply 'conjugate x))
+(define g:conjugate (make-generic-operator 1 'conjugate))
 
 
 ;;; Weird operators
 
 (define (g:atan y #!optional x)
-  (if (default-object? x)
-      (g:atan1 y)
-      (g:atan2 y x)))
+  (if (default-object? x) (g:atan1 y) (g:atan2 y x)))
 
-(define (g:atan1 y) (generic-apply 'atan1 y))
-(define (g:atan2 y x) (generic-apply 'atan2 y x))
+(define g:atan1 (make-generic-operator 1 'atan1))
+(define g:atan2 (make-generic-operator 2 'atan2))
+
+(define generic:partial-derivative (make-generic-operator 2 'partial-derivative))
 
 (define (g:partial-derivative f . varspecs)
-  (generic-apply 'partial-derivative f varspecs))
+  (generic:partial-derivative f varspecs))
 
 (define (g:partial . varspecs)
-  (make-operator
-   (lambda (f)
-     (generic-apply 'partial-derivative f varspecs))
-   `(partial ,@varspecs)))
+  (make-operator (lambda (f) (generic:partial-derivative f varspecs))
+		 `(partial ,@varspecs)))
 
+(define generic:apply (make-generic-operator 2 'apply))
+
 (define (g:apply f . apply-args)
   (define (collapse l)
     (if (null? (cdr l))
@@ -279,18 +243,14 @@ USA.
 	       (apply (access second system-global-environment)
 		      args))
 	      (else
-	       (generic-apply 'apply f args))))))
-
-
-(define *enable-literal-apply* #f)
-
-(define (with-literal-apply-enabled thunk)
-  (fluid-let ((*enable-literal-apply* #t))
-    (thunk)))
+	       (generic:apply f args))))))
 
 (define (applicable-literal? f)
   (and (symbol? f) *enable-literal-apply*))
 
+;;; *enable-literal-apply* is modulated by with-literal-apply-enabled.  
+;;; This procedure is defined in extapply.scm.
+;;; This feature is used explicitly in ode/interface.scm.
 
 ;;; N-ary Operator extensions
 

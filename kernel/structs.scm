@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -857,6 +857,27 @@ USA.
 		    (typical-object (s:ref s i))))
       (generate-uninterned-symbol 'x)))
 
+
+(define (structure->access-chains struct)
+  (let lp ((struct struct) (chain '()))
+    (if (structure? struct)
+	(s:generate (s:length struct) (s:same struct)
+		    (lambda (i)
+		      (lp (s:ref struct i) (cons i chain))))
+	(reverse chain))))
+
+(define (structure->prototype name struct)
+  (s:map/r (lambda (chain)
+	     (string->symbol
+	      (string-append (symbol->string name)
+	        (apply string-append
+		       (map (lambda (el)
+			      (string-append ":"
+					     (number->string el)))
+			    chain)))))
+	   (structure->access-chains struct)))
+
+
 #|
 (define (linear-function->multiplier F argument)
   ((derivative F) argument))
@@ -972,7 +993,7 @@ USA.
 |#
 
 (define (s->m ls ms rs)
-  (assert (numerical-quantity? (g:* ls (g:* ms rs))))
+  ;;(assert (numerical-quantity? (g:* ls (g:* ms rs))))
   (let ((nrows (s:dimension ls))
 	(ncols (s:dimension rs)))
     (m:generate nrows ncols

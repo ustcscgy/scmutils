@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,13 +23,10 @@ USA.
 
 |#
 
-;;; EXTEND-IC-ENVIRONMENT should eventually be replaced with
-;;; EXTEND-INTERPRETER-ENVIRONMENT.
-
 (define (generic-environment-maker)
-  (let ((e (extend-ic-environment scmutils-base-environment)))
+  (let ((e (extend-top-level-environment scmutils-base-environment)))
     (let ((d (lambda (name value)
-	       (local-assignment e name value))))
+	       (environment-define e name value))))
 	(d '*environment* 'generic-environment)
 
 	;; Unary operators from generic.scm
@@ -206,21 +203,21 @@ USA.
 
 #|
 (let ((numerical-environment
-       (extend-ic-environment generic-environment)))
-  (local-assignment scmutils-base-environment
-		    'numerical-environment
-		    numerical-environment)
-  (local-assignment numerical-environment
-		    '*environment*
-		    'numerical-environment))
+       (extend-top-level-environment generic-environment)))
+  (environment-define scmutils-base-environment
+		      'numerical-environment
+		      numerical-environment)
+  (environment-define numerical-environment
+		      '*environment*
+		      'numerical-environment))
 |#
 
 
 (let ((numerical-environment
-       (extend-ic-environment scmutils-base-environment)))
-  (local-assignment scmutils-base-environment
-		    'numerical-environment
-		    numerical-environment)
-  (local-assignment numerical-environment
-		    '*environment*
-		    'numerical-environment))
+       (extend-top-level-environment scmutils-base-environment)))
+  (environment-define scmutils-base-environment
+		      'numerical-environment
+		      numerical-environment)
+  (environment-define numerical-environment
+		      '*environment*
+		      'numerical-environment))

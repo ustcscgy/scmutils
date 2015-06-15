@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -29,5 +29,6 @@ USA.
 (load "gauss-jordan" scmutils-base-environment)
 (load "lu" scmutils-base-environment)
 (load "svd" scmutils-base-environment)
+(load "vandermonde" scmutils-base-environment)
 
 (load "eigen" scmutils-base-environment)

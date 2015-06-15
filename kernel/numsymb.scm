@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -29,8 +29,8 @@ USA.
 
 ;;; Algebraic constructors for symbolic experiments.
 
-;;; Enable simplification on construction.
-(define enable-constructor-simplifications #t)
+;;; Disable simplification on construction -- wastes time.
+(define enable-constructor-simplifications #f)
 
 ;;; Disable intermediate simplification -- wastes time.
 (define incremental-simplifier #f)
@@ -55,9 +55,6 @@ USA.
 ;;; currently disabled -- see heuristic.scm
 (define heuristic-number-canonicalizer #f)
 
-;;; currently-disabled
-(define hashing-numerical-expressions? #f)
-
 ;;; From general/canonicalizer.scm
 (define numerical-expression-canonicalizer
   (make-expression-canonicalizer))
@@ -68,55 +65,30 @@ USA.
 	     (heuristic-number-canonicalizer expr)
 	     expr))
 	((symbol? expr) expr)
-	((numerical-quantity? expr)
-	 (numerical-expression (expression-of expr)))
+	((literal-number? expr)
+	 (if numerical-expression-canonicalizer
+	     (numerical-expression-canonicalizer (expression-of expr))
+	     (expression-of expr))
+	 (expression-of expr))
 	((pair? expr)
 	 (cond ((memq (car expr) type-tags) expr)
 	       (numerical-expression-canonicalizer
 		(numerical-expression-canonicalizer expr))
-	       (hashing-numerical-expressions?
-		(numerical-expression-helper-memoized expr))
-	       (else (numerical-expression-helper expr))))
+	       (else expr)))
 	(else expr)))
-
-(define (numerical-expression-helper expr)
-  (map numerical-expression expr))
-
-(define numerical-expression-helper-memoized
-  (hash-memoize numerical-expression-helper))
-
-#|
-;;; Although simpler, this seems to have worse overall performance
-
-(define (numerical-expression expr)
-  (if hashing-numerical-expressions?
-      (numerical-expression-memoized expr)
-      (numerical-expression-internal expr)))
-
-(define (numerical-expression-internal expr)
-  (cond ((number? expr)
-	 (if (and (inexact? expr) heuristic-number-canonicalizer)
-	     (heuristic-number-canonicalizer expr)
-	     expr))
-	((symbol? expr) expr)
-	((numerical-quantity? expr)
-	 (numerical-expression (expression-of expr)))
-	((pair? expr)
-	 (cond ((memq (car expr) type-tags) expr)
-	       ((symbol? (car expr))
-		(cons (car expr)
-		      (map numerical-expression (cdr expr))))
-	       (else (map numerical-expression expr))))
-	(else expr)))
-
-(define numerical-expression-memoized
-  (hash-memoize numerical-expression-internal))
-|#
 
+(define (symb:& numexp u1 #!optional u2)
+  (if (default-object? u2)
+      `(& ,numexp ,u1)
+      `(& ,numexp ,u1 ,u2)))
+
+(addto-symbolic-operator-table '& symb:&)
+
+
 (define (equality? x)
   (and (pair? x) (eq? (car x) '=)))
 
-(define (symb:= a1 a2)
+(define (symb:=:bin a1 a2)
   (if (number? a1)
       (if (number? a2)
 	  (and (exact? a1) (exact? a2) (= a1 a2))
@@ -126,6 +98,20 @@ USA.
 	  (if (equal? a1 a2)
 	      #t
 	      `(= ,a1 ,a2)))))
+
+(define (symb:= . args)
+  (cond ((null? args) #t)
+	((null? (cdr args)) #t)
+	(else
+	 (let lp ((args (cddr args))
+		  (larg (cadr args))
+		  (ans (symb:=:bin (car args) (cadr args))))
+	   (if (null? args)
+	       ans
+	       (lp (cdr args)
+		   (car args)
+		   (and ans (symb:=:bin larg (car args)))))))))
+
 (addto-symbolic-operator-table '= symb:=)
 
 (define (symb:zero? x)
@@ -396,7 +382,8 @@ USA.
   (and (pair? exp) (eq? (car exp) 'sqrt)))
 
 (define (symb:sqrt exp)
-  (if (number? exp)
+  (if (and sqrt-expt-simplify
+	   (number? exp))
       (if (inexact? exp)
 	  (sqrt exp)
 	  (cond ((zero? exp) exp)

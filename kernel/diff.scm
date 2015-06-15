@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,11 +23,11 @@ USA.
 
 |#
 
-;;;;            Calculus of Infinitesimals
+;;;            Calculus of Infinitesimals
 
 (declare (usual-integrations))
 
-;;; The idea is that we compute derivatives by passing special 
+;;; The idea is that we compute derivatives by passing special
 ;;; "differential objects" [x,dx] through functions.  A first
 ;;; approximation to the idea is as follows:
 
@@ -54,8 +54,8 @@ USA.
 ;;; of several variables we define an algebra in "infinitesimal
 ;;; space".  The objects are multivariate power series in which no
 ;;; incremental has exponent greater than 1.  This was worked out in
-;;; detail by Hal Abelson around 1994, and painfully redone in 1997
-;;; by Sussman with the help of Hardy Mayer and Jack Wisdom.
+;;; detail by Hal Abelson around 1994, and painfully redone in 1997 by
+;;; Sussman with the help of Hardy Mayer and Jack Wisdom.
 
 ;;;                Data Structure
 ;;; A differential quantity is a typed list of differential terms,
@@ -87,13 +87,11 @@ USA.
 	 (make-differential-quantity terms))))
 
 
-
-;;; Each differential term has a list of tags.  The tags repreesent
-;;; the incrementals.  Roughly, "dx" and "dy" are tags in the terms:
-;;; 3*dx, 4*dy, 2*dx*dy.  There is a tag created for each derivative
-;;; that is in progress.  Since the only use of a tag is to
-;;; distinguish unnamed incrementals we use positive integers for the
-;;; tags.
+;;; Each differential term has a list of tags.  The tags represent the
+;;; incrementals.  Roughly, "dx" and "dy" are tags in the terms: 3*dx,
+;;; 4*dy, 2*dx*dy.  There is a tag created for each derivative that is
+;;; in progress.  Since the only use of a tag is to distinguish
+;;; unnamed incrementals we use positive integers for the tags.
 
 (define (make-differential-term tags coefficient)
   (list tags coefficient))
@@ -318,7 +316,10 @@ USA.
 ;;; To turn a binary function into one that operates on differentials
 ;;;  we must supply the partial derivatives with respect to each
 ;;;  argument.
+
 #|
+;;; This is the basic idea, but it often does too much work.
+
 (define (diff:binary-op f df/dx df/dy)
   (define (bop x y)
       (let ((mt (max-order-tag x y)))
@@ -331,6 +332,9 @@ USA.
 		    (d:* (df/dy xe ye) dy))))))
   (diff-memoize-2arg bop))
 |#
+
+;;; Here, we only compute a partial derivative if the increment in
+;;; that direction is not known to be zero.
 
 (define (diff:binary-op f df/dx df/dy)
   (define (bop x y)
@@ -350,11 +354,10 @@ USA.
 			 (d:+ b (d:* (df/dy xe ye) dy)))))
 		c))))))
   (diff-memoize-2arg bop))
-
-
-;;; Here we must choose the finite-part and the infinitesimal-part of
-;;; each input to be consistent with respect to the differential tag,
-;;; we do this as follows:
+
+;;; For multivariate functions we must choose the finite-part and the
+;;; infinitesimal-part of each input to be consistent with respect to
+;;; the differential tag, we do this as follows:
 
 (define (max-order-tag . args)
   (car (last-pair
@@ -381,7 +384,8 @@ USA.
 		   (memq keytag (differential-tags term)))
 		 dts)))
       :zero))
-
+
+
 #|
 ;;; More generally, but not used in this file:
 
@@ -446,45 +450,15 @@ USA.
 		 (lambda (x)
 		   (g:/ 1 (g:* 2 (g:sqrt x))))))
 
-#|
-;;; The following is a bad idea.  It causes creation of a new memoizer
-;;; everytime a derivative of an exponential is taken.
 
-(define (diff:expt x n)
-  (if (integer? n)
-      (cond ((fix:= n 0) 1)
-	    ((fix:= n 1) x)
-	    (else
-	     ((diff:unary-op (lambda (x)
-			       (g:expt x n))
-			     (lambda (x)
-			       (g:* n (g:expt x (fix:- n 1)))))
-	      x)))
-      (diff:binary-op g:expt
-		  (lambda (x y)
-		    (g:* y (g:expt x (g:- y 1))))
-		  (lambda (x y)
-		    (g:* (g:log x) (g:expt x y))))))
-
-
-;;; The simpler one gives wrong answers for x=0
-
-(define diff:expt
-  (diff:binary-op g:expt
-		  (lambda (x y)
-		    (g:* y (g:expt x (g:- y 1))))
-		  (lambda (x y)
-		    (g:* (g:log x) (g:expt x y)))))
-|#
-
-;;; Breaking off the simple (lambda (x) (expt x n)) case
+;;; Breaking off the simple (lambda (x) (expt x n)) case:
 
 (define diff:power
   (diff:binary-op g:expt
 		  (lambda (x y)
 		    (g:* y (g:expt x (g:- y 1))))
 		  (lambda (x y)
-		    'error)))
+		    (error "Should not get here: DIFF:POWER" x y))))
 
 (define diff:expt
   (diff:binary-op g:expt
@@ -593,29 +567,22 @@ USA.
 (assign-operation 'sinh            diff:sinh             differential?)
 (assign-operation 'cosh            diff:cosh             differential?)
 
-(assign-operation '+               diff:+                differential? any?)
-(assign-operation '+               diff:+                any? differential?)
-(assign-operation '-               diff:-                differential? any?)
-(assign-operation '-               diff:-                any? differential?)
-(assign-operation '*               diff:*                differential? any?)
-(assign-operation '*               diff:*                any? differential?)
-(assign-operation '/               diff:/                differential? any?)
-(assign-operation '/               diff:/                any? differential?)
+(assign-operation '+               diff:+                differential? not-compound?)
+(assign-operation '+               diff:+                not-compound? differential?)
+(assign-operation '-               diff:-                differential? not-compound?)
+(assign-operation '-               diff:-                not-compound? differential?)
+(assign-operation '*               diff:*                differential? not-compound?)
+(assign-operation '*               diff:*                not-compound? differential?)
+(assign-operation '/               diff:/                differential? not-compound?)
+(assign-operation '/               diff:/                not-compound? differential?)
 
-(assign-operation 'dot-product     diff:*                differential? any?)
-(assign-operation 'dot-product     diff:*                differential? any?)
-
-#|
-(assign-operation 'expt            diff:power  differential? integer?)
-(assign-operation 'expt            diff:expt   differential? (negate integer?))
-(assign-operation 'expt            diff:expt   any?          differential?)
-|#
+(assign-operation 'dot-product     diff:*                differential? not-compound?)
 
 (assign-operation 'expt     diff:power  differential? (negation differential?))
-(assign-operation 'expt     diff:expt   any?          differential?)
+(assign-operation 'expt     diff:expt   not-compound?          differential?)
 
-(assign-operation 'atan2           diff:atan2            differential? any?)
-(assign-operation 'atan2           diff:atan2            any? differential?)
+(assign-operation 'atan2           diff:atan2            differential? not-compound?)
+(assign-operation 'atan2           diff:atan2            not-compound? differential?)
 
 ;;; The derivative of a univariate function over R is a value
 ;;;  ((derivative (lambda (x) (expt x 5))) 'a)
@@ -655,7 +622,7 @@ USA.
 (define (extract-dx-part dx obj)
   (define (extract obj)
     (if (differential? obj)
-	(terms->differential
+	(terms->differential-collapse
 	 (let lp ((dterms (differential-term-list obj)))
 	   (if (null? dterms)
 	       '()

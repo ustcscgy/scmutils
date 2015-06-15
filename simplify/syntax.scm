@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,9 +23,8 @@ USA.
 
 |#
 
-
-(/ #(0. 0.) 3)
-;Value: 0
-
-(/ #(0. 0.) 3.)
-;Value: 0.
+(define-syntax rule-system
+  (sc-macro-transformer
+   (lambda (form environment)
+     environment
+     `(rule-simplifier (list ,@(map rule:compile (cdr form)))))))

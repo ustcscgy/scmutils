@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -526,7 +526,7 @@ USA.
 		   (if (= i 0)
 		       1
 		       (expt (list-ref dtns j) i))))))
-      (let ((coeffs (simplify (m:rsolve C B)))
+      (let ((coeffs (default-simplify (m:rsolve C B)))
 	    (tnames (list-head '(tn-1 tn-2 tn-3 tn-4 tn-5 tn-6) order)))
 	(text/cselim
 	 `(lambda (dt1 ts)		;dt1=step

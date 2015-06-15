@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -100,6 +100,31 @@ USA.
 		    (proc first other-element))
 		  rest)
 	(if rest (loop (car rest) (cdr rest))))))
+
+
+(define ((fringe-smaller-than? n) expr)
+  (define (walk expr count next)
+    (cond ((int:> count n) #f)
+	  ((pair? expr)
+	   (walk (car expr) count
+		 (lambda (count)
+		   (walk (cdr expr) count next))))
+	  ((null? expr)
+	   (next count))
+	  (else
+	   (next (int:+ count 1)))))
+  (walk expr 0 (lambda (count) count)))
+
+#|
+((fringe-smaller-than? 3) '())
+;Value: 0
+
+((fringe-smaller-than? 100) '(a (b c) d))
+;Value: 4
+
+((fringe-smaller-than? 3) '(a (b c) d))
+;Value: #f
+|#
 
 (define (split-list list predicate recvr)
   (let split ((list list)

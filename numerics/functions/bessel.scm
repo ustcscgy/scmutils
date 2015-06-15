@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -156,7 +156,8 @@ USA.
 		     +.1e+1)))
 	       (q1			;Qone 7147
 		(/ (poly-by-coeffs->value y
-		     +.14465282874995208675225e+3
+		    ;+.14465282874995208675225e+3        ;This line or the next is in error
+		     +.14465282874995208765225e+3
 		     +.1744291689092425885102e+3
 		     +.5173653281836591636536e+2
 		     +.379944537969806734901e+1
@@ -520,7 +521,7 @@ USA.
 (plot-function win
 	       (lambda (x)
 		 (bessel-check 0 x))
-	       0.0
+	       0.1
 	       20.0
 	       0.0001)
 

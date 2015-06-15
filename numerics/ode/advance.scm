@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -67,7 +67,7 @@ USA.
    (list ns dt sdt)))
 |#
 
-
+#|
 (define (advance-generator advancer)
   (define (advance start-state step-required h-suggested max-h continue done)
     ;; done = (lambda (end-state step-achieved h-suggested) ... )
@@ -92,6 +92,34 @@ USA.
                                        h-suggested
                                        max-h))))))))))
   advance)
+|#
+
+(define (advance-generator advancer)
+  (define (advance start-state goal-increment h-suggested max-h 
+		   continue done)
+    ;; done = (lambda (end-state current-increment h-suggested) ... )
+    ;; continue = (lambda (state current-increment h-taken next)
+    ;;     where next = (lambda () ...))
+    (let lp ((state start-state)
+	     (current-increment 0.0)
+	     (h (min-step-size goal-increment h-suggested max-h)))
+      (if advance-wallp?
+	  (pp `(advance: ,current-increment ,state ,h)))
+      (if (close-enuf? goal-increment current-increment
+		       *independent-variable-tolerance*)
+	  (done state current-increment h-suggested)
+	  (continue state current-increment h
+	    (lambda ()
+	      (advancer state h
+		(lambda (new-state step-obtained h-suggested)
+		  (let ((ndt (+ current-increment step-obtained)))
+		    (lp new-state
+                        ndt
+                        (min-step-size (- goal-increment ndt)
+                                       h-suggested
+                                       max-h))))))))))
+  advance)
+
 
 (define advance-wallp? false)
 
@@ -102,7 +130,7 @@ USA.
 
 (define (min-step-size step-required h-suggested max-h)
   (let ((h-allowed (min (abs h-suggested) (abs max-h))))
-    (if (< (abs step-required) h-allowed)
+    (if (<= (abs step-required) h-allowed)
 	step-required
 	(first-with-sign-of-second h-allowed step-required))))
 

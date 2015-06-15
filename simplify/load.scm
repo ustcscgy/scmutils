@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -50,31 +50,16 @@ USA.
 
 (define rule-environment symbolic-environment)
 
-
-;;; Rule interpreter
-
 ;;; (define (rule-memoize f) f)
 (define (rule-memoize f) (linear-memoize-1arg f))
 ;;; (define (rule-memoize f) (linear-memoize f))
 ;;; (define (rule-memoize f) (hash-memoize f))
+;;; (define (rule-memoize f) (hash-memoize-1arg f))
 
-(load "bigsimp" scmutils-base-environment)
-
-
-;;; Syntax support
-
-(load (if (environment-bound? system-global-environment
-			      'make-syntactic-closure)
-	  "matchsyn"
-	  "matchsyn-old")
-      scmutils-base-environment)
-
-
-
-;;; Rule systems
-
-(load "sincos" rule-environment)
-
+(load "syntax" scmutils-base-environment)
+(load "rule-syntax" scmutils-base-environment)
+(load "matcher" scmutils-base-environment)
+(load "rule-simplifier" scmutils-base-environment)
 (load "rules" rule-environment)
 
 (for-each (lambda (name)
@@ -103,6 +88,14 @@ USA.
 	    inverse-simplify
 	    ignore-zero-simplify
 	    commute-partials-simplify
-	    *factoring*))
+
+	    log-exp-simplify?
+	    sqrt-expt-simplify?
+	    inverse-simplify?
+	    commute-partials?
+	    ))
+
+(define (default-simplify exp)
+  (new-simplify (expression exp)))
 
 (load "sparse-load" scmutils-base-environment)

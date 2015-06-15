@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,12 +23,37 @@ USA.
 
 |#
 
+;;;; Scheme evaluator extensions for algebra.
+
 ;;; Extension of Scheme for application of non-procedures in operator position.
 
 (define *enable-generic-apply* true)
 
 (define inapplicable-object/operator
   (condition-accessor condition-type:inapplicable-object 'DATUM))
+
+(define (apply-extension-init)
+  (bind-default-condition-handler
+   (list condition-type:inapplicable-object)
+   (lambda (condition)
+     (if *enable-generic-apply*
+	 (use-value
+	  (lambda args
+	    (g:apply (inapplicable-object/operator condition) args)))))))
+
+(define (once-only! thunk name)
+  (if (lexical-unbound? system-global-environment name)
+      (begin (thunk)
+	     ;; Create NAME in SGE
+	     (eval `(define ,name #t) system-global-environment)
+	     'done)
+      'already-done))
+
+(once-only! apply-extension-init 'apply-extension-init)
+
+
+#|
+;;; Example of the way it should not be done!
 
 (define (apply-extension-init)
   (bind-default-condition-handler
@@ -43,13 +68,75 @@ USA.
 	       (condition/continuation condition))))))
 	  (lambda args
 	    (g:apply (inapplicable-object/operator condition) args)))))))
+|#
+
+;;; Extension of Scheme for self-evaluating unbound variables
 
-(define (once-only! thunk name)
-  (if (lexical-unbound? system-global-environment name)
-      (begin (thunk)
-	     ;; Create NAME in SGE
-	     (eval `(define ,name #t) system-global-environment)
-	     'done)
-      'already-done))
+(define (with-self-evaluating-unbound-variables thunk)
+  (bind-condition-handler
+      (list condition-type:unbound-variable)
+      (lambda (condition)
+	(let ((variable-name
+	       (access-condition condition 'location)))
+	  (use-value variable-name)))
+    thunk))
 
-(once-only! apply-extension-init 'apply-extension-init)
+#|
+(pe (with-self-evaluating-unbound-variables
+     (lambda ()
+       (+ a 1))))
+(+ 1 a)
+|#
+
+;;; Extension of Scheme for allowing symbolic literals to be applied
+
+;;; *enable-generic-apply* is tested in applicable-literal?, used in
+;;; g:apply.  See generic.scm.
+
+(define *enable-literal-apply* #f)
+
+(define (with-literal-apply-enabled thunk)
+  (fluid-let ((*enable-literal-apply* #t))
+    (thunk)))
+
+#|
+(pe (+ (f 'a) 3))
+;Unbound variable: f
+
+(pe (with-literal-apply-enabled
+	(lambda ()
+	  (+ (f 'a) 3))))
+;Unbound variable: f
+
+(pe (with-self-evaluating-unbound-variables
+     (lambda ()
+       (+ (f 'a) 3)) ))
+;Application of a number not allowed f ((a))
+
+(pe (with-literal-apply-enabled
+	(lambda ()
+	  (with-self-evaluating-unbound-variables
+	   (lambda ()
+	     (+ (f 'a) 3)) ))))
+(+ 3 (f a))
+|#
+
+;;; (define *numbers-are-constant-functions* #f) in numbers.scm.  If
+;;; this is set to #t then numbers are applied as constant functions.
+
+
+;;; This allows literal functions to be reconstructed.
+
+(define (with-literal-reconstruction-enabled thunk)
+  (fluid-let ((*literal-reconstruction* #t))
+    (thunk)))
+
+
+;;; Sometimes this saves the butt of a number jockey.
+
+(define (with-underflow->zero thunk)
+  (bind-condition-handler
+      (list condition-type:floating-point-underflow)
+      (lambda (condition)
+	(use-value 0.))
+    thunk))

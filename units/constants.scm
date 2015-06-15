@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,67 +23,92 @@ USA.
 
 |#
 
-;;;; Universal Physical constants (1986)
+;;;; Numerical constants
+
+(define-constant ':pi "\\pi" "Pi"
+  (* 4 (atan 1 1))
+  unitless)
+
+
+;;;; Universal Physical Constants
 
 (define-constant ':c "c" "speed of light"
   2.99792458e8
   (/ meter second))
 
+#|
+;;; (1986)
 (define-constant ':G "G" "gravitational constant"
   6.67259e-11
   (/ (* newton (square meter)) (square kilogram))
-  128e-6)				;relative error
+  128e-6)
+|#				;relative error
  
+;;; CODATA 2002
+(define-constant ':G "G" "gravitational constant"
+  6.6742e-11
+  (/ (* newton (square meter)) (square kilogram))
+  1.5e-4)
+
+;;; CODATA 2002
 (define-constant ':e "e" "elementary charge"
-  1.60217733e-19
+  1.60217653e-19
   coulomb
-  0.3e-6)
+  8.85e-8)
 
+;;; CODATA 2002
 (define-constant ':h "h" "Planck constant"
-  6.6260755e-34
+  6.6260693e-34
   (* joule second)
-  0.6e-6)
+  1.7e-7)
 
+;;; CODATA 2002
 (define-constant ':N_A "N_A" "Avogadaro constant"
-  6.0221367e23
+  6.0221415e23
   (/ unitless mole)
-  0.59e-6)
+  1.7e-7)
 
+;;; CODATA 2002
 (define-constant ':m_e "m_e" "electron mass"
-  9.1093897e-31
+  9.1093826e-31
   kilogram
-  0.59e-6)
+  1.7e-7)
 
+;;; CODATA 2002
 (define-constant ':m_p "m_p" "proton mass"
-  1.6726231e-27
+  1.67262171e-27
   kilogram
-  0.59e-6)
+  1.7e-7)
 
+;;; CODATA 2002
 (define-constant ':m_n "m_n" "neutron mass"
-  1.6749286e-27
+  1.67492728e-27
   kilogram
-  0.59e-6)
+  1.7e-7)
 
-
+;;; CODATA 2002
 (define-constant ':m_u "m_u" "atomic mass unit"
-  1.6605402e-27
+  1.66053886e-27
   kilogram
-  0.59e-6)
+  1.7e-7)
 
+;;; CODATA 2002
 (define-constant ':mu_e "\\mu_e" "electron magnetic moment"
-  9.2847701e-24
+  -9.28476412e-24
   (/ joule tesla)
-  0.34e-6)
+  8.6e-8)
 
+;;; CODATA 2002
 (define-constant ':mu_p "\\mu_p" "proton magnetic moment"
-  1.41060761e-26
+  1.41060671e-26
   (/ joule tesla)
-  0.34e-6)
+  8.7e-8)
 
+;;; CODATA 2002
 (define-constant ':gamma_p "\\gamma_p" "proton gyromagnetic ratio"
-  2.67522128e8
+  2.67522205e8
   (/ radian (* second tesla))
-  0.30e-6)
+  8.6e-8)
 
 (define-constant ':R_H "R_H" "quantum Hall resistance"
   25812.8056
@@ -96,10 +121,11 @@ USA.
   (/ joule (* mole kelvin))
   8.4e-6)
 
+;;; CODATA 2002
 (define-constant ':k "k" "Boltzmann constant"
-  1.380658e-23
+  1.3806505e-23
   (/ joule kelvin)
-  8.5e-6)
+  1.8e-6)
 
 
 ;;; The following are derived.  Units must check.
@@ -122,6 +148,9 @@ USA.
      (* :mu_0 (square :c)))
   (/ farad meter))
 
+(define-constant ':Z0 "Z_0" "impedance of free space"
+  (* :mu_0 :c)
+  ohm)
 
 (define-constant ':alpha "\\alpha" "fine structure constant"
   (* (/ 1 (* 4 :pi :epsilon_0))
@@ -190,7 +219,7 @@ USA.
   (* 8/3 :pi (square :r_e))
   (square meter))
 
-;;; Observed and measured numbers
+;;;; Observed and measured numbers
 
 (define background-temperature		;Cobe 1994
   (& 2.726 kelvin))			;+-.005 Kelvin
@@ -230,6 +259,9 @@ USA.
 
 (define earth-gravitational-acceleration
   (& 9.80665 (/ meter (expt second 2))))
+
+(define :g 
+  earth-gravitational-acceleration)
 
 (define earth-mean-density
   (& 5.52e3 (/ kilogram (expt meter 3))))

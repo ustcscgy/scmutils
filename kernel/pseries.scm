@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -272,7 +272,7 @@ USA.
       (cond ((equal? (series:arity s) *exactly-zero*)
 	     ((series:elementwise
 	       (lambda (term)
-		 (generic-apply 'partial-derivative term varnums)))
+		 (generic:partial-derivative term varnums)))
 	      s))
 	    ((equal? (series:arity s) *exactly-one*)
 	     (if (not (null? varnums))
@@ -440,7 +440,7 @@ USA.
 (assign-operation '/          series/coefficient   series?        not-series?)
 
 
-(assign-operation 'expt       series:expt          series?)
+(assign-operation 'expt       series:expt          series?        exact-integer?)
 
 ;(assign-operation 'exp       exp-series           operator?)
 

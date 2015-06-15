@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -469,42 +469,106 @@ USA.
 |#
 
 ;;; The Poisson Bracket is a differential operator on H-functions:
-
-(define (Poisson-bracket f g)
-  (if (structure? f)
-      (if (structure? g)
-	  (error "Poisson bracket of two structures" f g)
-	  (s:generate (s:length f) (s:same f)
-		      (lambda (i)
-			(Poisson-bracket (ref f i) g))))
-      (if (structure? g)
-	  (s:generate (s:length g) (s:same g)
-		      (lambda (i)
-			(Poisson-bracket f (ref g i))))
-	  (- (* ((partial 1) f) ((partial 2) g))
-	     (* ((partial 2) f) ((partial 1) g))))))
-
-#| 
-;;; This can give WRONG ANSWERS if handed structure valued functions...
+#|
+;;; This can give WRONG ANSWERS on structure-valued functions...
 (define (Poisson-bracket f g)
   (- (* ((partial 1) f) ((partial 2) g))
      (* ((partial 2) f) ((partial 1) g))))
+
+(define (Poisson-bracket f g)
+  (cond ((and (structure? f) (structure? g))
+	 (s:map/r (lambda (fi)
+		    (s:map/r (lambda (gj)
+			       (Poisson-bracket fi gj))
+			     g))
+		  f)
+	 #;(error "Poisson bracket of two structures" f g)
+	 )
+	((structure? f)
+	 (s:generate (s:length f) (s:same f)
+		     (lambda (i)
+		       (Poisson-bracket (ref f i) g))))
+	((structure? g)
+	 (s:generate (s:length g) (s:same g)
+		     (lambda (i)
+		       (Poisson-bracket f (ref g i)))))
+	(else
+	 (- (* ((partial 1) f) ((partial 2) g))
+	    (* ((partial 2) f) ((partial 1) g))))))
 |#
 
+(define ((Poisson-bracket f g) x)
+  (let ((fx (f x)) (gx (g x)))
+    (cond ((or (structure? fx) (structure? gx))
+	   (s:map/r (lambda (af)
+		      (s:map/r (lambda (ag)
+				 ((Poisson-bracket
+				   (compose (apply component af) f)
+				   (compose (apply component ag) g))
+				  x))
+			       (structure->access-chains gx)))
+		    (structure->access-chains fx)))
+	  (else
+	   ((- (* ((partial 1) f) ((partial 2) g))
+	       (* ((partial 2) f) ((partial 1) g)))
+	    x)))))
+
+#|
+(pe ((Poisson-bracket
+      (up (compose (component 0) coordinate)
+	  (compose (component 1) coordinate)
+	  (compose (component 2) coordinate))
+      (down (compose (component 0) momentum)
+	    (compose (component 1) momentum)
+	    (compose (component 2) momentum)))
+     a-state))
+(up (down 1 0 0) (down 0 1 0) (down 0 0 1))
+|#
+
+#|
+(define FF
+  (literal-function 'F
+		    (-> (UP Real
+			    (UP Real Real)
+			    (DOWN Real Real))
+			Real)))
+
+(define GG
+  (literal-function 'G
+		    (-> (UP Real
+			    (UP Real Real)
+			    (DOWN Real Real))
+			Real)))
+
+(pe ((* (D FF)
+	(Poisson-bracket identity identity)
+	(D GG))
+     (up 't (up 'x 'y) (down 'px 'py))))
+(+ (* -1
+      (((partial 1 0) G) (up t (up x y) (down px py)))
+      (((partial 2 0) F) (up t (up x y) (down px py))))
+   (* -1
+      (((partial 1 1) G) (up t (up x y) (down px py)))
+      (((partial 2 1) F) (up t (up x y) (down px py))))
+   (* (((partial 2 0) G) (up t (up x y) (down px py)))
+      (((partial 1 0) F) (up t (up x y) (down px py))))
+   (* (((partial 2 1) G) (up t (up x y) (down px py)))
+      (((partial 1 1) F) (up t (up x y) (down px py)))))
+|#
+
 #|
 (define F (literal-function 'F (Hamiltonian 2)))
 (define G (literal-function 'G (Hamiltonian 2)))
 (define H (literal-function 'H (Hamiltonian 2)))
 
 ;;; Jacobi identity
-
 (pe ((+ (Poisson-bracket F (Poisson-bracket G H))
 	(Poisson-bracket G (Poisson-bracket H F))
 	(Poisson-bracket H (Poisson-bracket F G)))
      (up 't (up 'x 'y) (down 'px 'py))))
 0
 |#
-
+
 #|
 (define Sx (compose (component 0) coordinate))
 (define Sy (compose (component 1) coordinate))
@@ -530,10 +594,21 @@ USA.
 (pe ((Poisson-bracket Lx L) 3-state))
 (down 0 (+ (* -1 p_x y) (* p_y x)) (+ (* -1 p_x z) (* p_z x)))
 
-
 ;;; Poisson brackets are compositional with canonical transformations
 ;;; (see point-transformations.scm for F->CT and time-varying.scm for
-;;; C-rotating.
+;;; C-rotating, repeated here.
+
+(define ((rotating n) state)
+  (let ((t (time state))
+	(q (coordinate state)))
+    (let ((x (ref q 0))
+	  (y (ref q 1))
+	  (z (ref q 2)))
+      (coordinate-tuple (+ (* (cos (* n t)) x) (* (sin (* n t)) y))
+			(- (* (cos (* n t)) y) (* (sin (* n t)) x))
+			z))))
+
+(define (C-rotating n) (F->CT (rotating n)))
 
 (pe ((- (compose (Poisson-bracket Lx Ly) (C-rotating 'n))
 	(Poisson-bracket (compose Lx (C-rotating 'n))

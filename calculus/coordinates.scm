@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,9 +23,8 @@ USA.
 
 |#
 
-;;; A coordinate system is an invertible map from the space to R^n.
+;;;; A coordinate system is an invertible map from the space to R^n.
 
-
 ;;; The following are some useful embeddings of common manifold
 ;;; coordinate systems in R^n.
 
@@ -42,11 +41,12 @@ USA.
 	point
 	(error "Bad point: real-tuple" point)))
   (assert (exact-integer? n) "Bad dimension: real-tuple")
-  (let* ((coord-prototype (c:generate n 'up (lambda (i) 'x)))
+  (let* ((coord-prototype
+	  (c:generate n 'up (lambda (i) (symbol 'x i))))
 	 ;; Should be (make-access-chains coord-prototype)
 	 (access-chains (c:generate n 'up (lambda (i) (list i))))
 	 (dual-chains (flip-indices access-chains))
-	 (point-prototype (c:generate n 'up (lambda (i) 'x)))
+	 (point-prototype (c:generate n 'up (lambda (i) (symbol 'xi i))))
 	 (point-chains (c:generate n 'up (lambda (i) (list i)))))
     (lambda (m)
       (case m
@@ -55,14 +55,16 @@ USA.
 	((->coords) point->coordinates)
 	((type) real-tuple)
 	((typical-coords) (typical-object coord-prototype))
+	((coordinate-prototype) coord-prototype)
 	((access-chains) access-chains)
 	((dual-chains) dual-chains)
 	((typical-point) (typical-object point-prototype))
 	((point-chains) point-chains)
+	((manifold) #f)
 	(else (error "Unknown message: real-tuple" m))))))
 
 (define rectangular real-tuple)
-
+
 (define the-real-line
   (let ()
     (define (coordinates->point coord)
@@ -85,10 +87,12 @@ USA.
 	  ((->coords) point->coordinates)
 	  ((type) the-real-line)
 	  ((typical-coords) (typical-object coord-prototype))
+	  ((coordinate-prototype) coord-prototype)
 	  ((access-chains) access-chains)
 	  ((dual-chains) dual-chains)
 	  ((typical-point) (typical-object point-prototype))
 	  ((point-chains) point-chains)
+	  ((manifold) #f)
 	  (else (error "Unknown message: the-real-line" m)))))))
 
 ;;; We can also have coordinate systems that cover only part of the
@@ -117,11 +121,11 @@ USA.
 			      (else (ref point i))))))
 	(error "Bad point: polar/cylindrical" point)))
   (assert (and (exact-integer? n) (> n 1)) "Bad dimension: polar/cylindrical")
-  (let* ((coord-prototype (s:generate n 'up (lambda (i) 'x)))
+  (let* ((coord-prototype (s:generate n 'up (lambda (i) (symbol 'x i))))
 	 ;; Should be (make-access-chains coord-prototype)
 	 (access-chains (s:generate n 'up (lambda (i) (list i))))
 	 (dual-chains (flip-indices access-chains))
-	 (point-prototype (s:generate n 'up (lambda (i) 'x)))
+	 (point-prototype (s:generate n 'up (lambda (i) (symbol 'xi i))))
 	 (point-chains (s:generate n 'up (lambda (i) (list i)))))
     (lambda (m)
       (case m
@@ -130,10 +134,12 @@ USA.
 	((->coords) point->coordinates)
 	((type) polar/cylindrical)
 	((typical-coords) (typical-object coord-prototype))
+	((coordinate-prototype) coord-prototype)
 	((access-chains) access-chains)
 	((dual-chains) dual-chains)
 	((typical-point) (typical-object point-prototype))
 	((point-chains) point-chains)
+	((manifold) #f)
 	(else (error "Unknown message: polar/cylindrical" m))))))
 
 ;;; Consider a two sphere, in spherical coordinates
@@ -172,10 +178,12 @@ USA.
 	((->coords) point->coordinates)
 	((type) spherical)
 	((typical-coords) (typical-object coord-prototype))
+	((coordinate-prototype) coord-prototype)
 	((access-chains) access-chains)
 	((dual-chains) dual-chains)
 	((typical-point) (typical-object point-prototype))
 	((point-chains) point-chains)
+	((manifold) #f)
 	(else
 	 (error "Unknown message: spherical" m))))))
 
@@ -213,8 +221,12 @@ USA.
 (define (instantiate-coordinates coordinate-system coordinate-names)
   (assert (or (and (eq? coordinate-system the-real-line)
 		   (symbol? coordinate-names))
-	      (= (coordinate-system 'dimension)
-		 (length coordinate-names)))
+	      (and (list? coordinate-names)
+		   (= (coordinate-system 'dimension)
+		      (length coordinate-names)))
+	      (and (structure? coordinate-names)
+		   (= (coordinate-system 'dimension)
+		      (s:dimension coordinate-names))))
 	  "Wrong number of coordinate names -- INSTANTIATE-COORDINATES")
   (for-each
    (lambda (name access-chain dual-chain)
@@ -245,9 +257,13 @@ USA.
 				  coordinate-system
 				  oname
 				  dual-chain))))
-   (if (symbol? coordinate-names)
-       (list coordinate-names)
-       (reverse coordinate-names))
+   (cond ((symbol? coordinate-names)
+	  (list coordinate-names))
+	 ((list? coordinate-names)
+	  (reverse coordinate-names))
+	 ((structure? coordinate-names)
+	  (s:fringe coordinate-names))
+	 (else (error "Bad coordinate-name structure")))
    (s:fringe (coordinate-system 'access-chains))
    (s:fringe (coordinate-system 'dual-chains)))
   'done)
@@ -305,9 +321,12 @@ USA.
       (compose (literal-function name function-signature)
 	       (coordinate-system '->coords)))))
 
-(define (literal-manifold-function name coordinate-system)
-  (let ((n (coordinate-system 'dimension)))
-    (let ((function-signature
-	   (if (fix:= n 1) (-> Real Real) (-> (UP* Real n) Real))))
-      (compose (literal-function name function-signature)
-	       (coordinate-system '->coords)))))
+(define (zero-coordinate-function c) 0)
+
+;;; An alias.
+
+(define literal-manifold-function literal-scalar-field)
+
+(define (zero-manifold-function m) 0)
+
+(define (one-manifold-function m) 1)

@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -34,10 +34,13 @@ USA.
   (let ((advance (apply state-advancer parametric-sysder parameters)))
     (let lp ((state initial-state))
       (monitor state)
-      (if (< (g:ref state 0) tmax)
+      (if (< (+ (g:ref state 0) dt) tmax)
 	  (let ((nstate (advance state dt eps)))
 	    (lp nstate))
-	  state))))
+	  (let ((end-state
+		 (advance state (- tmax (g:ref state 0)) eps)))
+	    (monitor end-state)
+	    end-state)))))
 
 (define (state-advancer parametric-sysder #!rest params)
   (define (advance-state state dt #!optional eps)

@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,125 +23,140 @@ USA.
 
 |#
 
-;;;;         Generic Operator Dispatch
+;;;;           Most General Generic-Operator Dispatch
 
 (declare (usual-integrations))
 
-;;; Generic operator dispatch is implemented here by a two-level
-;;;  table.  The operators are represented by atomic symbols, so 
-;;;  an ASSQ alist structure is appropriate.  This may be optimized by
-;;;  a hash table if necessary.  The next level is implemented by a
-;;;  discrimination list, where the arguments passed to the operator
-;;;  are examined by predicates that are supplied at the point of
-;;;  attachment of a handler (by ASSIGN-OPERATION).
+;;; Generic-operator dispatch is implemented here by a discrimination
+;;; list, where the arguments passed to the operator are examined by
+;;; predicates that are supplied at the point of attachment of a
+;;; handler (by ASSIGN-OPERATION).
 
-(define (generic-apply-1 operator x)
-  (let ((args (list x)))
-    (lookup-operation operator args (apply-to args) no-way-known)))
-
-(define (generic-predicate-1 pred x)
-  (let ((args (list x)))
-    (lookup-operation pred args (apply-to args) (lambda (pred args) #f))))
-
-(define (generic-apply-2 operator x y)
-  (let ((args (list x y)))
-    (lookup-operation operator args (apply-to args) no-way-known)))
-
-(define (generic-predicate-2 pred x y)
-  (let ((args (list x y)))
-    (lookup-operation pred args (apply-to args) (lambda (pred args) #f))))
-
-(define (generic-apply operator .  arguments)
-  (lookup-operation operator arguments (apply-to arguments) no-way-known))
-
-(define (generic-apply-default-operation 
-	 default-operation operator .  arguments)
-  (lookup-operation operator arguments (apply-to arguments)
-		    (lambda (operator args)
-		      (default-operation args))))
-
-(define (generic-apply-default default-value operator .  arguments)
-  (lookup-operation operator
-		    arguments
-		    (apply-to arguments)
-		    (lambda (operator args)
-		      default-value)))
-
-(define (generic-predicate pred . arguments)
-  (lookup-operation pred
-		    arguments
-		    (apply-to arguments)
-		    (lambda (pred args) #f)))
-
-
-(define ((apply-to args) proc)
-  (apply proc args))
+;;; To be the correct branch all arguments must be accepted by
+;;; the branch predicates, so this makes it necessary to
+;;; backtrack to find another branch where the first argument
+;;; is accepted if the second argument is rejected.  Here
+;;; backtracking is implemented by OR.
 
-(define *the-operator-table* (make-eq-hash-table 50))
+(define (make-generic-operator arity #!optional name default-operation)
+  (guarantee-exact-positive-integer arity 'make-generic-operator)
+  (if (not (fix:fixnum? arity))
+      (error:bad-range-argument arity 'make-generic-operator))
+  (if (not (default-object? name))
+      (guarantee-symbol name 'make-generic-operator))
+  (if (not (default-object? default-operation))
+      (guarantee-procedure-of-arity default-operation
+				    arity
+				    'make-generic-operator))
+  (let ((record (make-operator-record arity)))
+    (define operator
+      (case arity
+	((1)
+	 (lambda (arg)
+	   ((or (find-branch (operator-record-tree record) arg win-handler)
+		default-operation)
+	    arg)))
+	((2)
+	 (lambda (arg1 arg2)
+	   ((or (find-branch (operator-record-tree record) arg1
+			     (lambda (branch)
+			       (find-branch branch arg2 win-handler)))
+		default-operation)
+	    arg1
+	    arg2)))
+	(else
+	 (lambda arguments
+	   (if (not (fix:= (length arguments) arity))
+	       (error:wrong-number-of-arguments operator arity arguments))
+	   (apply (or (let loop
+			  ((tree (operator-record-tree record))
+			   (args args))
+			(find-branch tree (car args)
+				     (if (pair? (cdr args))
+					 (lambda (branch)
+					   (loop branch (cdr args)))
+					 win-handler)))
+		      default-operation)
+		  arguments)))))
+    (define (find-branch tree arg win)
+      (let loop ((tree tree))
+	(and (pair? tree)
+	     (or (and ((caar tree) arg)
+		      (win (cdar tree)))
+		 (loop (cdr tree))))))
+    (define (win-handler handler)
+      handler)
+    (set! default-operation
+      (if (default-object? default-operation)
+	  (lambda arguments (no-way-known operator arguments))
+	  default-operation))
+    (set-operator-record! operator record)
+    ;; For backwards compatibility with previous implementation:
+    (if (not (default-object? name))
+	(set-operator-record! name record))
+    operator))
+
+(define *generic-operator-table*
+  (make-eq-hash-table))
 
-(define (lookup-operation operator arguments do-it no-way-known)
-  (let ((v (hash-table/get *the-operator-table* operator #f)))
-    ;; v is either #f or a discrimination tree.
-    (if v
-	(discriminate-keys (cdr v)
-			   arguments
-			   (lambda ()
-			     (no-way-known operator arguments))
-			   (lambda (tree fail)
-			     (if (procedure? tree)
-				 (do-it tree)
-				 (fail))))
-        (error "Unknown generic operator" operator))))
+(define (get-operator-record operator)
+  (hash-table/get *generic-operator-table* operator #f))
 
-(define (discriminate-keys tree keys fail succeed)
-  (if (null? keys)
-      (succeed tree fail)
-      (let predlp ((dlist tree))
-	(cond ((null? dlist) (fail))
-	      (((caar dlist) (car keys))
-	       (discriminate-keys (cdar dlist) (cdr keys)
-				  (lambda () (predlp (cdr dlist)))
-				  succeed))
-	      (else
-	       (predlp (cdr dlist)))))))
+(define (set-operator-record! operator record)
+  (hash-table/put! *generic-operator-table* operator record))
 
-
-;;; To make an entry in the table we must extend the table in two
-;;;  ways: We need to add the operator, if necessary, and we need to
-;;;  add the argument-predicates.  A predicate is supplied for each
-;;;  argument.  They must be tensor-conjoined.
+(define (make-operator-record arity) (cons arity '()))
+(define (operator-record-arity record) (car record))
+(define (operator-record-tree record) (cdr record))
+(define (set-operator-record-tree! record tree) (set-cdr! record tree))
 
 (define (assign-operation operator handler . argument-predicates)
-  ;;(assert (fix:= (procedure-arity handler) (length argument-predicates)))
-  (let ((tree
-	 (or (hash-table/get *the-operator-table* operator #f)
-	     (list '*tree*))))
-    (discrimination-tree/put!
-		    tree
-		    argument-predicates
-		    handler)
-    (hash-table/put! *the-operator-table* operator tree))
-  'done)
+  (let ((record
+	 (let ((record (get-operator-record operator))
+	       (arity (length argument-predicates)))
+	   (if record
+	       (begin
+		 (if (not (fix:= arity (operator-record-arity record)))
+		     (error "Incorrect operator arity:" operator))
+		 record)
+	       (let ((record (make-operator-record arity)))
+		 (hash-table/put! *generic-operator-table* operator record)
+		 record)))))
+    (set-operator-record-tree! record
+			       (bind-in-tree argument-predicates
+					     handler
+					     (operator-record-tree record))))
+  operator)
 
-(define (discrimination-tree/put! tree preds value)
-  (cond ((null? preds)
-	 (set-cdr! tree value))
-	(else
-	 (let ((v (assq (car preds) (cdr tree))))
-	   (if v
-	       (discrimination-tree/put! v (cdr preds) value)
-	       (let ((v (cons (car preds) '())))
-		 (set-cdr! tree (cons v (cdr tree)))
-		 (discrimination-tree/put! v (cdr preds) value)))))))
+(define (bind-in-tree keys handler tree)
+  (let loop ((keys keys) (tree tree))
+    (let ((p.v (assq (car keys) tree)))
+      (if (pair? (cdr keys))
+	  (if p.v
+	      (begin
+		(set-cdr! p.v
+			  (loop (cdr keys) (cdr p.v)))
+		tree)
+	      (cons (cons (car keys)
+			  (loop (cdr keys) '()))
+		    tree))
+	  (if p.v
+	      (begin
+		(warn "Replacing a handler:" (cdr p.v) handler)
+		(set-cdr! p.v handler)
+		tree)
+	      (cons (cons (car keys) handler)
+		    tree))))))
 
-;;; Failures make it to here.  Time to DWIM, with apologies to Warren Teitelman.
-;;;  Can we look at some argument as a default numerical expression?
+;;; Failures make it to here.  Time to DWIM, with apologies to Warren
+;;; Teitelman.  Can we look at some argument as a default numerical
+;;; expression?
 				    
 (define (no-way-known operator arguments)
   (let ((new-arguments (map dwim arguments)))
     (if (equal? arguments new-arguments)
-	(error "Generic operator inapplicable" operator arguments)
-	(apply generic-apply operator new-arguments))))
+	(error "Generic operator inapplicable:" operator arguments))
+    (apply operator new-arguments)))
 
 (define (dwim argument)
   (if (pair? argument)

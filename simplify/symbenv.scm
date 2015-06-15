@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -33,79 +33,11 @@ USA.
 	v
 	(error "Undefined symbolic operator" operator-symbol))))
 
-
-;;; N-ary Operator extensions
-
-(define symbolic:=:bin (symbolic-operator '=))
-
-(define (symbolic:=:n args)
-  (cond ((null? args) #t)
-	((null? (cdr args)) #t)
-	(else
-	 (let lp ((args (cddr args))
-		  (larg (cadr args))
-		  (ans (symbolic:=:bin (car args) (cadr args))))
-	   (if (null? args)
-	       ans
-	       (lp (cdr args)
-		   (car args)
-		   (and ans (symbolic:=:bin larg (car args)))))))))
-
-
-(define symbolic:+:bin (symbolic-operator '+))
-
-(define (symbolic:+:n args)
-  (cond ((null? args) :zero)
-	((null? (cdr args)) (car args))
-	(else
-	 (let lp ((args (cddr args))
-		  (ans (symbolic:+:bin (car args) (cadr args))))
-	   (if (null? args)
-	       ans
-	       (lp (cdr args)
-		   (symbolic:+:bin ans (car args))))))))
-
-(define symbolic:*:bin (symbolic-operator '*))
-
-(define (symbolic:*:n args)
-  (cond ((null? args) :one)
-	((null? (cdr args)) (car args))
-	(else
-	 (let lp ((args (cddr args))
-		  (ans (symbolic:*:bin (car args) (cadr args))))
-	   (if (null? args)
-	       ans
-	       (lp (cdr args)
-		   (symbolic:*:bin ans (car args))))))))
-
-
-(define symbolic:-:bin (symbolic-operator '-))
-(define symbolic:negate (symbolic-operator 'negate))
-
-(define (symbolic:-:n args)
-  (cond ((null? args) :zero)
-	((null? (cdr args)) (symbolic:negate (car args)))
-	(else
-	 (symbolic:-:bin (car args)
-			 (symbolic:+:n (cdr args))))))
-
-
-(define symbolic:/:bin (symbolic-operator '/))
-(define symbolic:invert (symbolic-operator 'invert))
-
-(define (symbolic:/:n args)
-  (cond ((null? args) :one)
-	((null? (cdr args)) (symbolic:invert (car args)))
-	(else
-	 (symbolic:/:bin (car args)
-			 (symbolic:*:n (cdr args))))))
-
-
 (define (symbolic-environment-maker)
-  (let ((e (extend-ic-environment scmutils-base-environment)))
+  (let ((e (extend-top-level-environment scmutils-base-environment)))
     (let ((d
 	   (lambda (name value)
-	     (local-assignment e name value))))
+	     (environment-define e name value))))
 
       (d '*environment* 'symbolic-environment)
 
@@ -179,37 +111,20 @@ USA.
 
       (d 'conjugate (symbolic-operator 'conjugate))
 
-
-      ;; Wierd operators from generic.scm
-
       (d 'atan (symbolic-operator 'atan))
-      #|
-      (d 'partial-derivative (symbolic-operator 'partial-derivative))
-      (d 'partial (symbolic-operator 'partial))
-
-      (d 'apply (symbolic-operator 'apply))
 
 
-      ;; Compound operators from mathutil.scm
+      (d '= (symbolic-operator '=))
 
-      (d 'arg-scale (symbolic-operator 'arg-scale))
-      (d 'arg-shift (symbolic-operator 'arg-shift))
+      (d '+ (symbolic-operator '+))
 
-      (d 'sigma (symbolic-operator 'sigma))
+      (d '* (symbolic-operator '*))
 
-      (d 'compose (symbolic-operator 'compose))
-      |#
+      (d '- (symbolic-operator '-))
 
+      (d '/ (symbolic-operator '/))
 
-      (d '= (named-lambda (= . args) (symbolic:=:n args)))
-
-      (d '+ (named-lambda (+ . args) (symbolic:+:n args)))
-
-      (d '* (named-lambda (* . args) (symbolic:*:n args)))
-
-      (d '- (named-lambda (- . args) (symbolic:-:n args)))
-
-      (d '/ (named-lambda (/ . args) (symbolic:/:n args))))
+      )
     e))
 
 (define symbolic-environment (symbolic-environment-maker))

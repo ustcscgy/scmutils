@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -31,6 +31,16 @@ USA.
 
 (define *heuristic-numbers* #f)
 
+(define (canonicalize-numbers expr)
+  (cond ((with-units? expr)
+	 (with-si-units->expression expr))
+	((pair? expr)
+	 (cons (canonicalize-numbers (operator expr))
+	       (map canonicalize-numbers (operands expr))))
+	((and (number? expr) *heuristic-numbers*)
+	 (heuristic-canonicalize-complex expr))
+	(else
+	 expr)))
 
 (define (ham:simplify hexp)
   (cond ((and (quotient? hexp) *divide-out-terms*)
@@ -38,7 +48,7 @@ USA.
 		(let ((d (symb:denominator hexp)))
 		  (a-reduce symb:+
 			    (map (lambda (n)
-				   (simplify (symb:/ n d)))
+				   (default-simplify (symb:/ n d)))
 				 (operands (symb:numerator hexp))))))
 	       (else hexp)))
 	((and (compound-data-constructor? hexp) *fully-divide-out-terms*)
@@ -62,43 +72,30 @@ USA.
   (substitute derivative-symbol
 	      'derivative
 	      expr))
-
-
-;;; Preserves row/col distinction.
-(define *flushing-row/col* #f)
-
-(define (flush-row/col expr)
-  (if *flushing-row/col*
-      (let lp ((expr expr))
-	(if (pair? expr)
-	    (if (memq (car expr) '(row column))
-		(cons 'vector
-		      (map lp (cdr expr)))
-		(map lp expr))
-	    expr))
+
+(define (flush-literal-function-constructors expr)
+  (if (pair? expr)
+      (if (eq? (car expr) 'literal-function)
+	  (if (and (pair? (cadr expr)) (eq? (caadr expr) 'quote))
+	      (flush-literal-function-constructors (cadadr expr))
+	      (cadr expr))
+	  (cons (flush-literal-function-constructors (car expr))
+		(flush-literal-function-constructors (cdr expr))))
       expr))
+
+
+(define *factoring* #f)
 
 (define (simplify exp)
   (flush-derivative
-   (flush-row/col
+   (flush-literal-function-constructors
     (ham:simplify
-     (new-simplify			;from rule-environment
-      (expression exp))))))
+     ((if *factoring* poly:factor (lambda (expr) expr))
+      (default-simplify exp))))))
 
-
 (define *only-printing* #f)
 (define *last-expression-printed*)
 
-(define (canonicalize-numbers expr)
-  (cond ((with-units? expr)
-	 (with-si-units->expression expr))
-	((pair? expr)
-	 (cons (canonicalize-numbers (operator expr))
-	       (map canonicalize-numbers (operands expr))))
-	((and (number? expr) *heuristic-numbers*)
-	 (heuristic-canonicalize-complex expr))
-	(else
-	 expr)))
 
 (define (prepare-for-printing expr simplifier)
   (set! *last-expression-printed* 
@@ -112,8 +109,7 @@ USA.
 
 
 (define (show-expression expr #!optional simplifier)
-  (if (default-object? simplifier)
-      (set! simplifier simplify))
+  (if (default-object? simplifier) (set! simplifier simplify))
   (prepare-for-printing expr simplifier)
   (cond (*only-printing*
 	 (pp *last-expression-printed*))

@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -152,10 +152,9 @@ USA.
 #| Result:
 (down
  (down
-  (down
-   (* 1/2 (((partial 0) a) (up x0 y0)))
-   (+ (* -1/2 (((partial 1) a) (up x0 y0)))
-      (((partial 0) b) (up x0 y0))))
+  (down (* 1/2 (((partial 0) a) (up x0 y0)))
+	(+ (* -1/2 (((partial 1) a) (up x0 y0)))
+	   (((partial 0) b) (up x0 y0))))
   (down (* 1/2 (((partial 1) a) (up x0 y0)))
         (* 1/2 (((partial 0) c) (up x0 y0)))))
  (down
@@ -252,6 +251,7 @@ USA.
 #|
 ;;; Runs out of memory trying to print foo, below if we use the following
 ;;; (define polar (polar/cylindrical 2))
+;;; Not anymore!  Now it works.
 
 (define polar (rectangular 2))
 (instantiate-coordinates polar '(r theta))

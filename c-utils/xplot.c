@@ -1,6 +1,6 @@
 /* -*-C-*-
 
-$Id: copyright.c,v 1.5 2005/09/25 01:28:09 cph Exp $
+$Id: copyright.c,v 1.4 2005/12/13 06:40:58 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 

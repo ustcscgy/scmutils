@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,29 +23,18 @@ USA.
 
 |#
 
-;;; (load "/usr/local/scmutils/src/simplify/test" rule-environment)
 
-(define test
-  (rule-system
-    ( (atan (? y) (? x))
+(declare (usual-integrations))
 
-      (let ((s (simplify `(gcd ,y ,x))))
-	(if (equal? s 1)
-	    #f
-	    (begin (match-assign! 'temp *dictionary* s)
-		   #t)))
+;;; This should be loaded only once!
 
-      (atan (: (simplify `(/ ,y ,temp)))
-	    (: (simplify `(/ ,x ,temp)))) )
-   ))
+(define saved-repl-eval hook/repl-eval)
 
+(define (custom-repl-eval s-expression environment repl)
+  ;; Reset the differential tag count each time we start a new eval.
+  ;; See kernel/deriv.scm.
+  (set! (access differential-tag-count scmutils-base-environment) 0)
+  (saved-repl-eval s-expression environment repl))
 
+(set! hook/repl-eval custom-repl-eval)
 
-
-#|
-
-(pe ((access test rule-environment)
-     '(atan (* (sin (theta_0 t)) (sin (phi_0 t)))
-	    (* (cos (phi_0 t)) (sin (theta_0 t))))))
-(phi_0 t)
-|#

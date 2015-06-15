@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -28,11 +28,14 @@ USA.
 ;;; $Header: unimin.scm,v 1.4 88/01/26 07:45:38 GMT gjs Exp $
 ;;; 7/5/87 UNIMIN.SCM -- first compilation of routines for univariate
 ;;;			 optimization.
-
+#|
 (declare (usual-integrations = + - * /
 			     zero? 1+ -1+
 			     ;; truncate round floor ceiling
 			     sqrt exp log sin cos))
+|#
+
+(declare (usual-integrations))
 
 ;;; The following univariate optimization routines typically return
 ;;; a list (x fx ...) where x is the argmument at which the extremal
@@ -128,62 +131,60 @@ USA.
 ;;; pages 79-80 of his book "Algorithms for Minimization Without Derivatives"
 
 (define (brent-min f a b eps)
-  (let* ((maxcount 100)
-	 (small-bugger-factor *sqrt-machine-epsilon*)
-	 (g (/ (- 3 (sqrt 5)) 2))
-         (a a)
-         (b b)
-         (x (+ a (* g (- b a))))
-         (fx (f x))
-         (w x) (fw fx) (v x) (fv fx)
-         (d 0) (e 0) (old-e 0) (p 0) (q 0)
-         (u 0) (fu 0))
-    (let loop ((count 0))
-      (if (> count maxcount)
-	  (list 'maxcount x fx count) ;failed to converge
-	  (let* ((tol (+ (* eps (abs x)) small-bugger-factor))
-		 (2tol (* 2 tol))
-		 (m (/ (+ a b) 2)))
-	    ;; test for convergence
-	    (if (< (max (- x a) (- b x)) 2tol)
-		(list x fx count)
-		(begin
-		  (if (> (abs e) tol)
-		      (let* ((t1 (* (- x w) (- fx fv)))
-			     (t2 (* (- x v) (- fx fw)))
-			     (t3 (- (* (- x v) t2) (* (- x w) t1)))
-			     (t4 (* 2 (- t2 t1))))
-			(set! p (if (positive? t4) (- t3) t3))
-			(set! q (abs t4))
-			(set! old-e e)
-			(set! e d)))
-		  (if (and (< (abs p) (abs (* 0.5 q old-e)))
-			   (> p (* q (- a x)))
-			   (< p (* q (- b x))))
-		      ;; parabolic step
-		      (begin (set! d (/ p q))
-			     (set! u (+ x d))
-			     (if (< (min (- u a) (- b u)) 2tol)
-				 (set! d (if (< x m) tol (- tol)))))
-		      ;;else, golden section step
-		      (begin (set! e (if (< x m) (- b x) (- a x)))
-			     (set! d (* g e))))
-		  (set! u (+ x (if (> (abs d) tol) 
-				   d
-				   (if (positive? d) tol (- tol)))))
-		  (set! fu (f u))
-		  (if (<= fu fx)
-		      (begin (if (< u x) (set! b x) (set! a x))
-			     (set! v w) (set! fv fw)
-			     (set! w x) (set! fw fx)
-			     (set! x u) (set! fx fu))
-		      (begin (if (< u x) (set! a u) (set! b u))
-			     (if (or (<= fu fw) (= w x))
-				 (begin (set! v w) (set! fv fw)
-					(set! w u) (set! fw fu))
-				 (if (or (<= fu fv) (= v x) (= v w))
-				     (begin (set! v u) (set! fv fu))))))
-		  (loop (+ count 1)))))))))
+  (let ((a (min a b)) (b (max a b))
+	(maxcount 100)
+	(small-bugger-factor *sqrt-machine-epsilon*)
+	(g (/ (- 3 (sqrt 5)) 2))
+	(d 0) (e 0) (old-e 0) (p 0) (q 0) (u 0) (fu 0))
+    (let* ((x (+ a (* g (- b a))))
+	   (fx (f x))
+	   (w x) (fw fx) (v x) (fv fx))
+      (let loop ((count 0))
+	(if (> count maxcount)
+	    (list 'maxcount x fx count) ;failed to converge
+	    (let* ((tol (+ (* eps (abs x)) small-bugger-factor))
+		   (2tol (* 2 tol))
+		   (m (/ (+ a b) 2)))
+	      ;; test for convergence
+	      (if (< (max (- x a) (- b x)) 2tol)
+		  (list x fx count)
+		  (begin
+		    (if (> (abs e) tol)
+			(let* ((t1 (* (- x w) (- fx fv)))
+			       (t2 (* (- x v) (- fx fw)))
+			       (t3 (- (* (- x v) t2) (* (- x w) t1)))
+			       (t4 (* 2 (- t2 t1))))
+			  (set! p (if (positive? t4) (- t3) t3))
+			  (set! q (abs t4))
+			  (set! old-e e)
+			  (set! e d)))
+		    (if (and (< (abs p) (abs (* 0.5 q old-e)))
+			     (> p (* q (- a x)))
+			     (< p (* q (- b x))))
+			;; parabolic step
+			(begin (set! d (/ p q))
+			       (set! u (+ x d))
+			       (if (< (min (- u a) (- b u)) 2tol)
+				   (set! d (if (< x m) tol (- tol)))))
+			;;else, golden section step
+			(begin (set! e (if (< x m) (- b x) (- a x)))
+			       (set! d (* g e))))
+		    (set! u (+ x (if (> (abs d) tol) 
+				     d
+				     (if (positive? d) tol (- tol)))))
+		    (set! fu (f u))
+		    (if (<= fu fx)
+			(begin (if (< u x) (set! b x) (set! a x))
+			       (set! v w) (set! fv fw)
+			       (set! w x) (set! fw fx)
+			       (set! x u) (set! fx fu))
+			(begin (if (< u x) (set! a u) (set! b u))
+			       (if (or (<= fu fw) (= w x))
+				   (begin (set! v w) (set! fv fw)
+					  (set! w u) (set! fw fu))
+				   (if (or (<= fu fv) (= v x) (= v w))
+				       (begin (set! v u) (set! fv fu))))))
+		    (loop (+ count 1))))))))))
 
 (define (brent-max f a b eps)
   (define (-f x) (- (f x)))

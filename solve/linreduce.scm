@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -95,13 +95,16 @@ foo
 ((cadr foo) #())
 ;Value: #(7/2 -1/2)
 
+;;; This is a solution:
+(H ((cadr foo) #()))
+;Value: #(0 0)
+
+
 ;;; Using the default WIN:
 
 (solve H 2 2)
 ;Value: #(7/2 -1/2)
-
-
-
+
 ;;; For another example, consider F:R^3 --> R^2; (n=3, m=2)
 (define (F v)
   (let ((x (vector-ref v 0))
@@ -331,6 +334,65 @@ others.  For example:
   ;; found-pivot = (lambda (nF nn nm j i) ...)
   (define ((g j) u v)			; if g_i linear, can isolate x_j
     (F (vector-with-substituted-coord v j u)))
+  (let ((x1 (gensymbols n)) (x2 (gensymbols n)))
+    (let ((fx1 (F x1)) (fx2 (F x2)))
+      (let* ((tiny? (lambda (x) (exact-zero? (default-simplify x))))
+	     (same? (lambda (x y) (tiny? (g:- x y))))
+	     (interesting-equations-mask
+	      (map (lambda (f1 f2)
+		     (if (same? f1 f2)	; a constant?
+			 (if (tiny? f1)	;  a tautology?
+			     #f		;   yes -- uninteresting
+			     '=><=)	;  a contradiction
+			 #t))		; varies with inputs
+		   (vector->list fx1)
+		   (vector->list fx2))))
+	(let ((interesting (select-from interesting-equations-mask))
+	      (nm (reduce fix:+ 0
+			  (map (lambda (x) (if (eq? x #t) 1 0))
+			       interesting-equations-mask))))
+	  (cond ((memq '=><= interesting-equations-mask)
+		 (cannot-solve (compose interesting F) n nm))
+	        ((fix:= nm 0) (all-tautologies))
+		(else
+		 (let vloop ((j 0))	; try each unknown variable
+		   (if (fix:= j n)	; if cannot solve for any one
+		       (cannot-solve (compose interesting F) n nm)
+		       (let* ((gj (g j))
+			      (a1 (gj 0 x1)) (b1 (- (gj 1 x1) a1))
+			      (a2 (gj 0 x2)) (b2 (- (gj 1 x2) a2))
+			      (c (generate-uninterned-symbol))
+			      (lin1 (- (gj c x1) (+ a1 (* c b1))))
+			      (lin2 (- (gj c x2) (+ a2 (* c b2))))
+			      (lin3 (- b1 b2)))
+			 (let eloop	; try each interesting equation
+			     ((i 0)
+			      (ecount 0)
+			      (mask interesting-equations-mask))
+			   (cond ((fix:= ecount nm) ; ran out of equations
+				  (vloop (fix:+ j 1))) ;try next variable
+				 ((not (car mask))
+				  (eloop (fix:+ i 1) ecount (cdr mask)))
+				 ((and (car mask)
+				       (tiny? (vector-ref lin1 i))
+				       (tiny? (vector-ref lin2 i))
+				       (not (tiny? (vector-ref b1 i)))
+				       (tiny? (vector-ref lin3 i)))
+				  (found-pivot ; var j is linear in eqn i
+				   (compose interesting F)
+				   n nm j ecount))
+				 (else
+				  (eloop (fix:+ i 1)
+					 (fix:+ ecount 1)
+					 (cdr mask)))))))))))))))
+
+#|
+;;; This numerical thingy doesn't really work.
+
+(define (affine-classify F n m found-pivot all-tautologies cannot-solve)
+  ;; found-pivot = (lambda (nF nn nm j i) ...)
+  (define ((g j) u v)			; if g_i linear, can isolate x_j
+    (F (vector-with-substituted-coord v j u)))
   (let ((x1 (random-vector n)) (x2 (random-vector n)))
     (let ((fx1 (F x1)) (fx2 (F x2)))
       (let* ((big (find-biggest fx1 fx2))
@@ -383,6 +445,7 @@ others.  For example:
 				  (eloop (fix:+ i 1)
 					 (fix:+ ecount 1)
 					 (cdr mask)))))))))))))))
+|#
 
 #|
 ;;; More examples...
@@ -513,6 +576,11 @@ others.  For example:
 	     ((car m) (cons (car l) (lp (cdr l) (cdr m))))
 	     (else (lp (cdr l) (cdr m)))))))
   nf)
+
+(define (gensymbols n)
+  (make-initialized-vector n
+    (lambda (i)
+      (generate-uninterned-symbol 'x))))
 
 (define (random-rational)
   (/ (- (random 20000) 10000)

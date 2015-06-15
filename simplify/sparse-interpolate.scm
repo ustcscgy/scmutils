@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -31,9 +31,8 @@ USA.
 ;;;                        June 1998                  
 
 ;;; This code differs from Zippel's in that it does not use modular
-;;; arithmetic or do anything special with the Vandermonde matrices
-;;; that arise in the problem.  This makes the idea stand out in stark
-;;; contrast without the confusing complications introduced by those
+;;; arithmetic.  This makes the idea stand out in stark contrast
+;;; without the confusing complications introduced by those
 ;;; optimizations.
 
 (declare (usual-integrations))
@@ -42,19 +41,19 @@ USA.
 ;;; find a representation for the terms of the polynomial.
 
 (define (sparse-interpolate f n d)
-  (let* ((rargs0 (generate-list (- n 1) interpolate-random))
+  (let* ((rargs0 (generate-list (fix:- n 1) interpolate-random))
 	 (f1 (lambda (x) (apply f x rargs0)))
 	 (p1 (univariate-interpolate f1 d)))
     (let stagelp			;p has k vars interpolated
 	((k 1) (p p1) (rargs rargs0))
-      (if (= k n)
+      (if (fix:= k n)
 	  p
 	  (let* ((fk
 		  (lambda (xk+1)
 		    (lambda x1-xk
 		      (apply f (append x1-xk (list xk+1) (cdr rargs))))))
 		 (xk+1s
-		  (generate-list (+ d 1) interpolate-random))
+		  (generate-list (fix:+ d 1) interpolate-random))
 		 (ps
 		  (map (lambda (xk+1)
 			 (interpolate-skeleton (fk xk+1) p))
@@ -71,7 +70,7 @@ USA.
 			 (univariate-interpolate-values xk+1s (car css)
 			  (lambda (cp) (cons cp (clp (cdr css))))
 			  (lambda () (stagelp k p rargs)))))))
-	      (stagelp (+ k 1) (expand-poly p cps) (cdr rargs))))))))
+	      (stagelp (fix:+ k 1) (expand-poly p cps) (cdr rargs))))))))
 
 #|
 (sparse-interpolate
@@ -81,35 +80,61 @@ USA.
 ;Value: (((2 3 0) . 3) ((1 1 1) . 1) ((0 0 1) . 4) ((0 0 0) . 1))
 |#
 
+(define *interpolate-skeleton-using-vandermonde* #t)
+
 (define (interpolate-skeleton f skeleton-polynomial)
   (let ((skeleton (map sparse-exponents skeleton-polynomial))
-	(nterms (length skeleton-polynomial))
 	(arity (length (sparse-exponents (car skeleton-polynomial)))))
-    (define (new-args)
-      (generate-list nterms
-		     (lambda (i)
-		       (generate-list arity interpolate-random))))
-    (let try-again ((trial-arglists (new-args)))
-      (let ((matrix
-	     (matrix-by-row-list
-	      (map (lambda (argument-list)
-		     (map (lambda (exponent-list)
-			    (apply * (map expt argument-list exponent-list)))
-			  skeleton))
-		   trial-arglists)))
-	    (values
-	     (map (lambda (argl) (apply f argl))
-		  trial-arglists)))
-	(lu-solve matrix
-		  (list->vector values)
-		  (lambda (coefficients)
-		    (filter (lambda (term)
-			      (not (zero? (sparse-coefficient term))))
-			    (map (lambda (exponent-list coefficient)
-				   (sparse-term exponent-list coefficient))
-				 skeleton
-				 (vector->list coefficients))))
-		  (lambda (ignore) (try-again (new-args))))))))
+    (if *interpolate-skeleton-using-vandermonde*
+        (let try-again ((args (generate-list arity interpolate-random)))
+	  (let* ((ones (make-list arity 1))
+		 (ks
+		  (map (lambda (exponent-list)
+			 (apply * (map expt args exponent-list)))
+		       skeleton))
+		 (ws
+		  (let lp ((i (length ks)) (argl ones) (fs '()))
+		    (if (fix:= i 0)
+			(reverse! fs)
+			(lp (fix:- i 1)
+			    (map * argl args)
+			    (cons (apply f argl) fs))))))
+	    (solve-vandermonde-t-system ks ws
+	      (lambda (coefficients)
+		(filter (lambda (term)
+			  (not (zero? (sparse-coefficient term))))
+			(map (lambda (exponent-list coefficient)
+			       (sparse-term exponent-list coefficient))
+			     skeleton
+			     coefficients)))
+		    (lambda ()
+		      (try-again (generate-list arity interpolate-random))))))
+	(let ((new-args
+	       (lambda ()
+		 (generate-list (length skeleton-polynomial)
+				(lambda (i)
+				  (generate-list arity interpolate-random))))))
+	  (let try-again ((trial-arglists (new-args)))
+	    (let ((matrix
+		   (matrix-by-row-list
+		    (map (lambda (argument-list)
+			   (map (lambda (exponent-list)
+				  (apply * (map expt argument-list exponent-list)))
+				skeleton))
+			 trial-arglists)))
+		  (values
+		   (map (lambda (argl) (apply f argl))
+			trial-arglists)))
+	      (lu-solve matrix
+			(list->vector values)
+			(lambda (coefficients)
+			  (filter (lambda (term)
+				    (not (zero? (sparse-coefficient term))))
+				  (map (lambda (exponent-list coefficient)
+					 (sparse-term exponent-list coefficient))
+				       skeleton
+				       (vector->list coefficients))))
+			(lambda (ignore) (try-again (new-args))))))))))
 
 #|
 (interpolate-skeleton
@@ -117,7 +142,7 @@ USA.
  '(((5) . 1) ((2) . 1) ((1) . 1) ((0) . 1)))
 ;Value: (((5) . 3) ((2) . 1) ((1) . 1) ((0) . 4))
 |#
-
+
 (define (expand-poly p cps)
   (sort
    (apply append
@@ -139,7 +164,8 @@ USA.
 		    (((1) . 2) ((0) . 5)) )))
 (((5 1) . 1) ((5 0) . 3) ((1 3) . 2) ((2 1) . 1) ((1 0) . 4) ((0 1) . 2) ((0 0) . 5))
 |#
-
+
+
 ;;; f is a univariate polynomial function.  
 ;;; d+1 is the number of unknown coefficients.
 ;;; (usually d is the degree of the polynomial)
@@ -154,8 +180,35 @@ USA.
      (lambda () (univariate-interpolate f d)))))
 
 (define (univariate-interpolate-values xs fs succeed fail)
+  (solve-vandermonde-system xs fs
+    (lambda (coefficients)
+      (succeed (reverse
+		(filter (lambda (term)
+			  (not (zero? (sparse-coefficient term))))
+			(map (lambda (exponent coefficient)
+			       (sparse-term (list exponent)
+					    coefficient))
+			     (iota (length xs))
+			     coefficients)))))
+    fail))
+
+
+(define *interpolate-size* 10000)
+
+(define (interpolate-random i)
+  (+ (random *interpolate-size*) 1))
+
+#|
+(univariate-interpolate
+ (lambda (x) (+ (* 3 (expt x 5)) (expt x 2) x 4))
+ 6)
+;Value: (((5) . 3) ((2) . 1) ((1) . 1) ((0) . 4))
+|#
+
+#|
+(define (old-univariate-interpolate-values xs fs succeed fail)
   (let ((n (length xs)))
-    (assert (= n (length fs)))
+    (assert (fix:= n (length fs)))
     (let* ((exponents (iota n))
 	   (matrix
 	    (matrix-by-row-list
@@ -176,15 +229,38 @@ USA.
 					 (vector->list coefficients))))))
 		(lambda (ignore) (fail))))))
 
+;;; Check that the new algorithm is equivalent to the old one, and faster
+(define (check m)
+  (let ((xs (generate-list m interpolate-random))
+	(fs (generate-list m interpolate-random)))
+    (let ((t0 (runtime)))
+      (univariate-interpolate-values xs fs
+        (lambda (new-result)
+	  (let ((t1 (runtime)))
+	    (old-univariate-interpolate-values xs fs
+	      (lambda (old-result)
+		(let ((t2 (runtime)) (e (equal? old-result new-result)))
+		  ;;(pp (list '+ (- t1 t0) (- t2 t1)))
+		  (assert e)))
+	      (lambda ()
+		(pp (list 'old-failed-new-won xs fs new-result))))))
+	(lambda ()
+	  (let ((t1 (runtime)))
+	    (old-univariate-interpolate-values xs fs
+	      (lambda (old-result)
+		(pp (list 'new-failed-old-won xs fs old-result)))
+	      (lambda ()
+		(let ((t2 (runtime)))
+		  ;;(pp (list '* (- t1 t0) (- t2 t1)))
+		  )
+		'both-failed))))))))
 
-(define *interpolate-size* 1000000)
+(let lp ((i 100000))
+  (if (fix:= i 0)
+      'done
+      (begin (check 30)
+	     (lp (fix:- i 1)))))
 
-(define (interpolate-random i)
-  (+ (random *interpolate-size*) 1))
-
-#|
-(univariate-interpolate
- (lambda (x) (+ (* 3 (expt x 5)) (expt x 2) x 4))
- 6)
-;Value: (((5) . 3) ((2) . 1) ((1) . 1) ((0) . 4))
+;;; Increase failure rate to about 40% for size 30 problems.
+(set! *interpolate-size* 1000)
 |#

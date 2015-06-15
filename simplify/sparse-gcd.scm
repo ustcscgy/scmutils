@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -52,24 +52,73 @@ USA.
 	((sparse-one? u) u)
 	((sparse-one? v) v)
 	(else
-	 (let ((uc (sparse-content u))
-	       (vc (sparse-content v)))
+	 (let ((uc (sparse-content u)) (vc (sparse-content v)))
 	   (let ((ans 
 		  (if (sparse-one-term? uc)
 		      (if (sparse-one-term? vc)
-			  (sparse-multivariate-gcd u v)
-			  (sparse-multivariate-gcd u (sparse-normalize v vc)))
+			  (sparse-heuristic-gcd u v)
+			  (sparse-heuristic-gcd u (sparse-normalize v vc)))
 		      (if (sparse-one-term? vc)
-			  (sparse-multivariate-gcd (sparse-normalize u uc) v)
+			  (sparse-heuristic-gcd (sparse-normalize u uc) v)
 			  (let ((c (sparse-monomial-gcd uc vc)))
 			    (if (sparse-one-term? c)
-				(sparse-multivariate-gcd (sparse-normalize u uc)
-							 (sparse-normalize v vc))
+				(sparse-heuristic-gcd (sparse-normalize u uc)
+						      (sparse-normalize v vc))
 				(sparse-scale
-				 (sparse-multivariate-gcd (sparse-normalize u uc)
-							  (sparse-normalize v vc))
+				 (sparse-heuristic-gcd (sparse-normalize u uc)
+						       (sparse-normalize v vc))
 				 c)))))))
 	     (sparse-abs ans))))))
+
+(define (sparse-monomial-gcd m1 m2)
+  (sparse-term (map min (sparse-exponents m1) (sparse-exponents m2))
+	       (base/gcd (sparse-coefficient m1) (sparse-coefficient m2))))
+
+(define (sparse-content poly)
+  (let lp ((p (cdr poly)) (ans (car poly)))
+    (cond ((null? p) ans)
+	  ((sparse-one-term? ans) ans)
+	  (else (lp (cdr p) (sparse-monomial-gcd (car p) ans))))))
+
+;;; Given a GCD algorithm, this makes a conservative heuristic algorithm.
+
+;;; Idea: let P,Q be polynomials, and let x0 be 
+;;;  random numerical arguments.
+
+;;;                 gcd
+;;;  P(x),  Q(x) |------------> G(x)
+;;;   -      -                   -
+;;;   |      |                   |
+;;;   |      |                   |
+;;;   |      |                   |
+;;;   V      V      gcd          V  
+;;;  P(x0), Q(x0) |-----> G'= K*G(x0)
+
+;;; If x0 is big enough, then G'=1 is
+;;;   good evidence that G(x)=1.
+
+;;; See end of file for experiments that show this is valuable.
+
+(define *heuristic-sparse-gcd-enabled* #t)
+(define *heuristic-sparse-gcd-win* 0)
+(define *heuristic-sparse-gcd-lose* 0)
+
+(define (sparse-heuristic-gcd p1 p2)
+  (if *heuristic-sparse-gcd-enabled*
+      (let ((n (length (sparse-exponents (car p1)))))
+	(assert (fix:= n (length (sparse-exponents (car p2)))))
+	(let ((args (generate-list n interpolate-random)))
+	  (let ((v1 (sparse-evaluate p1 args))
+		(v2 (sparse-evaluate p2 args)))
+	    (cond ((= (base/gcd v1 v2) 1)
+		   (set! *heuristic-sparse-gcd-win*
+			 (fix:+ *heuristic-sparse-gcd-win* 1))
+		   (sparse-one n))
+		  (else
+		   (set! *heuristic-sparse-gcd-lose*
+			 (fix:+ *heuristic-sparse-gcd-lose* 1))
+		   (sparse-multivariate-gcd p1 p2))))))
+      (sparse-multivariate-gcd p1 p2)))
 
 
 ;;; sparse-multivariate-gcd determines the maximum possible degree of
@@ -82,22 +131,11 @@ USA.
 		  (list-transpose (map car P))))
 	(dQs (map (lambda (l) (apply max l))
 		  (list-transpose (map car Q)))))
-    (assert (= n (length (sparse-exponents (car Q)))))
+    (assert (fix:= n (length (sparse-exponents (car Q)))))
     (let ((ds (map min dPs dQs)))
       (sparse-multivariate-gcd-helper P Q n ds))))
+
 
-(define (sparse-monomial-gcd m1 m2)
-  (sparse-term (map min (sparse-exponents m1) (sparse-exponents m2))
-	       (base/gcd (sparse-coefficient m1) (sparse-coefficient m2))))
-
-(define (sparse-content poly)
-  (let lp ((p (cdr poly)) (ans (car poly)))
-    (cond ((null? p) ans)
-	  ((sparse-one-term? ans) ans)
-	  (else
-	   (lp (cdr p)
-	       (sparse-monomial-gcd (car p) ans))))))
-
 (define (sparse-multivariate-gcd-helper P Q n ds)
   (reset-interpolation-args! ds
 			     (apply max (map sparse-coefficient P))
@@ -110,7 +148,7 @@ USA.
 	   (g1 (univariate-gcd P1 Q1)))
       (let stagelp ((k 1) (g g1) (rargs rargs1))	
 	;; g has k vars interpolated to make it arity k.
-	(cond ((= k n) g)
+	(cond ((fix:= k n) g)
 	      ((sparse-zero? g)
 	       (if *sgcd-wallp* (pp `(sparse-gcd: zero!)))
 	       (restart time0))
@@ -144,7 +182,7 @@ USA.
 				(pp `(sparse-gcd: GkSkels-not-same ,GkSkels)))
 			    (stagelp k g rargs))
 		     (let ((xk+1s
-			    (generate-list (+ (list-ref ds k) 1)
+			    (generate-list (fix:+ (list-ref ds k) 1)
 					   interpolate-random)))
 		       (lu-decompose
 			(matrix-by-row-list
@@ -161,26 +199,23 @@ USA.
 				 (map (lambda (xk+1)
 					(let ((values
 					       (map (lambda (Gk)
-						      (sparse-evaluate
-						       Gk
-						       (list xk+1)))
+						      (sparse-evaluate Gk
+								       (list xk+1)))
 						    Gks)))
 					  (vector->list
-					   (lu-backsubstitute
-					    lu-matrix
-					    lu-permutation
-					    (list->vector values)))))
+					   (lu-backsubstitute lu-matrix
+							      lu-permutation
+							      (list->vector values)))))
 				      xk+1s)))
 			    (let clp ((css (list-transpose coeffs)) (cps '()))
 			      (if (null? css)
-				  (let ((cps (reverse cps)))
-				    (let ((new-g (expand-poly g cps)))
-				      (if (and (sparse-divisible? Pk new-g)
-					       (sparse-divisible? Qk new-g))
-					  (stagelp (fix:+ k 1) new-g (cdr rargs))
-					  (begin (if *sgcd-wallp*
-						     (pp `(sparse-gcd: division)))
-						 (restart time0)))))
+				  (let ((new-g (expand-poly g (reverse! cps))))
+				    (if (and (sparse-divisible? Pk new-g)
+					     (sparse-divisible? Qk new-g))
+					(stagelp (fix:+ k 1) new-g (cdr rargs))
+					(begin (if *sgcd-wallp*
+						   (pp `(sparse-gcd: division)))
+					       (restart time0))))
 				  (univariate-interpolate-values
 				   xk+1s (car css)
 				   (lambda (cp) (clp (cdr css) (cons cp cps)))
@@ -194,27 +229,32 @@ USA.
 
 (define *sgcd-wallp* #f)
 
+;;; This starts out with small primes and works its way by requiring a
+;;; restart if necessary.
+
 (define *interpolate-primes-stream* '())
 
 (define (reset-interpolation-args! ds max-c-p max-c-q)
-  (set! *interpolate-primes-stream* prime-numbers-stream)
+  (set! *interpolate-primes-stream*
+	(stream-tail prime-numbers-stream (apply max ds)))
   'done)
 
 (define (make-interpolation-args k)
   (let lp ((i 0) (s *interpolate-primes-stream*) (args '()))
-    (if (= i k)
+    (if (fix:= i k)
 	(begin (set! *interpolate-primes-stream* s)
 	       args)
-	(lp (+ i 1) (tail s) (cons (head s) args)))))
+	(lp (fix:+ i 1) (tail s) (cons (head s) args)))))
 
 #|
 ;;; This is trying to be a good boy, using the formula from Zippel for
-;;; the mod prime, but I think it is not really necessary.  Timings 
-;;; at the end are using this choice...
+;;; the mod prime, but I think it is not really necessary.  Timings at
+;;; the end are using this choice...  The numbers here are usually too
+;;; big for comfort.
 
 (define (reset-interpolation-args! ds max-c-p max-c-q)
   (first-prime-stream-exceeding!
-   (max max-c-p max-c-p (apply max ds)))
+   (max max-c-p max-c-q (apply max ds)))
   'done)
 
 (define (first-prime-stream-exceeding! n)
@@ -224,16 +264,25 @@ USA.
 	(lp (tail s)))))
 |#
 #|
-;;; This randomly works pretty well, but... I don't understand why.
+;;; This randomly works pretty well, but... it doesn't work for high
+;;; degree polys, because the numbers that we start out with are
+;;; pretty big.
 
 (define (reset-interpolation-args! ds max-c-p max-c-q)
   'done)
+
+(define *number-of-primes* 5000)
+
+(define *prime-table*
+  (make-initialized-vector *number-of-primes*
+			   (lambda (i)
+			     (stream-ref prime-numbers-stream i))))
 
 (define (make-interpolation-args k)
   (generate-list k interpolate-prime))
 
 (define (interpolate-prime i)
-  (stream-ref prime-numbers-stream (random 5000)))
+  (vector-ref *prime-table* (random *number-of-primes*)))
 |#
 #|
 ;;; I tried relatively-prime stuff, and it doesn't really do the job!
@@ -244,14 +293,14 @@ USA.
 
 (define (make-interpolation-args k)
   (let next ((i 0) (args '()))
-    (if (= i k)
+    (if (fix:= i k)
 	args
 	(let try-again ((trial (random *interpolate-size*)))
 	  (if (for-all? *interpolation-args*
 		(lambda (a) (= (base/gcd a trial) 1)))
 	      (begin (set! *interpolation-args*
 			   (cons trial *interpolation-args*))
-		     (next (+ i 1) (cons trial args)))
+		     (next (fix:+ i 1) (cons trial args)))
 	      (try-again (random *interpolate-size*)))))))
 |#
 
@@ -268,9 +317,13 @@ USA.
   (cond ((null? u) v)
 	((null? v) u)
 	((sparse-constant? u)
-	 (univariate-constant (base/gcd (sparse-coefficient (car u)) (univariate-content v))))
+	 (univariate-constant
+	  (base/gcd (sparse-coefficient (car u))
+		    (univariate-content v))))
 	((sparse-constant? v)
-	 (univariate-constant (base/gcd (univariate-content u) (sparse-coefficient (car v)))))
+	 (univariate-constant
+	  (base/gcd (univariate-content u)
+		    (sparse-coefficient (car v)))))
 	(else
 	 (let ((uc (univariate-content u))
 	       (vc (univariate-content v)))
@@ -618,4 +671,71 @@ USA.
 ;(show-time (lambda () (gcd-test d10a f10a g10a)))
 process time: 2540 (2540 RUN + 0 GC); real time: 2534
 ;Value: #t
+|#
+
+#|
+(define *heuristic-sparse-gcd-enabled* #f)
+(define *heuristic-sparse-gcd-win* 0)
+(define *heuristic-sparse-gcd-lose* 0)
+(define *heuristic-sparse-gcd-false-positive* 0)
+(define *heuristic-sparse-gcd-false-negative* 0)
+
+
+(define (reset-heuristic-sparse-gcd-test)
+  (pp (list *heuristic-sparse-gcd-win*
+	    *heuristic-sparse-gcd-lose*
+	    *heuristic-sparse-gcd-false-positive*
+	    *heuristic-sparse-gcd-false-negative*))
+  (set! *heuristic-sparse-gcd-win* 0)
+  (set! *heuristic-sparse-gcd-lose* 0)
+  (set! *heuristic-sparse-gcd-false-positive* 0)
+  (set! *heuristic-sparse-gcd-false-negative* 0)
+  (set! *heuristic-sparse-gcd-enabled* #t))
+
+(define (heuristic-sparse-gcd-test sparse-gcd)
+  (define (the-gcd p1 p2)
+    (if *heuristic-sparse-gcd-enabled*
+	(let ((n (length (sparse-exponents (car p1)))))
+	  (assert (fix:= n (length (sparse-exponents (car p2)))))
+	  (let ((args (generate-list n interpolate-random)))
+	    (let ((v1 (sparse-evaluate p1 args)) (v2 (sparse-evaluate p2 args)))
+	      (cond ((= (base/gcd v1 v2) 1)
+		     (set! *heuristic-sparse-gcd-win*
+			   (fix:+ *heuristic-sparse-gcd-win* 1))
+		     (let ((g (sparse-gcd p1 p2)))
+		       (if (not (sparse-one? g))
+			   (set! *heuristic-sparse-gcd-false-positive*
+				 (fix:+ *heuristic-sparse-gcd-false-positive* 1)))
+		       g))
+		    (else
+		     (set! *heuristic-sparse-gcd-lose*
+			   (fix:+ *heuristic-sparse-gcd-lose* 1))
+		     (let ((g (sparse-gcd p1 p2)))
+		       (if (sparse-one? g)
+			   (set! *heuristic-sparse-gcd-false-negative*
+				 (fix:+ *heuristic-sparse-gcd-false-negative* 1)))
+		       g))))))
+	(sparse-gcd p1 p2)))
+  the-gcd)
+
+(define saved-sparse-multivariate-gcd sparse-multivariate-gcd)
+
+#|
+(set! sparse-multivariate-gcd
+      (heuristic-sparse-gcd-test saved-sparse-multivariate-gcd))
+
+;;; Test on a big problem reveals:
+
+*heuristic-sparse-gcd-win*
+;Value: 21538
+
+*heuristic-sparse-gcd-lose*
+;Value: 608
+
+*heuristic-sparse-gcd-false-positive*
+;Value: 0
+
+*heuristic-sparse-gcd-false-negative*
+;Value: 75
+|#
 |#

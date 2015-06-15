@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -39,7 +39,26 @@ USA.
 (define (wedge f1 f2)
   (error "Wedge not yet defined"))
 
+(define (ff:zero vf) zero-manifold-function)
 
+(define (ff:zero-like op)
+  (assert (form-field? op) "ff:zero-like")
+  (make-op ff:zero
+	   'ff:zero
+	   (operator-subtype op)
+	   (operator-arity op)
+	   (operator-optionals op)))
+
+(assign-operation 'zero-like ff:zero-like form-field?)
+
+
+(define (ff:zero? ff)
+  (assert (form-field? ff) "ff:zero?")
+  (eq? (operator-procedure ff) ff:zero))
+
+(assign-operation 'zero? ff:zero? form-field?)
+
+
 ;;; A 1form is specified by a function that gives components, in a
 ;;; down tuple, relative to a coordinate system.
 

@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -141,30 +141,59 @@ USA.
 
 (define *constants* '())
 
-(define *numerical-constants* #t)
-
 (define (define-constant name tex-string description value units
 	                #!optional uncertainty)
   (if (environment-bound? scmutils-base-environment name)
       (write-line `(clobbering ,name)))
   (let ((constant (literal-number name)))
     (cond ((with-units? value)
-	   (assert (equal? (u:units value) units)))
-	  ((unitless? units))
-	  (else (set! value (with-units value units))))
+	   (assert (equal? (u:units value) units))))
+    (set! value (default-simplify (u:value value)))
+    (add-property! constant 'name name)
     (add-property! constant 'numerical-value value)
     (add-property! constant 'units units)
     (add-property! constant 'tex-string tex-string)
     (add-property! constant 'description description)
     (if (not (default-object? uncertainty))
 	(add-property! constant 'uncertainty uncertainty))
-    (if *numerical-constants*
-	(environment-define scmutils-base-environment name value)
-	(environment-define scmutils-base-environment name constant))
     (set! *constants* (cons constant *constants*))
+    (environment-define scmutils-base-environment
+			name
+			(with-units value units))
     name))
 
+(define (numerical-constants #!optional units? constants)
+  (if (default-object? units?) (set! units? #t))
+  (if (default-object? constants) (set! constants *constants*))
+  (for-each (lambda (c)
+	      (environment-assign!
+	       scmutils-base-environment
+	       (get-property c 'name)
+	       (if units?
+		   (with-units (get-property c 'numerical-value)
+		     (get-property c 'units))
+		   (g:* (get-property c 'numerical-value)
+			(unit-scale (get-property c 'units))))))
+	    constants))
 
+(define (symbolic-constants #!optional units? constants)
+  (if (default-object? units?) (set! units? #t))
+  (if (default-object? constants) (set! constants *constants*))
+  (for-each (lambda (c)
+	      (environment-assign!
+	       scmutils-base-environment
+	       (get-property c 'name)
+	       (if units?
+		   (with-units (get-property c 'name)
+		     (get-property c 'units))
+		   (g:* (get-property c 'name)
+			(unit-scale (get-property c 'units))))))
+	    constants))
+
+(define (get-constant-data name)
+  (find-matching-item *constants*
+    (lambda (c) (eq? (get-property c 'name) name))))
+
 ;;; & is used to attach units to a number, or to check that a number
 ;;; has the given units.
 

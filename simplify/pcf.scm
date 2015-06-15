@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -631,62 +631,8 @@ USA.
 ;Value: (*dense* 1 5 13 23 23 17 7 2)
 |#
 
-;;; Given a GCD algorithm, this makes a conservative heuristic algorithm.
-
-;;; Idea: let P,Q be polynomials, and let x0 be 
-;;;  random numerical arguments.
-
-;;;                 gcd
-;;;  P(x),  Q(x) |------------> G(x)
-;;;   -      -                   -
-;;;   |      |                   |
-;;;   |      |                   |
-;;;   |      |                   |
-;;;   V      V      gcd          V  
-;;;  P(x0), Q(x0) |-----> G'= K*G(x0)
-
-;;; If x0 is big enough, then G'=1 is
-;;;   good evidence that G(x)=1.
-
-(define (poly/heuristic-gcd poly/gcd)
-  (define (the-gcd p1 p2)
-    (if *gcd-heuristic-enabled*
-	(let ((arity (poly/check-same-arity p1 p2)))
-	  (let ((args
-		 (make-initialized-list arity
-					(lambda (i)
-					  (vector-ref prime-numbers-vector
-						      (random
-						       (min (* 2 arity) n-random-primes)))))))
-	    (let ((v1 (poly/horner p1 args)) (v2 (poly/horner p2 args)))
-	      (cond ((or (not (exact? v1)) (not (exact? v2)))
-		     (set! *gcd-heuristic-inexact* (fix:+ *gcd-heuristic-inexact* 1))
-		     :one)
-		    ((base/one? (base/gcd v1 v2))
-		     (set! *gcd-heuristic-win* (fix:+ *gcd-heuristic-win* 1))
-		     :one)
-		    (else
-		     (set! *gcd-heuristic-grunt* (fix:+ *gcd-heuristic-grunt* 1))
-		     (poly/gcd p1 p2))))))
-	(poly/gcd p1 p2)))
-  the-gcd)
-
-
-(define *gcd-heuristic-enabled* #t)
-(define *gcd-heuristic-win* 0)
-(define *gcd-heuristic-grunt* 0)
-(define *gcd-heuristic-inexact* 0)
-
-(define n-random-primes 100)
-(define skip-initial-primes 100)
-
-(define prime-numbers-vector
-  (make-initialized-vector n-random-primes
-			   (lambda (i)
-			     (stream-ref prime-numbers-stream
-					 (fix:+ i skip-initial-primes)))))
-
-;;; GCD memoizer.
+;;; GCD memoizer.  A hairy attempt to speed up the gcd.  Ultimately
+;;; this failed and we went to a sparse interpolation gcd.
 
 (define (gcd-memoizer poly/gcd)
   (let ((table
@@ -710,7 +656,6 @@ USA.
 (define *gcd-hit* 0)
 (define *gcd-miss* 0)
 
-
 (define (unordered-pair-equal? a1 a2)
   (and (pair? a1)
        (pair? a2)
@@ -727,6 +672,15 @@ USA.
 	(modulo (* (numerator v) (denominator v))
 		modulus)))))
 
+(define n-random-primes 100)
+(define skip-initial-primes 100)
+
+(define prime-numbers-vector
+  (make-initialized-vector n-random-primes
+			   (lambda (i)
+			     (stream-ref prime-numbers-stream
+					 (fix:+ i skip-initial-primes)))))
+
 (define hash-args-vector
   (make-initialized-vector n-random-primes
     (lambda (i)
@@ -734,6 +688,9 @@ USA.
 	(lambda (j)
 	  (vector-ref prime-numbers-vector
 		      (random (min (* 2 i) n-random-primes))))))))
+
+(define poly/gcd-memoized (gcd-memoizer poly/gcd-euclid))
+;;; (define poly/gcd-memoized (gcd-memoizer poly/gcd-collins))
 
 ;;; The following returns the derivative of a polynomial with respect
 ;;; to a given variable index.  Variable 1 is the principal variable.
@@ -904,7 +861,7 @@ q_{j+n} = z^n q_j + n z^{n-1} p_j
 
 r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 |#
-
+
 (define (poly/horner-with-error a z cont)
   ;; cont = (lambda (p q r e) ...)
   (if (base? a)
@@ -1324,23 +1281,6 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 
 (define poly:expt poly/expt)
 
-(define poly/gcd-memoized (gcd-memoizer poly/gcd-euclid))
-;;; (define poly/gcd-memoized (gcd-memoizer poly/gcd-collins))
-
-#|
-;;; Now set in pcf-fpf.scm to sparse stuff
-(define (poly:gcd x y) (poly/gcd-memoized x y))
-|#
-
-#|
-;;; This is in rcf.scm
-(define (pcf:gcd x y) 
-  ((poly/heuristic-gcd poly/gcd-memoized) x y))
-|#
-
-(define pcf:gcd)
-(define poly:gcd)
-
 (define poly:divide poly/div)
 (define poly:pseudo-remainder poly/pseudo-remainder)
 (define poly:quotient poly/quotient)
@@ -1373,6 +1313,12 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 (define poly:contractable? poly/contractable?)
 (define poly:new-variables poly/make-vars)
 
+
+#|
+;;; Now set in pcf-fpf.scm to sparse stuff
+(define (poly:gcd x y) (poly/gcd-memoized x y))
+|#
+
 ;;; Old style stuff, such as POLY/HERMITE needs polys in reversed
 ;;;  dense form.
 
@@ -1384,8 +1330,7 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
     (if (base? p)
 	(list p)
 	(reverse (poly/termlist p)))))
-
-
+
 ;;; For simplifier
 
 (define (poly:->expression p vars)
@@ -1425,10 +1370,12 @@ r_{j+n} = z^n r_j + n z^{n-1} q_j + 1/2 n (n-1) z^{n-2} p_j
 	 (exp (poly:->expression p vars)))	  
     `(lambda ,vars ,exp)))
 
-
-(define +$poly (accumulation poly/add poly/zero))
-(define -$poly (inverse-accumulation poly/sub poly/add poly/negate poly/zero))
-(define *$poly (accumulation poly/mul poly/one))
+(define +$poly
+  (accumulation poly/add poly/zero))
+(define -$poly
+  (inverse-accumulation poly/sub poly/add poly/negate poly/zero))
+(define *$poly
+  (accumulation poly/mul poly/one))
 
 (define poly:operator-table
   `((+        ,+$poly)

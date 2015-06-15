@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -27,17 +27,11 @@ USA.
 
 (define (define-manifold manifold-name
 	  manifold-type manifold-dimension
-	  point-type point-dimension)
+	  point-type)
   (let ((point-prototype
-	 (s:generate point-dimension 'up
-		     (lambda (i)
-		       (string->symbol
-			(string-append
-			 (symbol->string manifold-name)
-			 "-"
-			 (number->string i))))))
+	 (structure->prototype manifold-name point-type))
 	(point-chains
-	 (s:generate point-dimension 'up list))
+	 (structure->access-chains point-type))
 	(coordinate-systems '()))
     (define (the-manifold m)
       (case m
@@ -47,9 +41,10 @@ USA.
 	((dimension manifold-dimension) manifold-dimension)
 
 	((point-type) point-type)
-	((point-dimension) point-dimension)
+	((point-dimension) s:dimension)
 
 	((typical-point) (typical-object point-prototype))
+	((point-prototype) point-prototype)
 	((point-chains) point-chains)
 
 	((new-coordinates)
@@ -80,8 +75,20 @@ USA.
     (let ((n (s:dimension coordinate-prototype))
 	  (coordinate-functions #f)
 	  (coordinate-basis-vector-fields #f)
-	  (coordinate-basis-1form-fields #f))
-      (if (not (fix:= n (manifold 'dimension)))
+	  (coordinate-basis-1form-fields #f)
+	  (coordinate-basis #f)
+	  (coordinates->point
+	   (compose (linear-memoize-1arg coordinates->point)
+		    (lambda (coords)
+		      (s:map/r simplify-numerical-expression
+			       coords))))
+	  (point->coordinates
+	   (compose (linear-memoize-1arg point->coordinates)
+		    (lambda (point)
+		      (s:map/r simplify-numerical-expression
+			       point)))))
+      (if (and (not (fix:= n (manifold 'dimension)))
+	       (not (eq? coordinate-system-name 'embedding)))
 	  (error "Coordinate system does not have dimension of manifold"
 		 coordinate-system-name (manifold 'manifold-name)))
       (define (the-coordinate-system m)
@@ -92,6 +99,7 @@ USA.
 	  ((->point) coordinates->point)
 	  ((->coords) point->coordinates)
 	  ((typical-coords) (typical-object coordinate-prototype))
+	  ((coordinate-prototype) coordinate-prototype)
 	  ((access-chains) access-chains)
 	  ((dual-chains) dual-chains)
 	  ((coordinate-functions)
@@ -108,15 +116,16 @@ USA.
 	   (if (not coordinate-basis-vector-fields)
 	       (set! coordinate-basis-vector-fields
 		     (s:map/r (lambda (coordinate-name access-chain)
-				(let ((oname
-				       (string->symbol
-					(string-append "d/d"
-						       (symbol->string coordinate-name)))))
-				  (list oname
+				(let* ((oname (symbol 'd/d coordinate-name))
+				       (vf
 					(apply coordinate-basis-vector-field
 					       the-coordinate-system
 					       oname
-					       access-chain))))
+					       access-chain)))
+				  (set-operator-optionals! vf
+				    (cons `(manifold ,manifold)
+					  (operator-optionals vf)))
+				  (list oname vf)))
 			      coordinate-prototype
 			      access-chains)))
 	   coordinate-basis-vector-fields)
@@ -125,30 +134,52 @@ USA.
 	   (if (not coordinate-basis-1form-fields)
 	       (set! coordinate-basis-1form-fields
 		     (s:map/r (lambda (coordinate-name access-chain)
-				(let ((oname
-				       (string->symbol
-					(string-append "d"
-						       (symbol->string coordinate-name)))))
-				  (list oname
+				(let* ((oname (symbol 'd coordinate-name))
+				       (ff
 					(apply coordinate-basis-1form-field
 					       the-coordinate-system
 					       oname
-					       access-chain))))
+					       access-chain)))
+				  (set-operator-optionals! ff
+				    (cons `(manifold ,manifold)
+					  (operator-optionals ff)))
+				  (list oname ff)))
 			      coordinate-prototype
 			      access-chains)))
 	   coordinate-basis-1form-fields)
 	  ((coordinate-basis)
-	   (make-basis (the-coordinate-system 'coordinate-basis-vector-fields)
-		       (the-coordinate-system 'coordinate-basis-1form-fields)))
+	   (if (not coordinate-basis)
+	       (set! coordinate-basis
+		     (make-basis
+		      (s:map/r cadr
+			       (flip-indices
+				(the-coordinate-system
+				 'coordinate-basis-vector-fields)))
+		      (s:map/r cadr
+			       (the-coordinate-system
+				'coordinate-basis-1form-fields)))))
+	   coordinate-basis)
 	  (else
-	   (error "Unknown message: coordinate-system"
-		  coordinate-system-name (manifold 'manifold-name)))))
+	   (cond ((assq m
+			(vector->list
+			 (the-coordinate-system
+			  'coordinate-functions)))
+		  => cadr)
+		 ((assq m
+			(vector->list
+			 (the-coordinate-system
+			  'coordinate-basis-vector-fields)))
+		  => cadr)
+		 ((assq m
+			(vector->list
+			 (the-coordinate-system
+			  'coordinate-basis-1form-fields)))
+		  => cadr)
+		 (else
+		  (error "Unknown message: coordinate-system"
+			 coordinate-system-name (manifold 'manifold-name)))))))
       ((manifold 'new-coordinates) the-coordinate-system)))
   (list coordinate-system-name (manifold 'name)))
-
-
-
-
 
 
 (define (install-coordinates coordinate-system)
@@ -166,7 +197,7 @@ USA.
   (list (coordinate-system 'name) ((coordinate-system 'manifold) 'name)))
 
 #|
-(define-manifold 'Euclidean-plane Real 2 Real 2)
+(define-manifold 'Euclidean-plane Real 2 (up Real Real))
 
 (define-coordinate-system Euclidean-plane 'rectangular (up 'x 'y)
   (lambda (coords)
@@ -204,32 +235,108 @@ USA.
 (install-coordinates (Euclidean-plane 'rectangular))
 
 (install-coordinates (Euclidean-plane 'polar))
+
+(define mr (((Euclidean-plane 'rectangular) '->point) (up 'x0 'y0)))
 
-
-(define m (((Euclidean-plane 'rectangular) '->point) (up 'x0 'y0)))
+(define mp (((Euclidean-plane 'polar) '->point) (up 'r0 'theta0)))
 
 (define circular (- (* x d/dy) (* y d/dx)))
 
-(pec ((circular (+ (* 2 x) (* 3 y))) m))
+(pec ((circular (+ (* 2 x) (* 3 y))) mr))
 #| Result:
 (+ (* 3 x0) (* -2 y0))
 |#
 
-(pec ((circular theta) m))
+(pec ((circular theta) mr))
 #| Result:
 1
 |#
 
-(pec ((dr circular) m))
+(pec ((dr circular) mr))
 #| Result:
 0
 |#
+
+
+(pec (((d r) d/dr) mr))
+#| Result:
+1
+|#
+
+(pec ((dr d/dr) mr))
+#| Result:
+1
+|#
+
+
+(pec ((dr (literal-vector-field 'v (Euclidean-plane 'polar))) mr))
+#| Result:
+(v^0 (up (sqrt (+ (expt x0 2) (expt y0 2))) (atan y0 x0)))
+|#
+
+(pec (((d r) (literal-vector-field 'v (Euclidean-plane 'polar))) mr))
+#| Result:
+(v^0 (up (sqrt (+ (expt x0 2) (expt y0 2))) (atan y0 x0)))
+|#
+
+(pec ((dr (literal-vector-field 'v (Euclidean-plane 'rectangular))) mr))
+#| Result:
+(+ (/ (* x0 (v^0 (up x0 y0))) (sqrt (+ (expt x0 2) (expt y0 2))))
+   (/ (* y0 (v^1 (up x0 y0))) (sqrt (+ (expt x0 2) (expt y0 2)))))
+|#
+
+(pec (((d r) (literal-vector-field 'v (Euclidean-plane 'rectangular))) mr))
+#| Result:
+(+ (/ (* x0 (v^0 (up x0 y0))) (sqrt (+ (expt x0 2) (expt y0 2))))
+   (/ (* y0 (v^1 (up x0 y0))) (sqrt (+ (expt x0 2) (expt y0 2)))))
+|#
+
+(define (g-polar u v)
+  (+ (* (dr u) (dr v))
+     (* (* r (dtheta u)) (* r (dtheta v)))))
+
+(define (g-rect u v)
+  (+ (* (dx u) (dx v))
+     (* (dy u) (dy v))))
+
+(pec (((- g-polar g-rect)
+      (literal-vector-field 'v (Euclidean-plane 'rectangular))
+      (literal-vector-field 'v (Euclidean-plane 'rectangular)))
+     mr))
+#| Result:
+0
+|#
+
+(pec (((- g-polar g-rect)
+      (literal-vector-field 'v (Euclidean-plane 'polar))
+      (literal-vector-field 'v (Euclidean-plane 'polar)))
+     mr))
+#| Result:
+0
+|#
+
+(pec (((- g-polar g-rect)
+      (literal-vector-field 'v (Euclidean-plane 'polar))
+      (literal-vector-field 'v (Euclidean-plane 'polar)))
+     mp))
+#| Result:
+0
+|#
+
+(pec (((- g-polar g-rect)
+      (literal-vector-field 'v (Euclidean-plane 'rectangular))
+      (literal-vector-field 'v (Euclidean-plane 'rectangular)))
+     mp))
+#| Result:
+0
+|#
+
 |#
 
 #|
-(define-manifold 'S2 real 2 real 3)
+(define-manifold 'S2M Real 2 (up Real Real Real))
 
-(define-coordinate-system S2 'colatitude-longitude (up 'theta 'phi)
+(define-coordinate-system S2M 'colatitude-longitude (up 'theta 'phi)
   (lambda (coords)			;coordinates->point
     (if (and (up? coords) (fix:= (s:dimension coords) 2))
 	(let ((theta (ref coords 0))
@@ -237,7 +344,7 @@ USA.
 	  (up (* (sin theta) (cos phi)) ;x
 	      (* (sin theta) (sin phi)) ;y
 	      (* (cos theta))))		;z
-	(error "Bad coordinates: S2" coords)))
+	(error "Bad coordinates: S2M" coords)))
   (lambda (point)			;point->coordinates 
     (if (and (up? point) (fix:= (s:dimension point) 3))
 	(let ((x (ref point 0))
@@ -247,7 +354,7 @@ USA.
 	  ;;           (+ (square x) (square y) (square z))))
 	  (up (acos z)			;theta
 	      (atan y x)))		;phi
-	(error "Bad point: S2" point)))
+	(error "Bad point: S2M" point)))
   )
 |#
 

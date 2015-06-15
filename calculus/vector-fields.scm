@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -64,6 +64,25 @@ USA.
   (assert (vector-field? vf) "Bad vector field: vector-field->components")
   ((vf (coordinate-system '->coords)) 
    ((coordinate-system '->point) coords)))
+
+(define (vf:zero f) zero-manifold-function)
+
+(define (vf:zero-like op)
+  (assert (vector-field? op) "vf:zero-like")
+  (make-op vf:zero
+	   'vf:zero
+	   (operator-subtype op)
+	   (operator-arity op)
+	   (operator-optionals op)))
+
+(assign-operation 'zero-like vf:zero-like vector-field?)
+
+
+(define (vf:zero? vf)
+  (assert (vector-field? vf) "vf:zero?")
+  (eq? (operator-procedure vf) vf:zero))
+
+(assign-operation 'zero? vf:zero? vector-field?)
 
 
 ;;; It is often useful to construct a literal vector field
@@ -81,7 +100,7 @@ USA.
 						     (number->string i)))
 						   function-signature)))))
 	(components->vector-field components coordinate-system name)))))
-
+
 ;;; For any coordinate system we can make a coordinate basis.
 
 (define ((coordinate-basis-vector-field-procedure coordinate-system . i) f)
@@ -101,7 +120,7 @@ USA.
 		  `(e ,@chain)
 		  chain))
 	 (coordinate-system 'dual-chains)))
-
+
 #|
 ;;; Doesn't work.
 

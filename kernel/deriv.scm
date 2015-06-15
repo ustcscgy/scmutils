@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -89,9 +89,7 @@ USA.
 ;;; the column of rows that is the canonical form for a matrix.
 
 ;;; We generalize this Euclidean-space derivative so that we may pass
-;;; in an arbitrary structure of nested vectors.  Although we have not
-;;; yet prepared the machinery to support this, sigh, we intend to
-;;; play it like so:
+;;; in an arbitrary structure of nested vectors.
 
 (define (deriv:euclidean-structure f)
     (define (sd g v)
@@ -111,6 +109,50 @@ USA.
       (sd f v))
     a-euclidean-derivative)
 
+#|
+(define (deriv:euclidean-structure f)
+  (define (sd g v)
+    (cond ((structure? v)
+	   (s:generate (s:length v) (s:opposite v)
+		       (lambda (i)
+			 (sd (lambda (xi)
+			       (g (s:with-substituted-coord v i xi)))
+			     (s:ref v i))))) 
+	  ((or (numerical-quantity? v)
+	       (abstract-quantity? v))
+	   (simple-derivative-internal g v))
+	  (else
+	   (error "Bad structure -- DERIV:EUCLIDEAN-STRUCTURE"
+		  g v))))
+  (define (a-euclidean-derivative v)
+    (fluid-let ((differential-tag-count differential-tag-count))
+      (sd f v)))
+  a-euclidean-derivative)
+
+;;; The fluid let greatly improves the efficiency of the system by
+;;; reducing more intermediate expressions to a canonical form, but it
+;;; causes the following bug:
+
+(pe ((simple-derivative-internal
+      (lambda (eps)
+	 (lambda (t)
+	   ((D (* cos eps)) t)))
+      'e)
+     't))
+(* -1 (sin t)) ;; correct
+
+
+(pe (((D
+       (lambda (eps)
+	 (lambda (t)
+	   ((D (* cos eps)) t))))
+      'e)
+     't))
+0	      ;; wrong!
+
+;;; To recover this idea see custom-repl.scm
+|#
+
 ;;; We ignore abstract structures, for the nonce.
 ;;; There are structures.  A structure is like a vector, but it is
 ;;; either UP or DOWN.  S:GENERATE takes an argument that gives the

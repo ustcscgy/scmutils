@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -23,40 +23,37 @@ USA.
 
 |#
 
+(fluid-let ((compiler:use-multiclosures? #f))
+  (for-each cf-conditionally
+	    '("simplify"
+	      )))
+
 (for-each cf-conditionally
 	  '("pcf"
 	    "rcf"
-	    "simplify"
 	    "split-poly"
 	    "fpf"
 
 	    "symbenv"
-	    "bigsimp"
+	    "rule-syntax"
+	    "matcher"
+	    "rule-simplifier"
+
 	    ))
 
-(let ((fn
-       (if (environment-bound? system-global-environment
-			       'make-syntactic-closure)
-	   "matchsyn"
-	   "matchsyn-old")))
+(let ((fn "syntax"))
   (if (not (file-processed? fn "scm" "com"))
       (cf fn))
   (let ((environment (nearest-repl/environment)))
     (load fn environment)
+    (load "rule-syntax" environment)
     (for-each (lambda (name)
 		(link-variables system-global-environment name
 				environment name))
-	      '(rule-system
-		matcher-procedure
-		matches
-		matches-one-of
-		match-assign
-		:
-		::))))
+	      '(rule-system))))
 
 (for-each cf-conditionally
-	  '("sincos"
-	    "rules"
+	  '("rules"
 	    ))
 
 (for-each cf-conditionally

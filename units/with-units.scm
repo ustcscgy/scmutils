@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -212,21 +212,22 @@ USA.
 
 (assign-operation '=          u:=            with-units? with-units?)
 
-(assign-operation '+          u:+            with-units? any?)
-(assign-operation '+          u:+            any?         with-units?)
+(assign-operation '+   u:+     with-units?             (negation differential?))
+(assign-operation '+   u:+     (negation differential?)  with-units?)
 
-(assign-operation '-          u:-            with-units? any?)
-(assign-operation '-          u:-            any?         with-units?)
+(assign-operation '-   u:-     with-units?             (negation differential?))
+(assign-operation '-   u:-     (negation differential?)  with-units?)
 
-(assign-operation '*          u:*            with-units? any?)
-(assign-operation '*          u:*            any? with-units?)
+(assign-operation '*   u:*     with-units?             (negation differential?))
+(assign-operation '*   u:*     (negation differential?)  with-units?)
 
-(assign-operation '/          u:/            with-units? any?)
-(assign-operation '/          u:/            any? with-units?)
+(assign-operation '/   u:/     with-units?             (negation differential?))
+(assign-operation '/   u:/     (negation differential?)  with-units?)
 
 ;(assign-operation 'dot-product  u:dot-product  with-units? with-units?)
 
-(assign-operation 'expt       u:expt         with-units?  any?)
+(assign-operation 'expt       u:expt         with-units?  (negation differential?))
+
 ;(assign-operation 'gcd        u:gcd          with-units? with-units?)
 
 (assign-operation 'make-rectangular    u:make-rectangular with-units? with-units?)

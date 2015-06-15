@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -27,45 +27,6 @@ USA.
 
 (declare (usual-integrations))
 
-;;; The following procedures are mapped for polynomial arithmetic.
-;;; Other implementation of polynomial arithmetic may be constructed
-;;; by modifying this map.
-
-(define pcf:zero poly:zero)
-(define pcf:one poly:one)
-(define pcf:zero? poly:zero?)
-(define pcf:one? poly:one?)
-(define pcf:leading-base-coefficient poly:leading-base-coefficient)
-(define pcf:normalize-by poly:normalize-by)
-
-(define pcf:pcf? poly?)
-
-(define pcf:= poly:=)
-(define pcf:+ poly:+)
-(define pcf:* poly:*)
-
-#|
-;;; Now set in pcf-fpf.scm to sparse stuff
-(define (pcf:gcd x y)
-  ((poly/heuristic-gcd poly/gcd-memoized) x y))
-|#
-
-(define pcf:quotient poly:quotient)
-(define pcf:- poly:-)
-(define pcf:negate poly:negate)
-(define pcf:value poly:value)
-(define pcf:derivative poly:derivative)
-(define pcf:expt poly:expt)
-(define pcf:new-variables poly:new-variables)
-(define pcf:principal-reverse poly:principal-reverse)
-(define pcf:arg-scale poly:arg-scale)
-(define pcf:arg-shift poly:arg-shift)
-(define pcf:degree poly:degree)
-(define pcf:arity poly:arity)
-(define pcf:extend poly:extend)
-
-(define int:even? even?)
-
 (define rcf-tag '*RCF*)
 
 (define (ratform? object)
@@ -79,18 +40,18 @@ USA.
 (define ratform-denominator caddr)
 
 
-(define rcf:zero pcf:zero)
-(define rcf:one pcf:one)
+(define rcf:zero poly:zero)
+(define rcf:one poly:one)
 
 (define (rcf:zero? q)
-  (and (not (ratform? q)) (pcf:zero? q)))
+  (and (not (ratform? q)) (poly:zero? q)))
 
 (define (rcf:one? q)
-  (and (not (ratform? q)) (pcf:one? q)))
+  (and (not (ratform? q)) (poly:one? q)))
 
 (define (rcf:arity q)	 
   (define (check-same-arity p1 p2)
-    (let ((a1 (pcf:arity p1)) (a2 (pcf:arity p2)))
+    (let ((a1 (poly:arity p1)) (a2 (poly:arity p2)))
       (cond ((fix:= a1 0) a2)
 	    ((fix:= a2 0) a1)
 	    ((fix:= a1 a2) a1)
@@ -99,41 +60,41 @@ USA.
   (cond ((ratform? q)
 	 (check-same-arity (ratform-numerator q)
 			   (ratform-denominator q)))
-	((pcf:pcf? q) (pcf:arity q))
+	((poly? q) (poly:arity q))
 	(else (error "Wrong type -- RCF:ARITY" q))))
 
 (define (make-rcf n d)
-  (cond ((pcf:zero? d)
+  (cond ((poly:zero? d)
 	 (error "Zero denominator -- MAKE-RCF" n d))
-	((or (pcf:zero? n) (pcf:one? d)) n)
-	((number? d) (pcf:* (/ 1 d) n))
+	((or (poly:zero? n) (poly:one? d)) n)
+	((number? d) (poly:* (/ 1 d) n))
 	(else
-	 (let ((dn (pcf:leading-base-coefficient d)))
-	   (if (pcf:one? dn)
+	 (let ((dn (poly:leading-base-coefficient d)))
+	   (if (poly:one? dn)
 	       (make-ratform n d)
-	       (make-ratform (pcf:normalize-by n dn)
-			     (pcf:normalize-by d dn)))))))
+	       (make-ratform (poly:normalize-by n dn)
+			     (poly:normalize-by d dn)))))))
 
 
 (define (rcf:rcf? object)
-  (or (ratform? object) (pcf:pcf? object)))
+  (or (ratform? object) (poly? object)))
 
 (define (rcf:pcf? object)
-  (and (not (ratform? object)) (pcf:pcf? object)))
+  (and (not (ratform? object)) (poly? object)))
 
 (define (rcf:= q r)
   (if (ratform? q)
       (if (ratform? r)
-	  (and (pcf:= (ratform-numerator q) (ratform-numerator r))
-	       (pcf:= (ratform-denominator q) (ratform-denominator r)))
-	  (if (pcf:pcf? r)
+	  (and (poly:= (ratform-numerator q) (ratform-numerator r))
+	       (poly:= (ratform-denominator q) (ratform-denominator r)))
+	  (if (poly? r)
 	      #f
 	      (error "Wrong type -- RCF:=" r)))
       (if (ratform? r)
-	  (if (pcf:pcf? q)
+	  (if (poly? q)
 	      #f
 	      (error "Wrong type -- RCF:=" q))
-	  (pcf:= q r))))
+	  (poly:= q r))))
 
 
 ;;; The notation here is from Knuth (p. 291).
@@ -142,120 +103,120 @@ USA.
 
 (define (rcf:+ u/u* v/v*)
   (rcf:binary-operator u/u* v/v*
-     pcf:+
+     poly:+
      (lambda (u v v*)
-       (if (pcf:zero? u)
+       (if (poly:zero? u)
 	   v/v*
-	   (make-rcf (pcf:+ (pcf:* u v*) v) v*)))
+	   (make-rcf (poly:+ (poly:* u v*) v) v*)))
      (lambda (u u* v)
-       (if (pcf:zero? v)
+       (if (poly:zero? v)
 	   u/u*
-	   (make-rcf (pcf:+ u (pcf:* u* v)) u*)))
+	   (make-rcf (poly:+ u (poly:* u* v)) u*)))
      (lambda (u u* v v*)
-       (if (pcf:= u* v*)
-	   (let* ((n (pcf:+ u v)) (g (pcf:gcd u* n)))
-	     (if (pcf:one? g)
+       (if (poly:= u* v*)
+	   (let* ((n (poly:+ u v)) (g (poly:gcd u* n)))
+	     (if (poly:one? g)
 		 (make-rcf n u*)
-		 (make-rcf (pcf:quotient n g) (pcf:quotient u* g))))
-	   (let ((d1 (pcf:gcd u* v*)))
-	     (if (pcf:one? d1)
-		 (make-rcf (pcf:+ (pcf:* u v*) (pcf:* u* v))
-			   (pcf:* u* v*))
-		 (let* ((u*/d1 (pcf:quotient u* d1))
-			(t (pcf:+ (pcf:* u (pcf:quotient v* d1))
-				  (pcf:* u*/d1 v))))
-		   (if (pcf:zero? t)
+		 (make-rcf (poly:quotient n g) (poly:quotient u* g))))
+	   (let ((d1 (poly:gcd u* v*)))
+	     (if (poly:one? d1)
+		 (make-rcf (poly:+ (poly:* u v*) (poly:* u* v))
+			   (poly:* u* v*))
+		 (let* ((u*/d1 (poly:quotient u* d1))
+			(t (poly:+ (poly:* u (poly:quotient v* d1))
+				   (poly:* u*/d1 v))))
+		   (if (poly:zero? t)
 		       rcf:zero
-		       (let ((d2 (pcf:gcd t d1)))
-			 (if (pcf:one? d2)
-			     (make-rcf t (pcf:* u*/d1 v*))
+		       (let ((d2 (poly:gcd t d1)))
+			 (if (poly:one? d2)
+			     (make-rcf t (poly:* u*/d1 v*))
 			     (make-rcf
-			      (pcf:quotient t d2)
-			      (pcf:* u*/d1
-				     (pcf:quotient v* d2)))))))))))))
+			      (poly:quotient t d2)
+			      (poly:* u*/d1
+				      (poly:quotient v* d2)))))))))))))
 
 (define (rcf:- u/u* v/v*)
   (rcf:binary-operator u/u* v/v*
-     pcf:-
+     poly:-
      (lambda (u v v*)
-       (if (pcf:zero? u)
-	   (make-ratform (pcf:negate v) v*)
-	   (make-rcf (pcf:- (pcf:* u v*) v) v*)))
+       (if (poly:zero? u)
+	   (make-ratform (poly:negate v) v*)
+	   (make-rcf (poly:- (poly:* u v*) v) v*)))
      (lambda (u u* v)
-       (if (pcf:zero? v)
+       (if (poly:zero? v)
 	   u/u*
-	   (make-rcf (pcf:- u (pcf:* u* v)) u*)))
+	   (make-rcf (poly:- u (poly:* u* v)) u*)))
      (lambda (u u* v v*)
-       (if (pcf:= u* v*)
-	   (let* ((n (pcf:- u v)) (g (pcf:gcd u* n)))
-	     (if (pcf:one? g)
+       (if (poly:= u* v*)
+	   (let* ((n (poly:- u v)) (g (poly:gcd u* n)))
+	     (if (poly:one? g)
 		 (make-rcf n u*)
-		 (make-rcf (pcf:quotient n g) (pcf:quotient u* g))))
-	   (let ((d1 (pcf:gcd u* v*)))
-	     (if (pcf:one? d1)
-		 (make-rcf (pcf:- (pcf:* u v*) (pcf:* u* v))
-			   (pcf:* u* v*))
-		 (let* ((u*/d1 (pcf:quotient u* d1))
-			(t (pcf:- (pcf:* u (pcf:quotient v* d1))
-				  (pcf:* u*/d1 v))))
-		   (if (pcf:zero? t)
+		 (make-rcf (poly:quotient n g) (poly:quotient u* g))))
+	   (let ((d1 (poly:gcd u* v*)))
+	     (if (poly:one? d1)
+		 (make-rcf (poly:- (poly:* u v*) (poly:* u* v))
+			   (poly:* u* v*))
+		 (let* ((u*/d1 (poly:quotient u* d1))
+			(t (poly:- (poly:* u (poly:quotient v* d1))
+				   (poly:* u*/d1 v))))
+		   (if (poly:zero? t)
 		       rcf:zero
-		       (let ((d2 (pcf:gcd t d1)))
-			 (if (pcf:one? d2)
-			     (make-rcf t (pcf:* u*/d1 v*))
+		       (let ((d2 (poly:gcd t d1)))
+			 (if (poly:one? d2)
+			     (make-rcf t (poly:* u*/d1 v*))
 			     (make-rcf
-			      (pcf:quotient t d2)
-			      (pcf:* u*/d1
-				     (pcf:quotient v* d2)))))))))))))
+			      (poly:quotient t d2)
+			      (poly:* u*/d1
+				      (poly:quotient v* d2)))))))))))))
 
 (define (rcf:negate v/v*)
   (if (ratform? v/v*)
-      (make-ratform (pcf:negate (ratform-numerator v/v*))
+      (make-ratform (poly:negate (ratform-numerator v/v*))
 		    (ratform-denominator v/v*))
-      (pcf:negate v/v*)))
+      (poly:negate v/v*)))
 
 (define (rcf:* u/u* v/v*)
   (rcf:binary-operator u/u* v/v*
-    pcf:*
+    poly:*
     (lambda (u v v*)
-      (cond ((pcf:zero? u) rcf:zero)
-	    ((pcf:one? u) v/v*)
+      (cond ((poly:zero? u) rcf:zero)
+	    ((poly:one? u) v/v*)
 	    (else
-	     (let ((d (pcf:gcd u v*)))
-	       (if (pcf:one? d)
-		   (make-rcf (pcf:* u v) v*)
-		   (make-rcf (pcf:* (pcf:quotient u d) v)
-			     (pcf:quotient v* d)))))))
+	     (let ((d (poly:gcd u v*)))
+	       (if (poly:one? d)
+		   (make-rcf (poly:* u v) v*)
+		   (make-rcf (poly:* (poly:quotient u d) v)
+			     (poly:quotient v* d)))))))
     (lambda (u u* v)
-      (cond ((pcf:zero? v) rcf:zero)
-	    ((pcf:one? v) u/u*)
+      (cond ((poly:zero? v) rcf:zero)
+	    ((poly:one? v) u/u*)
 	    (else
-	     (let ((d (pcf:gcd u* v)))
-	       (if (pcf:one? d)
-		   (make-rcf (pcf:* u v) u*)
-		   (make-rcf (pcf:* u (pcf:quotient v d))
-			     (pcf:quotient u* d)))))))
+	     (let ((d (poly:gcd u* v)))
+	       (if (poly:one? d)
+		   (make-rcf (poly:* u v) u*)
+		   (make-rcf (poly:* u (poly:quotient v d))
+			     (poly:quotient u* d)))))))
     (lambda (u u* v v*)
-      (let ((d1 (pcf:gcd u v*))
-	    (d2 (pcf:gcd u* v)))
-	(if (pcf:one? d1)
-	    (if (pcf:one? d2)
-		(make-rcf (pcf:* u v) (pcf:* u* v*))
-		(make-rcf (pcf:* u (pcf:quotient v d2))
-			  (pcf:* (pcf:quotient u* d2) v*)))
-	    (if (pcf:one? d2)
-		(make-rcf (pcf:* (pcf:quotient u d1) v)
-			  (pcf:* u* (pcf:quotient v* d1)))
-		(make-rcf (pcf:* (pcf:quotient u d1)
-				 (pcf:quotient v d2))
-			  (pcf:* (pcf:quotient u* d2)
-				 (pcf:quotient v* d1)))))))))
+      (let ((d1 (poly:gcd u v*))
+	    (d2 (poly:gcd u* v)))
+	(if (poly:one? d1)
+	    (if (poly:one? d2)
+		(make-rcf (poly:* u v) (poly:* u* v*))
+		(make-rcf (poly:* u (poly:quotient v d2))
+			  (poly:* (poly:quotient u* d2) v*)))
+	    (if (poly:one? d2)
+		(make-rcf (poly:* (poly:quotient u d1) v)
+			  (poly:* u* (poly:quotient v* d1)))
+		(make-rcf (poly:* (poly:quotient u d1)
+				  (poly:quotient v d2))
+			  (poly:* (poly:quotient u* d2)
+				  (poly:quotient v* d1)))))))))
 
 (define (rcf:square q)
   (if (ratform? q)
-      (make-ratform (let ((n (ratform-numerator q))) (pcf:* n n))
-		    (let ((d (ratform-denominator q))) (pcf:* d d)))
-      (pcf:* q q)))
+      (make-ratform (let ((n (ratform-numerator q))) (poly:* n n))
+		    (let ((d (ratform-denominator q))) (poly:* d d)))
+      (poly:* q q)))
 
 (define (rcf:/ u/u* v/v*)
   (rcf:* u/u* (rcf:invert v/v*)))
@@ -266,19 +227,19 @@ USA.
 
 (define (rcf:gcd u/u* v/v*)
   (rcf:binary-operator u/u* v/v*
-    pcf:gcd
-    (lambda (u v v*)
-      (cond ((pcf:zero? u) v/v*)
-	    ((pcf:one? u) pcf:one)
-	    (else (pcf:gcd u v))))
-    (lambda (u u* v)
-      (cond ((pcf:zero? v) u/u*)
-	    ((pcf:one? v) pcf:one)
-	    (else (pcf:gcd u v))))
-    (lambda (u u* v v*)
-      (let ((d1 (pcf:gcd u v))
-	    (d2 (pcf:gcd u* v*)))
-	(make-rcf d1 d2)))))
+     poly:gcd
+     (lambda (u v v*)
+       (cond ((poly:zero? u) v/v*)
+	     ((poly:one? u) poly:one)
+	     (else (poly:gcd u v))))
+     (lambda (u u* v)
+       (cond ((poly:zero? v) u/u*)
+	     ((poly:one? v) poly:one)
+	     (else (poly:gcd u v))))
+     (lambda (u u* v v*)
+       (let ((d1 (poly:gcd u v))
+	     (d2 (poly:gcd u* v*)))
+	 (make-rcf d1 d2)))))
 
 (define (rcf:binary-operator u/u* v/v* int*int int*rat rat*int rat*rat)
   (if (ratform? u/u*)
@@ -292,18 +253,18 @@ USA.
 		   v/v*))
       (if (ratform? v/v*)
 	  (int*rat u/u*
-		  (ratform-numerator v/v*)
-		  (ratform-denominator v/v*))
+		   (ratform-numerator v/v*)
+		   (ratform-denominator v/v*))
 	  (int*int u/u* v/v*))))
 
 (define (rcf:numerator q)
   (cond ((ratform? q) (ratform-numerator q))
-	((pcf:pcf? q) q)
+	((poly? q) q)
 	(else (error "Wrong type -- NUMERATOR" q))))
 
 (define (rcf:denominator q)
   (cond ((ratform? q) (ratform-denominator q))
-	((pcf:pcf? q) pcf:one)
+	((poly? q) poly:one)
 	(else (error "Wrong type -- DENOMINATOR" q))))
 
 
@@ -311,7 +272,7 @@ USA.
   (define (expt-iter x count answer)
     (if (fix:zero? count)
 	answer
-	(if (int:even? count)
+	(if (even? count)
 	    (expt-iter (rcf:square x) (fix:quotient count 2) answer)
 	    (expt-iter x (fix:-1+ count) (rcf:* x answer)))))
   (if (fix:negative? exponent)
@@ -320,21 +281,21 @@ USA.
 
 (define (rcf:arg-scale r points)
   (if (ratform? r)
-      (rcf:/ (apply pcf:arg-scale (ratform-numerator r) points)
-	     (apply pcf:arg-scale (ratform-denominator r) points))
-      (apply pcf:arg-scale r points)))
+      (rcf:/ (apply poly:arg-scale (ratform-numerator r) points)
+	     (apply poly:arg-scale (ratform-denominator r) points))
+      (apply poly:arg-scale r points)))
 
 (define (rcf:arg-shift r points)
   (if (ratform? r)
-      (rcf:/ (apply pcf:arg-shift (ratform-numerator r) points)
-	     (apply pcf:arg-shift (ratform-denominator r) points))
-      (apply pcf:arg-shift r points)))
+      (rcf:/ (apply poly:arg-shift (ratform-numerator r) points)
+	     (apply poly:arg-shift (ratform-denominator r) points))
+      (apply poly:arg-shift r points)))
 
 (define (rcf:value r points)
   (if (ratform? r)
-      (rcf:/ (apply pcf:value (ratform-numerator r) points)
-	     (apply pcf:value (ratform-denominator r) points))
-      (apply pcf:value r points)))
+      (rcf:/ (apply poly:value (ratform-numerator r) points)
+	     (apply poly:value (ratform-denominator r) points))
+      (apply poly:value r points)))
 
 ;;; The following only plugs r2 in for the principal indeterminate.
 
@@ -342,35 +303,35 @@ USA.
   (if (ratform? r2)
       (let ((nr1 (ratform-numerator r1))    (nr2 (ratform-numerator r2))
 	    (dr1 (ratform-denominator r1))  (dr2 (ratform-denominator r2)))
-	(let ((dn (pcf:degree nr1))
-	      (dd (pcf:degree dr1))
-	      (narity (fix:+ (pcf:arity dr1) 1)))
-	  (let ((nnr1 (pcf:extend 1 (pcf:principal-reverse nr1)))
-		(ndr1 (pcf:extend 1 (pcf:principal-reverse dr1))))
-	    (let ((scales (list (cadr (pcf:new-variables narity)) 1)))
-	      (let ((pn (pcf:value (pcf:principal-reverse
-				      (pcf:arg-scale nnr1 scales))
-				   nr2
-				   dr2))
-		    (pd (pcf:value (pcf:principal-reverse
-				    (pcf:arg-scale ndr1 scales))
-				   nr2
-				   dr2)))
+	(let ((dn (poly:degree nr1))
+	      (dd (poly:degree dr1))
+	      (narity (fix:+ (poly:arity dr1) 1)))
+	  (let ((nnr1 (poly:extend 1 (poly:principal-reverse nr1)))
+		(ndr1 (poly:extend 1 (poly:principal-reverse dr1))))
+	    (let ((scales (list (cadr (poly:new-variables narity)) 1)))
+	      (let ((pn (poly:value (poly:principal-reverse
+				     (poly:arg-scale nnr1 scales))
+				    nr2
+				    dr2))
+		    (pd (poly:value (poly:principal-reverse
+				     (poly:arg-scale ndr1 scales))
+				    nr2
+				    dr2)))
 		(cond ((fix:> dn dd)
-		       (rcf:/ pn (pcf:* (pcf:expt dr2 (fix:- dn dd)) pd)))
+		       (rcf:/ pn (poly:* (poly:expt dr2 (fix:- dn dd)) pd)))
 		      ((fix:< dn dd)
-		       (rcf:/ (pcf:* (pcf:expt dr2 (fix:- dd dn)) pn) pd))
+		       (rcf:/ (poly:* (poly:expt dr2 (fix:- dd dn)) pn) pd))
 		      (else (rcf:/ pn pd))))))))
-      (rcf:/ (pcf:value (ratform-numerator r1) r2)
-	     (pcf:value (ratform-denominator r1) r2))))
+      (rcf:/ (poly:value (ratform-numerator r1) r2)
+	     (poly:value (ratform-denominator r1) r2))))
 
 (define (rcf:derivative r varnum)
   (if (ratform? r)
       (let ((u (ratform-numerator r)) (v (ratform-denominator r)))
-	(rcf:/ (pcf:- (pcf:* (pcf:derivative u varnum) v)
-		      (pcf:* u (pcf:derivative v varnum)))
-	       (pcf:* v v)))
-      (pcf:derivative r varnum)))
+	(rcf:/ (poly:- (poly:* (poly:derivative u varnum) v)
+		       (poly:* u (poly:derivative v varnum)))
+	       (poly:* v v)))
+      (poly:derivative r varnum)))
 
 ;;; I don't know if this stuff is ever important...GJS
 
@@ -398,8 +359,8 @@ USA.
 			  (cddr rats))))))
   (lambda rats (operate rats)))
 
-(define +$rcf (assoc-accumulation rcf:+ pcf:+ rcf:zero))
-(define *$rcf (assoc-accumulation rcf:* pcf:* rcf:one))
+(define +$rcf (assoc-accumulation rcf:+ poly:+ rcf:zero))
+(define *$rcf (assoc-accumulation rcf:* poly:* rcf:one))
 
 
 (define (assoc-inverse-accumulation rat:inv-op rat:op rat:invert poly:op rat:identity)
@@ -410,8 +371,10 @@ USA.
 	    (else (rat:inv-op (car rats) (apply direct-op (cdr rats))))))
     operate))
 
-(define -$rcf (assoc-inverse-accumulation rcf:- rcf:+ rcf:negate pcf:+ rcf:zero))
-(define /$rcf (assoc-inverse-accumulation rcf:/ rcf:* rcf:invert pcf:* rcf:one))
+(define -$rcf
+  (assoc-inverse-accumulation rcf:- rcf:+ rcf:negate poly:+ rcf:zero))
+(define /$rcf
+  (assoc-inverse-accumulation rcf:/ rcf:* rcf:invert poly:* rcf:one))
 
 ;;; For simplifier
 
@@ -426,10 +389,10 @@ USA.
   (let ((evars
 	 (sort (list-difference (variables-in expr)
 				rcf:operators-known)
-		(if (default-object? less?) alphaless? less?))))
+	       (if (default-object? less?) alphaless? less?))))
     (cont ((expression-walker
 	    (pair-up evars
-		     (pcf:new-variables (length evars))
+		     (poly:new-variables (length evars))
 		     rcf:operator-table))
 	   expr)
 	  evars)))

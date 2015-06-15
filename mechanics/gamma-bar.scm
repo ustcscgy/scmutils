@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -187,9 +187,36 @@ a
   (->local 't 'x 'v 'a 'j 'p)))
 (+ (* -1 a m) (* -1 k x))
 
-(define L (literal-function 'L (-> (UP* Real) Real)))
+(define L (literal-function 'L (Lagrangian)))
 
 (pe ((generalized-LE L) (->local 't 'x 'v 'a)))
+(+ (* a (((partial 2) ((partial 2) L)) (up t x v a)))
+   (* v (((partial 1) ((partial 2) L)) (up t x v a)))
+   (((partial 0) ((partial 2) L)) (up t x v a))
+   (* -1 (((partial 1) L) (up t x v))))
 
 (pe ((generalized-LE L) (->local 't 'x 'v 'a 'j 'p)))
+(+ (* (expt a 2) (((partial 2) ((partial 2) ((partial 3) L))) (up t x v a j p)))
+   (* 2 a j (((partial 2) ((partial 3) ((partial 3) L))) (up t x v a j p)))
+   (* 2 a p (((partial 2) ((partial 3) ((partial 4) L))) (up t x v a j p)))
+   (* 2 a v (((partial 1) ((partial 2) ((partial 3) L))) (up t x v a j p)))
+   (* (expt j 2) (((partial 3) ((partial 3) ((partial 3) L))) (up t x v a j p)))
+   (* 2 j p (((partial 3) ((partial 3) ((partial 4) L))) (up t x v a j p)))
+   (* 2 j v (((partial 1) ((partial 3) ((partial 3) L))) (up t x v a j p)))
+   (* (expt p 2) (((partial 3) ((partial 4) ((partial 4) L))) (up t x v a j p)))
+   (* 2 p v (((partial 1) ((partial 3) ((partial 4) L))) (up t x v a j p)))
+   (* (expt v 2) (((partial 1) ((partial 1) ((partial 3) L))) (up t x v a j p)))
+   (* 2 a (((partial 0) ((partial 2) ((partial 3) L))) (up t x v a j p)))
+   (* a (((partial 1) ((partial 3) L)) (up t x v a j p)))
+   (* -1 a (((partial 2) ((partial 2) L)) (up t x v a j)))
+   (* 2 j (((partial 0) ((partial 3) ((partial 3) L))) (up t x v a j p)))
+   (* j (((partial 2) ((partial 3) L)) (up t x v a j p)))
+   (* -1 j (((partial 2) ((partial 3) L)) (up t x v a j)))
+   (* 2 p (((partial 0) ((partial 3) ((partial 4) L))) (up t x v a j p)))
+   (* p (((partial 3) ((partial 3) L)) (up t x v a j p)))
+   (* 2 v (((partial 0) ((partial 1) ((partial 3) L))) (up t x v a j p)))
+   (* -1 v (((partial 1) ((partial 2) L)) (up t x v a j)))
+   (((partial 1) L) (up t x v a))
+   (((partial 0) ((partial 0) ((partial 3) L))) (up t x v a j p))
+   (* -1 (((partial 0) ((partial 2) L)) (up t x v a j))))
 |#

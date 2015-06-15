@@ -1,6 +1,6 @@
 #| -*-Scheme-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.scm,v 1.4 2005/12/13 06:41:00 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -85,39 +85,53 @@ USA.
 (define Real 'Real)
 
 (define (X . types)
-  (if (null? (cdr types))
-      (car types)
-      (cons 'X types)))
+  (cond ((null? types) (error "Null type argument -- X"))
+	((null? (cdr types)) (car types))
+	(else (cons 'X types))))
 
 (define (UP . types)
-  (if (null? (cdr types))
-      (car types)
-      (cons 'UP types)))
+  (cond ((null? types) (error "Null type argument -- UP"))
+	((null? (cdr types)) (car types))
+	(else (cons 'UP types))))
 
 (define (DOWN . types)
-  (if (null? (cdr types))
-      (car types)
-      (cons 'DOWN types)))
+  (cond ((null? types) (error "Null type argument -- DOWN"))
+	((null? (cdr types)) (car types))
+	(else (cons 'DOWN types))))
 
-(define (^ type #!optional n)		;n = dimension
-  (if (default-object? n)
-      (list 'X* type)
-      (cons 'X (make-list n type))))
+(define (^ type n)			;n = dimension
+  (apply X (make-list n type)))
 
-(define (X* type #!optional n)		;n = dimension
-  (if (default-object? n)
-      (list 'X* type)
-      (cons 'X (make-list n type))))
 
-(define (UP* type #!optional n)		;n = dimension
-  (if (default-object? n)
-      (list 'UP* type)
-      (cons 'UP (make-list n type))))
+(define (starify rest starred unstarred-proc)
+  (cond ((null? rest) (error "Null type argument" starred))
+	(else
+	 (let lp ((args rest) (curtype #f) (explicit #f) (types '()))
+	   (cond ((null? args)
+		  (if explicit (apply unstarred-proc types) (cons starred types)))
+		 ((exact-positive-integer? (car args))
+		  (if curtype
+		      (lp (cdr args)
+			  #f
+			  #t
+			  (append types (make-list (fix:- (car args) 1) curtype)))
+		      (error "Bad type arguments" starred rest)))
+		 (else
+		  (lp (cdr args)
+		      (car args)
+		      #f
+		      (append types (list (car args))))))))))
 
-(define (DOWN* type #!optional n)	;n = dimension
-  (if (default-object? n)
-      (list 'DOWN* type)
-      (cons 'DOWN (make-list n type))))
+
+(define (X* . rest)
+  (starify rest 'X* X))
+
+(define (UP* . rest)
+  (starify rest 'UP* UP))
+
+(define (DOWN* . rest)
+  (starify rest 'DOWN* DOWN))
+
 
 (define Any 'Any)
 
@@ -129,21 +143,20 @@ USA.
 
 (define (permissive-function-type n)
   (-> (X* Any n) Real))
-
-
+
 ;;; Some useful types
 
 (define (Lagrangian #!optional n)	;n = #degrees-of-freedom
   (if (default-object? n)
-      (-> (UP Real (UP* Real) (UP* Real)) Real)
-      (-> (UP Real (UP* Real n) (UP* Real n)) Real)))
+      (-> (UP* Real (UP* Real) (UP* Real)) Real)
+      (-> (UP* Real (UP* Real n) (UP* Real n)) Real)))
 
 (define (Hamiltonian #!optional n)	;n = #degrees-of-freedom
   (if (default-object? n)
-      (-> (UP Real (UP* Real) (DOWN* Real)) Real)
-      (-> (UP Real (UP* Real n) (DOWN* Real n)) Real)))
+      (-> (UP* Real (UP* Real) (DOWN* Real)) Real)
+      (-> (UP* Real (UP* Real n) (DOWN* Real n)) Real)))
 
-
+
 #| ;;; For example
 
 (define L (literal-function 'L (Lagrangian)))
@@ -246,6 +259,7 @@ USA.
 	      (lambda (datum)
 		(and (down? datum)
 		     (all-satisfied type-predicates datum)))))
+	   #|
 	   ((X*)
 	    (let ((type-predicate
 		   (type-expression->predicate
@@ -272,6 +286,46 @@ USA.
 			 (s:forall type-predicate datum))
 		    (and (not (structure? datum))
 			 (type-predicate datum))))))
+	   |#
+	   ((X*)
+	    (let ((type-predicates
+		   (map type-expression->predicate
+			(cdr type-expression))))
+	      (lambda (datum)
+		(cond ((vector? datum)
+		       (let ((n (vector-length datum)))
+			 (let lp ((i 0) (preds type-predicates))
+			   (cond ((fix:= i n) #t)
+				 (((car preds) (vector-ref datum i))
+				  (lp (fix:+ i 1)
+				      (if (null? (cdr preds))
+					  preds
+					  (cdr preds))))
+				 (else #f)))))
+		      ((null? (cdr type-predicates))
+		       ((car type-predicates) datum))
+		      (else #f)))))
+	   ((UP* DOWN*)
+	    (let ((type-predicates
+		   (map type-expression->predicate
+			(cdr type-expression)))
+		  (test?
+		   (if (eq? (car type-expression) 'UP*) up? down?)))
+	      (lambda (datum)
+		(cond ((test? datum)
+		       (let ((n (s:length datum)))
+			 (let lp ((i 0) (preds type-predicates))
+			   (cond ((fix:= i n) #t)
+				 (((car preds) (s:ref datum i))
+				  (lp (fix:+ i 1)
+				      (if (null? (cdr preds))
+					  preds
+					  (cdr preds))))
+				 (else #f)))))
+		      ((and (not (structure? datum))
+			    (null? (cdr type-predicates)))
+		       ((car type-predicates) datum))
+		      (else #f)))))
 	   ((->)
 	    function?)
 	   (else
@@ -333,9 +387,14 @@ USA.
       (caddr (apply-hook-extra f))
       #f))
 
+
+(define *literal-reconstruction* #f)
+
 (define (f:expression f)
   (if (typed-or-abstract-function? f)
-      (cadddr (apply-hook-extra f))
+      (if *literal-reconstruction*
+	  (cadddr (cdr (apply-hook-extra f)))
+	  (cadddr (apply-hook-extra f)))
       #f))
 
 
@@ -361,9 +420,11 @@ USA.
   (litfun fexp 
 	  (type->arity descriptor)
 	  (type->range-type descriptor)
-	  (type->domain-types descriptor)))
+	  (type->domain-types descriptor)
+	  `(literal-function ',fexp
+			     ,descriptor)))
 
-(define (litfun fexp arity range-type domain-types)
+(define (litfun fexp arity range-type domain-types call)
   (assert (exactly-n? arity)
 	  "I cannot handle this arity -- LITERAL-FUNCTION")
   (let ((apply-hook (make-apply-hook #f #f)))
@@ -385,7 +446,7 @@ USA.
 		    (literal-apply apply-hook args))))))
       (set-apply-hook-procedure! apply-hook litf)
       (set-apply-hook-extra! apply-hook
-        (list '*function* domain-types range-type fexp))
+        (list '*function* domain-types range-type fexp call))
       apply-hook)))
 
 (define (literal-apply apply-hook args)
@@ -459,23 +520,30 @@ USA.
 			     (s:ref vv i))))) 
 	  ((or (numerical-quantity? vv)
 	       (abstract-quantity? vv))
-	   (litfun
-	    (let ((is (reverse indices)))
-	      (if (equal? (g:arity apply-hook) *exactly-one*) ;univariate
-		  (if (fix:= (car is) 0)
-		      (if (fix:= (length indices) 1)
-			  (symb:derivative (f:expression apply-hook))
-			  `((partial ,@(cdr is))
-			    ,(f:expression apply-hook)))
-		      (error "Wrong indices -- MAKE-PARTIALS"
-			     indices vv))
-		  `((partial ,@is)
-		    ,(f:expression apply-hook))))
-	    (g:arity apply-hook)
-	    (df-range-type (f:domain-types apply-hook)
-			   (f:range-type apply-hook)
-			   vv)
-	    (f:domain-types apply-hook)))
+	   (let ((fexp		  
+		  (let ((is (reverse indices)))
+		    (if (equal? (g:arity apply-hook) *exactly-one*) ;univariate
+			(if (fix:= (car is) 0)
+			    (if (fix:= (length indices) 1)
+				(symb:derivative (f:expression apply-hook))
+				`((partial ,@(cdr is))
+				  ,(f:expression apply-hook)))
+			    (error "Wrong indices -- MAKE-PARTIALS"
+				   indices vv))
+			`((partial ,@is)
+			  ,(f:expression apply-hook)))))
+		 (range
+		  (df-range-type (f:domain-types apply-hook)
+				 (f:range-type apply-hook)
+				 vv))
+		 (domain
+		  (f:domain-types apply-hook)))
+	     (litfun fexp
+		     (g:arity apply-hook)
+		     range
+		     domain
+		     `(literal-function ',fexp
+					(-> ,(apply X domain) ,range)))))
 	  (else
 	   (error "Bad structure -- MAKE-PARTIALS"
 		  indices vv))))
