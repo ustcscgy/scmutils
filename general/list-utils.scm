@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -28,7 +28,7 @@ USA.
 
 (declare (usual-integrations))
 
-
+#|
 ;;; The following is like symbol<? except that shorter symbols are 
 ;;; by default less than longer ones.
 
@@ -50,6 +50,14 @@ USA.
 		  (else
 		   (fix:< (vector-8b-ref sx i)
 			  (vector-8b-ref sy i)))))))))
+
+;;; This has a bug!
+|#
+
+(define (variable<? x y)
+  (guarantee-symbol x 'VARIABLE<?)
+  (guarantee-symbol y 'VARIABLE<?)
+  (symbol<? x y))
 
 ;;; Ok to pass it an improper list
 (define (safe-map f pairs)

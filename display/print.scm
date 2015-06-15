@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,9 +26,7 @@ USA.
 
 ;;; Hamiltonians look better if we divide them out.
 
-(define *divide-out-terms* #t)
-
-(define *fully-divide-out-terms* #t)
+(define *divide-out-terms* #f)
 
 (define *heuristic-numbers* #f)
 
@@ -52,9 +50,14 @@ USA.
 				   (g:simplify (symb:/ n d)))
 				 (operands (symb:numerator hexp))))))
 	       (else hexp)))
-	((and (compound-data-constructor? hexp) *fully-divide-out-terms*)
+	((compound-data-constructor? hexp)
 	 (cons (operator hexp) (map ham:simplify (operands hexp))))
 	(else hexp)))
+
+(define (divide-out-terms-simplify doit?)
+  (assert (boolean? doit?) "argument must be a boolean.")
+  (clear-memoizer-tables)
+  (set! *divide-out-terms* doit?))
 
 
 ;;; Equations are often prettier if we get rid of the denominators,
@@ -93,6 +96,10 @@ USA.
 	(ham:simplify
 	 ((if *factoring* poly:factor (lambda (expr) expr))
 	  (g:simplify exp))))))
+
+;;; Is this enough?
+(define (careful-simplify e)
+  (simplify e))
 
 (define *only-printing* #f)
 (define *last-expression-printed* (lambda () 'none-yet))
@@ -123,7 +130,7 @@ USA.
 	   (object-name expr system-global-environment))
       ;What is this?
       (and (pair? expr)     
-	   (eq? (car expr) '*operator*))))
+	   (memq (car expr) '(*operator* *solution*)))))
 
 (define (show-expression expr #!optional simplifier)
   (if (default-object? simplifier) (set! simplifier simplify))

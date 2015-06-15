@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -80,24 +80,68 @@ USA.
 	    new-simplify
 	    easy-simplify
 	    full-simplify
+
+            logexp
+            simsqrt
+            sqrt-expand
+            sqrt-contract
+            specfun->logexp
+            logexp->specfun
+            log-expand
+            log-contract
+            exp-expand
+            exp-contract
+            canonicalize-partials
+
+            trig->sincos
+            sincos->trig
+            triginv
+            special-trig
+            angular-parity
+            expand-multiangle
+            trig-sum-to-product
+            trig-product-to-sum
+            contract-expt-trig
+            half-angle
+            sin^2->cos^2
+            cos^2->sin^2
+            sincos-flush-ones
+            flush-obvious-ones
+            sincos-random
+            sincos->exp1
+            sincos->exp2
+            exp->sincos
 	    trigexpand
 	    trigcontract
 
+            complex-rules
+            
+            divide-numbers-through
+
 	    ;; Boolean simplifier controls.
 	    log-exp-simplify
-	    sqrt-factor-simplify
 	    sqrt-expt-simplify
+	    sqrt-factor-simplify
+            aggressive-atan-simplify
 	    inverse-simplify
+            sin-cos-simplify
+            half-angle-simplify
 	    ignore-zero-simplify
 	    commute-partials-simplify
 	    divide-numbers-through-simplify
+	    trig-product-to-sum-simplify
 
 	    log-exp-simplify?
-	    sqrt-factor-simplify?
 	    sqrt-expt-simplify?
+	    sqrt-factor-simplify?
+            aggressive-atan-simplify?
 	    inverse-simplify?
+            sin-cos-simplify?
+            half-angle-simplify?
 	    commute-partials?
 	    divide-numbers-through-simplify?
+	    trig-product-to-sum-simplify?
+
 	    ))
 #;
 (define (default-simplify exp)

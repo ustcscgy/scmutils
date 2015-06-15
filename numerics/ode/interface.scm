@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -29,6 +29,10 @@ USA.
 
 (declare (usual-integrations))
 
+;;; Assumptions:
+;;;  Integrators never step further than suggested dt.
+;;;  System derivatives always have independent variable in slot 0.
+
 #|
 ;;; Example of use
 
@@ -45,76 +49,57 @@ USA.
      1.1				;initial integration step
      ))
 |#
-
-(define (evolve parametric-sysder . parameters)
-  (let ((big-advance (apply advance-beyond parametric-sysder parameters))
-	(fadvance (apply state-advancer parametric-sysder parameters)))
-    (define (time s) (s:ref s 0))
-
-    (lambda (initial-state monitor dt-monitor target
-			   #!optional eps dt-integrator step-monitor)
-      (set! dt-integrator
-	    (if (default-object? dt-integrator) dt-monitor dt-integrator))
-      (set! eps 
-	    (if (default-object? eps) *default-advancer-tolerance* eps))
-      (set! step-monitor
-	    (if (default-object? step-monitor)
-		(lambda (x y z w) 'nothing)
-		step-monitor))
-      (let ((direction (- target (s:ref initial-state 0))))
-	(if (< (* dt-integrator direction) 0.) 
-	    (set! dt-integrator (- dt-integrator)))
-	(if (< (* dt-monitor direction) 0.) 
-	    (set! dt-monitor (- dt-monitor))))
-      (big-advance initial-state dt-integrator eps 
-		   (+ dt-monitor (time initial-state))
-        (lambda (new-state dt-obtained dt-suggested)
-	  (let monitor-loop ((state-monitor initial-state)
-			     (state new-state)
-			     (dt-suggested dt-suggested)
-			     (n (inexact->exact
-				 (/ (- target (s:ref initial-state 0)) 
-				    dt-monitor))))
-	    (monitor state-monitor)
 
-	    (if (> n 0)
-		(if (> (* dt-integrator 
-			  (+ (time state-monitor) dt-monitor))
-		       (* dt-integrator (time state)))
-		    ;; advance reference state, reset monitor state
-		    (let ((dt-requested dt-suggested))
-		      (big-advance 
-		       state dt-requested eps 
-		       (+ dt-monitor (time state-monitor))
-		       (lambda (new-state dt-obtained dt-suggested)
-			 (step-monitor (time state)
-				       dt-requested
-				       dt-obtained
-				       dt-suggested)
-			 (let ((dt-adjust-1
-				(- (+ (time state-monitor) dt-monitor)
-				   (time new-state)))
-			       (dt-adjust-2
-				(- (+ (time state-monitor) dt-monitor)
-				   (time state))))
-			   (if (< (abs dt-adjust-1) (abs dt-adjust-2))
-			       (monitor-loop
-				(fadvance new-state dt-adjust-1 eps)
-				new-state
-				dt-suggested
-				(- n 1))
-			       (monitor-loop
-				(fadvance state dt-adjust-2 eps)
-				new-state
-				dt-suggested
-				(- n 1)))))))
-		    (monitor-loop
-		     (fadvance state-monitor dt-monitor eps)
-		     state
-		     dt-suggested
-		     (- n 1)))
-		state-monitor)))))))
+(define (evolve parametric-sysder . parameters)
+  (lambda (initial-state monitor dt-monitor tfinal #!optional eps dt)
+    (if (default-object? dt) (set! dt dt-monitor))
+    (if (default-object? eps) (set! eps *default-advancer-tolerance*))
+    (let* ((direction (sign (- tfinal (s:ref initial-state 0))))
+           (dt-monitor (* direction (abs dt-monitor)))
+           (dt (* direction (abs dt)))
+           (free-run
+            (apply free-run-state-advancer parametric-sysder parameters)))
+      (define (go-to state target-time dt continue)
+        (let lp ((state state) (dt dt))
+          (if (close-enuf? target-time (s:ref state 0) *time-tolerance*)
+              (continue state)
+              (let ((time-to-target (- target-time (s:ref state 0))))
+                (free-run state
+			  (* (sign time-to-target)
+                             (min (abs time-to-target) (abs dt)))
+                          eps
+                          (lambda (new-state dt-obtained dt-suggested)
+                            (lp new-state dt-suggested)))))))
+      (monitor initial-state)
+      (free-run initial-state dt eps
+	 (lambda (new-state dt-obtained dt-suggested)
+	   (let loop ((state initial-state)
+		      (next-state new-state)
+		      (dt-suggested dt-suggested)
+		      (tmonitor (+ (s:ref initial-state 0) dt-monitor)))
+	     (let ((current-time (s:ref state 0))
+		   (next-time (s:ref next-state 0))
+		   (dt-suggested (* direction (abs dt-suggested))))
+	       (if (<= (* direction current-time)
+		       (* direction tfinal)
+		       (* direction next-time))
+		   (go-to state tfinal (- tfinal current-time) (lambda (s) (monitor s) s))
+		   (if (<= (* direction current-time)
+			   (* direction tmonitor)
+			   (* direction next-time))
+		       (begin
+			 (if (<= (abs (- tmonitor current-time))
+				 (abs (- tmonitor next-time)))
+			     (go-to state tmonitor (- tmonitor current-time) monitor)
+			     (go-to next-state tmonitor (- tmonitor next-time) monitor))
+			 (loop state next-state dt-suggested (+ tmonitor dt-monitor)))
+		       (free-run next-state dt-suggested eps
+			  (lambda (new-state dt-obtained dt-suggested)
+			    (loop next-state new-state dt-suggested tmonitor))))))))))))
 
+
+
+(define *time-tolerance* 1e-13)
 (define *default-advancer-tolerance* 1e-12)
 
 #|
@@ -178,31 +163,26 @@ USA.
 |#
 
 (define (state-advancer sysder . params)
-  (let ((advancer (apply free-run-state-advancer sysder params)))
+  (let ((free-run (apply free-run-state-advancer sysder params)))
     (lambda (initial-state dt-required #!optional eps continue)
+      (define (go-to state target-time dt continue)
+        (let lp ((state state) (dt dt))
+          (if (close-enuf? target-time (s:ref state 0) *time-tolerance*)
+              (continue state dt-required dt)
+              (let ((time-to-target (- target-time (s:ref state 0))))
+                (free-run state
+			  (* (sign time-to-target)
+                             (min (abs time-to-target) (abs dt)))
+                          eps
+                          (lambda (new-state dt-obtained dt-suggested)
+                            (lp new-state dt-suggested)))))))
       (if (default-object? continue)
 	  (set! continue
 		(lambda (new-state dt-obtained dt-suggested) new-state)))
       (if (default-object? eps) (set! eps 1.0e-10))
-      (let ((initial-t (s:ref initial-state 0)))
-	(let lp ((current-state initial-state)
-		 (dt-requested dt-required)
-		 (dt-accumulated 0.0))
-	  (advancer current-state dt-requested eps
-		    (lambda (new-state dt-obtained dt-suggested)
-		      (let ((dt-accumulated (+ dt-accumulated dt-obtained))
-			    (new-t (s:ref new-state 0)))
-			(if (close-enuf? dt-accumulated dt-required
-					 *independent-variable-tolerance*)
-			    (continue new-state dt-accumulated dt-suggested)
-			    (lp new-state
-				(let ((dt-discrepancy
-				       (- dt-required dt-accumulated)))
-				  (if (< (abs dt-discrepancy)
-					 (abs dt-suggested))
-				      dt-discrepancy
-				      dt-suggested))
-				dt-accumulated))))))))))
+      (let ((tinitial (s:ref initial-state 0))
+            (tfinal (+ (s:ref initial-state 0) dt-required)))
+        (go-to initial-state tfinal (- tfinal tinitial) continue)))))
 
 (define (advance-beyond parametric-sysder . parameters)
   (let ((advancer (apply free-run-state-advancer parametric-sysder parameters)))
@@ -214,9 +194,15 @@ USA.
 			(lp new-state dt-suggested)))
 	    (continue state dt-suggested dt-suggested))))
     run))
+
+;;; Proceed below this line with caution.  HIC SVNT DRACONES!
 
 (define (free-run-state-advancer parametric-sysder #!rest params)
   (let ((stepper #f))
+    (define (flatten state)
+      (list->vector (ultra-flatten state)))
+    (define (unflatten state fstate)
+      (ultra-unflatten state (vector->list fstate)))
     (define (advance-state state dt eps continue)
       ;; Continue = (lambda (new-state dt-obtained dt-suggested) ...)
       (let* ((fstate (flatten state))
@@ -240,10 +226,6 @@ USA.
 	   (continue (unflatten state new-fstate) dt-obtained dt-suggested)))))
     advance-state))
 
-(define (flatten state)
-  (list->vector (ultra-flatten state)))
-(define (unflatten state fstate)
-  (ultra-unflatten state (vector->list fstate)))
 
 (define (make-parametric-flat-sysder
 	 parametric-sysder parametric-flat-sysder params fstate)

@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -363,6 +363,24 @@ Indeed, (expt -1 (/ 1. 3)) will not be close to above!
 ;;; (assign-operation '=          an:=            abstract-number? abstract-number?)
 ;;; (assign-operation 'zero?      an:zero?        abstract-number?)
 ;;; (assign-operation 'one?       an:one?         abstract-number?)
+
+;;; Quick and dirty...
+
+(define (abn:= x y)
+  (let ((xx (expression-of x)) (yy (expression-of y)))
+    (and (number? xx) (number? yy) (= xx yy))))
+
+(define (abn:zero? x)
+  (let ((xx (expression-of x)))
+    (and (number? xx) (zero? xx))))
+
+(define (abn:one? x)
+  (let ((xx (expression-of x)))
+    (and (number? xx) (one? xx))))
+
+(assign-operation '=          abn:=            abstract-number? abstract-number?)
+(assign-operation 'zero?      abn:zero?        abstract-number?)
+(assign-operation 'one?       abn:one?         abstract-number?)
 
 (define *known-reals* '())
 

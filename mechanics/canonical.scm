@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,8 +26,8 @@ USA.
 
 
 (define (canonical? C H Hprime)
-  (- (compose (phase-space-derivative H) C)
-     (* (D C) (phase-space-derivative Hprime))))
+  (- (compose (Hamiltonian->state-derivative H) C)
+     (* (D C) (Hamiltonian->state-derivative Hprime))))
 
 (define (compositional-canonical? C H)
   (canonical? C H (compose H C)))
@@ -44,16 +44,19 @@ USA.
 
 
 (define (J-func DH)
+  (assert (compatible-H-state? DH))
   (->H-state 0
 	     (ref DH 2)
 	     (- (ref DH 1))))
 
 (define (T-func DH)
+  (assert (compatible-H-state? DH))
   (->H-state 1 
 	     (zero-like (ref DH 2))
 	     (zero-like (ref DH 1))))
 
 (define (J*-func s)
+  (assert (H-state? s))
   (down 0
 	(ref s 2)
 	(- (ref s 1))))
@@ -62,12 +65,13 @@ USA.
 #|
 (print-expression
  ((D J-func)
-  (->H-state 't
-	     (coordinate-tuple 'x 'y)
-	     (momentum-tuple 'p_x 'p_y))))
-(down (up 0 (down 0 0) (up 0 0))
-      (down (up 0 (down 0 0) (up -1 0)) (up 0 (down 0 0) (up 0 -1)))
-      (up (up 0 (down 1 0) (up 0 0)) (up 0 (down 0 1) (up 0 0))))    
+  (compatible-shape
+   (up 't
+       (coordinate-tuple 'x 'y)
+       (momentum-tuple 'p_x 'p_y)))))
+(up (up 0 (up 0 0) (down 0 0))
+    (up (up 0 (up 0 0) (down -1 0)) (up 0 (up 0 0) (down 0 -1)))
+    (down (up 0 (up 1 0) (down 0 0)) (up 0 (up 0 1) (down 0 0))))    
 |#
 
 (define (linear-function->multiplier F argument)
@@ -155,9 +159,10 @@ USA.
 	       (coordinate-tuple (ref q 0) (- (ref p 1)))
 	       (momentum-tuple   (ref p 0) (ref q 1)))))
 
-(define a-state (->H-state 't 
-			   (coordinate-tuple 'x 'y)
-			   (momentum-tuple 'p_x 'p_y)))
+(define a-state
+  (->H-state 't 
+	     (coordinate-tuple 'x 'y)
+	     (momentum-tuple 'p_x 'p_y)))
 
 (print-expression
  ((time-independent-canonical? Cmix)

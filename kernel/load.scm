@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -65,9 +65,6 @@ USA.
 ;;;(define (diff-memoize f) (linear-memoize f))
 ;;;(define (diff-memoize f) (hash-memoize f))
 
-(load "matrices" scmutils-base-environment)
-(load "quaternion" scmutils-base-environment)
-(load "pseries"  scmutils-base-environment)
 (load "modarith" scmutils-base-environment)
 
 (load "diff"     scmutils-base-environment)
@@ -82,6 +79,10 @@ USA.
 ;;;  because they use MAKE-NUMERICAL-COMBINATION.
 (load "vectors"  scmutils-base-environment)
 (load "structs"  scmutils-base-environment)
+(load "matrices" scmutils-base-environment)
+;;; quaternions must be after structs.
+(load "quaternion" scmutils-base-environment)
+(load "pseries"  scmutils-base-environment)
 
 ;;; Literal-construction.
 (load "numsymb"  scmutils-base-environment)

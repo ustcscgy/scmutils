@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -174,17 +174,17 @@ USA.
 
 
 (define (v:make-unit v)
-  (scalar*vector (g:invert (complex-norm v))
+  (scalar*vector (g:invert (euclidean-norm v))
 		 v))
 
 (define (v:unit? v)
-  (g:one? (v:inner-product v v)))
+  (g:one? (v:dot-product v v)))
 
 
 (define (v:conjugate v)
   ((v:elementwise g:conjugate) v))
 
-(define (cross-product v w)
+(define (v:cross-product v w)
   (assert (and (fix:= (vector-length v) 3)
 	       (fix:= (vector-length w) 3))
 	  "Cross product of non-3-dimensional vectors?"
@@ -268,6 +268,7 @@ USA.
 (assign-operation '/           vector/scalar       vector? scalar?)
 
 (assign-operation 'dot-product v:dot-product       vector? vector?)
+(assign-operation 'cross-product v:cross-product   vector? vector?)
 
 #| ;;; Should be subsumed by deriv:pd in deriv.scm.
 (assign-operation 'partial-derivative

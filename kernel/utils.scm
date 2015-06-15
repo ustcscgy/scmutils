@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -45,6 +45,10 @@ USA.
       (begin (proc hi)
 	     (do-down (fix:- hi 1) low proc))))
 
+(define (sign x)
+   (cond ((> x 0) 1)
+	((< x 0) -1)
+	(else 0)))
 
 (define make-pairwise-test
   (lambda (pred)
@@ -460,3 +464,47 @@ USA.
 	  port)
       ;; as code
       true))
+
+;;; Programs may leave notes here
+
+(define *taking-notes* #t)
+(define *showing-notes* #f)
+
+(define *notes* '())
+
+(define (note-that! note)
+  (and note                             ;fail if note is #f
+       (begin
+         (if *showing-notes*
+             (display-note note))
+         (if *taking-notes*
+             (begin 
+               (set! *notes* (lset-adjoin equal? *notes* note))
+               'noted)
+             'ignored))))
+
+(define (clear-notes!)
+  (set! *last-notes* *notes*)
+  (set! *notes* '()))
+
+(define (display-note note)
+  (display "#| ")
+  (newline)
+  (pp note)
+  (display "|#")
+  (newline))
+
+(define *last-notes*)
+(define *last-notes-shown*)
+
+(define (show-notes)
+  (set! *last-notes-shown* *last-notes*)
+  (newline)
+  (display "#| ")
+  (for-each (lambda (note)
+              (newline)
+              (pp note)
+              (let ((sig (eq-get note 'rules)))
+                (if sig (pp sig))))
+            *last-notes*)
+  (display "|#"))

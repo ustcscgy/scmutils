@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -26,6 +26,14 @@ USA.
 
 (declare (usual-integrations))
 
+#|
+;;; In Scheme system: runtime/boole.scm
+(define (false? x) (eq? x #f))
+|#
+
+(define (true? x) (eq? x #t))
+
+
 (define (assert p #!optional error-comment irritant)
   (if (not p)
       (begin
@@ -34,6 +42,54 @@ USA.
 	(error (if (default-object? error-comment)
 		   "Failed assertion"
 		   error-comment)))))
+
+;;;; Assumptions made in processing are noted.  See kernel/utils.scm .
+
+(define *assumption-tolerance-multiplier* 100)
+
+(define (assume! predicate-expression responsible-party #!optional if-false)
+  (define (do-false)
+    (if (default-object? if-false)
+        (add-assumption! `(false! ,predicate-expression) responsible-party)
+        (if-false)))
+  (define (default) (add-assumption! predicate-expression responsible-party))
+  (define (default-numeric rator rands)
+    (cond ((environment-bound? scmutils-base-environment rator)
+           (let ((predicate
+                  (environment-lookup scmutils-base-environment rator)))
+             (if (procedure? predicate)
+                 (let ((val (apply predicate rands)))
+                   (cond ((not val) (do-false))
+                         ((true? val) 'OK)
+                         (else (default))))
+                 (error "Bad assumption"
+                        predicate-expression responsible-party))))
+          (else (default))))
+  (define (simple-numeric rator rands)
+    (case rator
+      ((=) (if (or (inexact? (car rands)) (inexact? (cadr rands)))
+               (if (close-enuf? (car rands) (cadr rands)
+                                *assumption-tolerance*)
+                   'OK
+                   (do-false))
+               (if (= (car rands) (cadr rands)) 'OK (do-false))))
+      (else (default-numeric rator rands))))
+  (define *assumption-tolerance*
+    (* *assumption-tolerance-multiplier* *machine-epsilon*))
+  (cond ((pair? predicate-expression)
+         (let ((rator (operator predicate-expression))
+               (rands (operands predicate-expression)) )
+           (if (every number? rands)
+               (simple-numeric rator rands)
+               (default))))
+        ((not predicate-expression) (do-false)) ;(eq? predicate-expression #f)
+        ((true? predicate-expression) 'OK)
+        (else (default))))                
+
+(define (add-assumption! assumption responsible-party)
+  (let ((a `(assuming ,assumption)))
+    (eq-adjoin! a 'rules responsible-party)
+    (note-that! a)))
 
 #|
 ;;; Replaced by for-all?, there-exists? in boole, with args reversed.

@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -29,7 +29,7 @@ USA.
 ;;; Generalized coordinates to angular velocities.
 
 (define (m:antisymmetric? A)
-  (m:zero? ((m:elementwise simplify)
+  (m:zero? ((m:elementwise careful-simplify)
 	    (matrix+matrix (m:transpose A) A))))
 
 (define (antisymmetric->column-matrix A)
@@ -72,10 +72,21 @@ USA.
 	(* B (square (ref omega-body 1)))
 	(* C (square (ref omega-body 2))))))
 
+#|
 (define ((L-body A B C) omega-body)
   (column-matrix (* A (ref omega-body 0))
 		 (* B (ref omega-body 1))
 		 (* C (ref omega-body 2))))
+|#
+
+(define ((L-body A B C) omega-body)
+  (down (* A (ref omega-body 0))
+	(* B (ref omega-body 1))
+	(* C (ref omega-body 2))))
+
+(define (((L-space M) A B C) omega-body)
+  (* ((L-body A B C) omega-body)
+     (m:transpose M)))
 
 ;;; Euler Angles
 
@@ -144,9 +155,9 @@ USA.
 ;;; Assuming Euler angles rotate principal axes from reference
 ;;; orientation.
 
+#|
 (define (Euler-state->omega-body local)
-  (let ((t (time local))
-        (q (coordinate local))
+  (let ((q (coordinate local))
         (qdot (velocity local)))
     (let ((theta (ref q 0))
           (psi (ref q 2))
@@ -159,24 +170,52 @@ USA.
                         (* phidot (sin theta) (cos psi))))
             (omega-c (+ (* phidot (cos theta)) psidot)))
         (column-matrix omega-a omega-b omega-c)))))
+|#
 
-(define ((T-rigid-body A B C) local)
-  (let ((omega-body (Euler-state->omega-body local)))
-    (* 1/2
-       (+ (* A (square (ref omega-body 0)))
-	  (* B (square (ref omega-body 1)))
-	  (* C (square (ref omega-body 2)))))))
+(define (Euler-state->omega-body local)
+  (let ((q (coordinate local))
+        (qdot (velocity local)))
+    (let ((theta (ref q 0))
+          (psi (ref q 2))
+          (thetadot (ref qdot 0))
+          (phidot (ref qdot 1))
+          (psidot (ref qdot 2)))
+      (let ((omega-a (+ (* thetadot (cos psi))
+                        (* phidot (sin theta) (sin psi))))
+            (omega-b (+ (* -1 thetadot (sin psi))
+                        (* phidot (sin theta) (cos psi))))
+            (omega-c (+ (* phidot (cos theta)) psidot)))
+        (up omega-a omega-b omega-c)))))
+
+(define ((T-rigid-Euler A B C) local)
+  ((T-rigid A B C)
+   (Euler-state->omega-body local)))
+
+(define T-rigid-body T-rigid-Euler)
+
 
 (define ((Euler-state->L-body A B C) local)
-  (let ((omega-body (Euler-state->omega-body local)))
-    (column-matrix (* A (ref omega-body 0))
-		   (* B (ref omega-body 1))
-		   (* C (ref omega-body 2)))))
+  ((L-body A B C)
+   (Euler-state->omega-body local)))
 
+#| Wrong up/down
 (define ((Euler-state->L-space A B C) local)
   (let ((angles (coordinate local)))
     (* (Euler->M angles)
        ((Euler-state->L-body A B C) local))))
+|#
+
+#|
+(define ((Euler-state->L-space A B C) local)
+  (let ((angles (coordinate local)))
+    (((L-space (Euler->M angles)) A B C) 
+     (Euler-state->omega-body local))))
+|#
+
+(define ((Euler-state->L-space A B C) local)
+  (let ((angles (coordinate local)))
+    (* ((Euler-state->L-body A B C) local)
+       (m:transpose (Euler->M angles)))))
 
 #|
 (define an-Euler-state
@@ -186,7 +225,7 @@ USA.
 
 (show-expression
  (ref
-   (((partial 2) (T-rigid-body 'A 'B 'C))
+   (((partial 2) (T-rigid-Euler 'A 'B 'C))
     an-Euler-state)
    1))
 (+ (* A phidot (expt (sin psi) 2) (expt (sin theta) 2))
@@ -198,14 +237,14 @@ USA.
 
 (print-expression
  (- (ref ((Euler-state->L-space 'A 'B 'C) an-Euler-state) 2)        ;$L_z$
-    (ref (((partial 2) (T-rigid-body 'A 'B 'C)) an-Euler-state) 1)  ;$p_\phi$
+    (ref (((partial 2) (T-rigid-Euler 'A 'B 'C)) an-Euler-state) 1)  ;$p_\phi$
     ))
 0
 
 (print-expression
  (determinant
   (((compose (partial 2) (partial 2)) 
-    (T-rigid-body 'A 'B 'C))
+    (T-rigid-Euler 'A 'B 'C))
    an-Euler-state)))
 (* A B C (expt (sin theta) 2))
 |#
@@ -217,12 +256,12 @@ USA.
 
 #|
 (define (rigid-sysder A B C)
-  (Lagrangian->state-derivative (T-rigid-body A B C)))
+  (Lagrangian->state-derivative (T-rigid-Euler A B C)))
 
 (define ((monitor-errors win A B C L0 E0) state)
   (let ((t (time state))
 	(L ((Euler-state->L-space A B C) state))
-	(E ((T-rigid-body A B C) state)))
+	(E ((T-rigid-Euler A B C) state)))
     (plot-point win t (relative-error (ref L 0) (ref L0 0)))
     (plot-point win t (relative-error (ref L 1) (ref L0 1)))
     (plot-point win t (relative-error (ref L 2) (ref L0 2)))
@@ -242,7 +281,7 @@ USA.
 		  (up 1. 0. 0.)
 		  (up 0.1 0.1 0.1))))
   (let ((L0 ((Euler-state->L-space A B C) state0))
-	(E0 ((T-rigid-body A B C) state0)))
+	(E0 ((T-rigid-Euler A B C) state0)))
     ((evolve rigid-sysder A B C)
      state0
      (monitor-errors win A B C L0 E0)
@@ -261,7 +300,7 @@ USA.
 
 #|
 (show-expression
- ((T-rigid-body 'A 'A 'C) 
+ ((T-rigid-Euler 'A 'A 'C) 
    (up 't 
        (up 'theta 'phi 'psi)
        (up 'thetadot 'phidot 'psidot))))
@@ -321,17 +360,17 @@ USA.
          (* -1 gMR (cos theta))))))
 
 
-(define ((ueff p A C gMR) theta)
+(define ((V_eff p A C gMR) theta)
   (+ (/ (square p) (* 2 C))
      (* (/ (square p) (* 2 A))
 	(square (tan (/ theta 2))))
      (* gMR (cos theta))))
 
 
-;;; Critical value of bifurcation when D^2 Ueff (0) = 0
+;;; Critical value of bifurcation when D^2 V_eff (0) = 0
 
 (print-expression
- (((square derivative) (ueff 'p_c 'A 'C 'gMR)) 0))
+ (((square derivative) (V_eff 'p_c 'A 'C 'gMR)) 0))
 (+ (* -1 gMR) (/ (* 1/4 (expt p_c 2)) A))
 
 ;;; critical angular speed in RPM is:

@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -153,12 +153,14 @@ USA.
 
 (define (/units u1 u2)
   (cond ((unitless? u1)
-	 (let ((v2 (unit-exponents u2)))
-	   (make-unit (unit-system u2)
-		      (make-initialized-vector (vector-length v2)
-					       (lambda (i)
-						 (n:* -1 (vector-ref v2 i))))
-		      (n:/ 1 (unit-scale u2)))))
+	 (if (unitless? u2)
+	     &unitless
+	     (let ((v2 (unit-exponents u2)))
+	       (make-unit (unit-system u2)
+			  (make-initialized-vector (vector-length v2)
+						   (lambda (i)
+						     (n:* -1 (vector-ref v2 i))))
+			  (n:/ 1 (unit-scale u2))))))
 	((unitless? u2) u1)
 	(else (assert (and (eq? (unit-system u1) (unit-system u2))))
 	      (let ((v1 (unit-exponents u1)) (v2 (unit-exponents u2)))

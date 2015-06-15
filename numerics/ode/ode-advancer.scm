@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -48,7 +48,6 @@ USA.
 ;;;   where
 ;;;     continue=(lambda (new-state dt-obtained dt-suggested) ...)
 
-
 #|
 (pe ((ode-advancer
       (lambda (s) (up 1 (ref s 1)))
@@ -58,34 +57,23 @@ USA.
      1
      list))
 ((up 1. 2.718281828459047) 1 1.5)
-
-(pe ((ode-advance-exactly
-      (lambda (s)
-	(up 1 (ref s 1)))
-      1.e-12
-      2)
-     (up 0 1)
-     10))
-(up 10. 22026.4657948064)
-
-(exp 10)
-;Value: 22026.465794806725
 |#
-
-
+
 (define (ode-advancer sysder local-error-tolerance dimension)
   (case *ode-integration-method*
-    ((BULIRSCH-STOER bulirsch-stoer Bulirsch-Stoer)
+    ((bulirsch-stoer)
      (bs-advancer sysder local-error-tolerance dimension))
-    ((QCRK4 qcrk4)
+    ((qcrk4)
      (qcrk4-advancer sysder local-error-tolerance))
-    ((QCCTRAP2 qcctrap2)
+    ((qcctrap2)
      (qc-ctrap-advancer sysder local-error-tolerance))
-    ((Gear Explicit-Gear gear explicit-gear GEAR)
+    ((qcceuler)
+     (qc-ceuler-advancer sysder local-error-tolerance))
+    ((explicit-gear)
      ;; actually sysder here is f&df
      (gear-advancer sysder local-error-tolerance dimension))
     (else
-     (write-line `(methods: bulirsch-stoer qcrk4 qcctrap2 explicit-gear))
+     (write-line `(methods: bulirsch-stoer qcrk4 qcctrap2 qcceuler explicit-gear))
      (error "Unknown ode integrator" *ode-integration-method*))))
 
 (define (set-ode-integration-method! method)
@@ -96,11 +84,17 @@ USA.
      (set! *ode-integration-method* 'qcrk4))
     ((QCCTRAP2 qcctrap2)
      (set! *ode-integration-method* 'qcctrap2))
+    ((QCCEULER qcceuler)
+     (set! *ode-integration-method* 'qcceuler))
     ((Gear Explicit-Gear gear explicit-gear GEAR)
      ;; actually sysder here is f&df
      (set! *ode-integration-method* 'explicit-gear))
     (else
-     (write-line `(available methods: bulirsch-stoer qcrk4 qcctrap2 explicit-gear))
+     (write-line
+      `(available methods: bulirsch-stoer qcrk4 qcctrap2 qcceuler explicit-gear))
+     (display
+      "Note: for x' = f(x), Gear needs f&df, all others need only f.")
+     (newline)
      `(currently: ,*ode-integration-method*))))
 
 (define (advance-monitor ns step-achieved step-suggested cont)
@@ -126,6 +120,13 @@ USA.
 
 (define (qc-ctrap-advancer sysder local-error-tolerance)
   ((quality-control c-trapezoid 2)
+   sysder			
+   local-error-tolerance 
+   (* *corrector-convergence-margin*
+      local-error-tolerance)))
+
+(define (qc-ceuler-advancer sysder local-error-tolerance)
+  ((quality-control c-euler 1)
    sysder			
    local-error-tolerance 
    (* *corrector-convergence-margin*

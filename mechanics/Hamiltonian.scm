@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -34,12 +34,36 @@ USA.
 (define (->H-state t q p)
   (vector t q p))
 
+(define (H-state? s)
+  (and (up? s)
+       (fix:= (s:length s) 3)
+       (numerical-quantity? (ref s 0))
+       (or (and (numerical-quantity? (ref s 1))
+                (numerical-quantity? (ref s 2)))
+           (and (up? (ref s 1))
+                (down? (ref s 2))
+                (= (s:dimension (ref s 1))
+                   (s:dimension (ref s 2)))))))
+
+(define (compatible-H-state? s)
+  (and (down? s)
+       (fix:= (s:length s) 3)
+       (numerical-quantity? (ref s 0))
+       (or (and (numerical-quantity? (ref s 1))
+                (numerical-quantity? (ref s 2)))
+           (and (down? (ref s 1))
+                (up? (ref s 2))
+                (= (s:dimension (ref s 1))
+                   (s:dimension (ref s 2)))))))
+
+
 (define (state->p state)
   (if (not (and (vector? state) (fix:> (vector-length state) 2)))
       (error "Cannot extract momentum from" state))
   (ref state 2))
 
 (define momentum state->p)
+(define momenta state->p)
 (define P     state->p)
 
 
@@ -57,12 +81,55 @@ USA.
       (coordinate Hs)
       (((partial 2) H) Hs)))
 
+(define (H-state->matrix s)
+  (s->m (compatible-shape s) s 1))
+
+;; (define (matrix->H-state m)
+;;   (assert (= (m:num-cols m) 1))
+;;   (assert (and (odd? (m:num-rows m))
+;; 	       (> (m:num-rows m) 2)))
+;;   (let ((n (quotient (- (m:num-rows m) 1) 2)))
+;;     (let ((s (up (generate-uninterned-symbol)
+;; 		 (s:generate n 'up generate-uninterned-symbol)
+;; 		 (s:generate n 'down generate-uninterned-symbol))))
+;;       (m->s (compatible-shape s) m 1))))
+
+(define (matrix->H-state m s)
+  (assert (= (m:num-cols m) 1))
+  (assert (and (odd? (m:num-rows m))
+	       (> (m:num-rows m) 2)))
+  (m->s (compatible-shape s) m 1))
+
+(define (degrees-of-freedom H-state)
+  (assert (= (s:length H-state) 3))
+  (assert (= (s:dimension (coordinate H-state))
+             (s:dimension (momentum H-state))))
+  (s:dimension (coordinate H-state)))
+
+#|
+(matrix->H-state (H-state->matrix (up 't (up 'x 'y) (down 'p_x 'p_y))))
+#|
+(up t (up x y) (down p_x p_y))
+|#
+
+(H-state->matrix
+ (matrix->H-state
+  (matrix-by-rows (list 't)
+		  (list 'x)
+		  (list 'y)
+		  (list 'p_x)
+		  (list 'p_y))))
+#|
+(matrix-by-rows (list t) (list x) (list y) (list p_x) (list p_y))
+|#
+|#
+
 (define (make-Hamiltonian kinetic-energy potential-energy)
   (+ kinetic-energy potential-energy))
 
 (define ((Hamilton-equations Hamiltonian) q p)
   (let ((H-state-path (qp->H-state-path q p))
-	(dH (phase-space-derivative Hamiltonian)))
+	(dH (Hamiltonian->state-derivative Hamiltonian)))
     (- (D H-state-path)
        (compose dH
                 H-state-path))))
@@ -70,13 +137,13 @@ USA.
 (define ((qp->H-state-path q p) t)
   (->H-state t (q t) (p t)))
 
-(define ((phase-space-derivative Hamiltonian) H-state)
+(define ((Hamiltonian->state-derivative Hamiltonian) H-state)
   (->H-state 1
              (((partial 2) Hamiltonian) H-state)
              (- (((partial 1) Hamiltonian) H-state))))
 
-(define Hamiltonian->state-derivative
-  phase-space-derivative)
+(define phase-space-derivative
+  Hamiltonian->state-derivative)
 
 ;;; If we express the energy in terms of t,Q,P we have the Hamiltonian.
 ;;; A Hamiltonian is an example of an H-function: an H-function takes

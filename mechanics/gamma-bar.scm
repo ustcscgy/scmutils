@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -51,11 +51,21 @@ USA.
   (Gamma-bar DF-on-path))
 |#
 
+#|
 (define ((Dt-procedure F) state)
   (let ((n (vector-length state)))
     (define (DF-on-path q)
-      (D (compose F (Gamma q n))))
+      (D (compose F (Gamma q (- n 1)))))
     ((Gamma-bar DF-on-path) state)))
+|#
+
+(define (Dt-procedure F)
+  (define (DtF state)
+    (let ((n (vector-length state)))
+      (define (DF-on-path q)
+	(D (compose F (Gamma q (- n 1)))))
+      ((Gamma-bar DF-on-path) state)))
+  DtF)
 
 (define Dt
   (make-operator Dt-procedure 'Dt))
@@ -67,23 +77,34 @@ USA.
      (let ((t (time state))
 	   (q (coordinate state)))
        (square q))))
-  (->local
-   't
-   (coordinate-tuple 'x 'y) 
-   (velocity-tuple 'vx 'vy))))
+  (up 't (up 'x 'y) (up 'vx 'vy))))
 (+ (* 2 vx x) (* 2 vy y))
 
 
 (print-expression
  ((Dt (Dt (lambda (state) (coordinate state))))
-  (->local 't 'x 'v 'a 'j)))
+  (up 't 'x 'v 'a 'j)))
 a
 
 (print-expression
  ((Dt (Dt (lambda (state)
 	    (square (coordinate state)))))
-  (->local 't 'x 'v 'a 'j)))
+  (up 't 'x 'v 'a 'j)))
 (+ (* 2 a x) (* 2 (expt v 2)))
+
+(define L (literal-function 'L (Lagrangian 2)))
+
+(print-expression
+ ((Dt L) (up't (up 'x 'y) (up 'vx 'vy))))
+<error, not enuf args>
+
+(print-expression
+ ((Dt L) (up't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
+(+ (* ax (((partial 2 0) L) (up t (up x y) (up vx vy))))
+   (* ay (((partial 2 1) L) (up t (up x y) (up vx vy))))
+   (* vx (((partial 1 0) L) (up t (up x y) (up vx vy))))
+   (* vy (((partial 1 1) L) (up t (up x y) (up vx vy))))
+   (((partial 0) L) (up t (up x y) (up vx vy))))
 |#
 
 (define (Euler-Lagrange-operator Lagrangian)
@@ -95,34 +116,49 @@ a
 
 (define LE Euler-Lagrange-operator)
 (define Lagrange-equations-operator LE)
-
+ 
 ;;; Given a local tuple, produces a finite state.
 
-(define (clip-state n)
-  (lambda (u)
-    (vector-head u n)))
-
 #|
+(define ((L-harmonic m k) s)
+  (- (* 1/2 m (square (velocity s)))
+     (* 1/2 k (square (coordinate s)))))
+
 (print-expression
  ((LE (L-harmonic 'm 'k))
-  (->local 't 'x 'v 'a)))
+  (up 't 'x 'v 'a)))
 (+ (* a m) (* k x))
 
 (print-expression
  ((LE (L-harmonic 'm 'k))
-  (->local 't
-	   #(x y)
-	   #(vx vy)
-	   #(ax ay))))
+  (up 't #(x y) #(vx vy) #(ax ay))))
 (down (+ (* ax m) (* k x))
       (+ (* ay m) (* k y)))
 
 
-;;; Adding extra state components is harmless.
+(print-expression
+ ((LE L) (up't (up 'x 'y) (up 'vx 'vy) (up 'ax 'ay))))
+(down
+ (+ (* ax (((partial 2 0) ((partial 2 0) L)) (up t (up x y) (up vx vy))))
+    (* ay (((partial 2 0) ((partial 2 1) L)) (up t (up x y) (up vx vy))))
+    (* vx (((partial 1 0) ((partial 2 0) L)) (up t (up x y) (up vx vy))))
+    (* vy (((partial 1 1) ((partial 2 0) L)) (up t (up x y) (up vx vy))))
+    (* -1 (((partial 1 0) L) (up t (up x y) (up vx vy))))
+    (((partial 0) ((partial 2 0) L)) (up t (up x y) (up vx vy))))
+ (+ (* ax (((partial 2 0) ((partial 2 1) L)) (up t (up x y) (up vx vy))))
+    (* ay (((partial 2 1) ((partial 2 1) L)) (up t (up x y) (up vx vy))))
+    (* vx (((partial 1 0) ((partial 2 1) L)) (up t (up x y) (up vx vy))))
+    (* vy (((partial 1 1) ((partial 2 1) L)) (up t (up x y) (up vx vy))))
+    (* -1 (((partial 1 1) L) (up t (up x y) (up vx vy))))
+    (((partial 0) ((partial 2 1) L)) (up t (up x y) (up vx vy)))))
+
+
+;;; Adding extra state components is harmless, because L-harmonic does
+;;; not check the length of the jet.
 
 (print-expression
  ((LE (L-harmonic 'm 'k))
-  (->local 't 'x 'v 'a 'j)))
+  (up 't 'x 'v 'a 'j)))
 (+ (* a m) (* k x))
 
 ;;; But watch out.  If not enuf local componenents
@@ -130,7 +166,7 @@ a
 
 (print-expression
  ((LE (L-harmonic 'm 'k))
-  (->local 't 'x 'v)))
+  (up 't 'x 'v)))
 ;Cannot extract velocity from #((*diff* ... ...) x)
 ;;; error
 
@@ -158,17 +194,27 @@ a
     (* m (((expt D 2) phi) t) (expt (r t) 2))))
 |#
 
+(define (clip-state n)
+  (lambda (u)
+    (vector-head u n)))
+
+(define (clip state)
+  (vector-head state
+	       (- (vector-length state)
+		  1)))
+
+
 (define ((generalized-LE Lagrangian) state)
   (let ((m (s:length state)))
     (assert (and (fix:> m 3) (even? m))
 	    "Incorrect state size for Lagrange Equations")
-    (let lp ((i (quotient m 2)))
+    (let lp ((i (quotient m 2)) (state state))
       (if (fix:= i 0)
 	  0
 	  (- (((expt Dt (fix:- i 1))
 	       ((partial i) Lagrangian))
 	      state)
-	     (lp (fix:- i 1)))))))
+	     (lp (fix:- i 1) (clip state)))))))
 
 #|
 (define ((L2harmonic m k) state)
@@ -178,26 +224,22 @@ a
 
 (print-expression
  ((generalized-LE (L2harmonic 'm 'k))
-  (->local 't 'x 'v 'a 'j 'p)))
+  (up 't 'x 'v 'a 'j 'p)))
 (+ (* a m) (* k x))
 
 
-(define L
-  (compose (literal-function 'L (Lagrangian))
-	   (clip-state 3)))
-
-(pe ((generalized-LE L) (->local 't 'x 'v 'a)))
+(pe ((generalized-LE
+      (literal-function 'L (-> (UP Real Real Real) Real)))
+     (up 't 'x 'v 'a)))
 (+ (* a (((partial 2) ((partial 2) L)) (up t x v)))
    (* v (((partial 1) ((partial 2) L)) (up t x v)))
    (((partial 0) ((partial 2) L)) (up t x v))
    (* -1 (((partial 1) L) (up t x v))))
 
 
-(define L
-  (compose (literal-function 'L (Lagrangian))
-	   (clip-state 4)))
-
-(pe ((generalized-LE L) (->local 't 'x 'v 'a 'j 'p)))
+(pe ((generalized-LE
+      (literal-function 'L (-> (UP Real Real Real Real) Real)))
+     (up 't 'x 'v 'a 'j 'p)))
 (+ (* (expt a 2) (((partial 2) ((partial 2) ((partial 3) L))) (up t x v a)))
    (* 2 a j (((partial 2) ((partial 3) ((partial 3) L))) (up t x v a)))
    (* 2 a v (((partial 1) ((partial 2) ((partial 3) L))) (up t x v a)))

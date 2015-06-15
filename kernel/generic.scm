@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -98,6 +98,7 @@ USA.
 
 (define g:trace (make-generic-operator 1 'trace))
 
+(define g:transpose (make-generic-operator 1 'transpose))
 
 
 ;;; Duplicate of text in OPERATOR.SCM, except that the explicit type
@@ -223,6 +224,10 @@ USA.
 (define g:gcd:bin (make-generic-operator 2 'gcd))
 
 (define g:dot-product (make-generic-operator 2 'dot-product))
+(define g:cross-product (make-generic-operator 2 'cross-product))
+
+(define g:outer-product (make-generic-operator 2 'outer-product))
+
 
 ;;; Complex Operators
 

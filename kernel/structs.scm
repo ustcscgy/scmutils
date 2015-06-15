@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -317,8 +317,9 @@ USA.
 		    (if (not v)
 			#f
 			(tlp v))))
-		 (else
-		  (there-exists? thing tlp))))
+		 ((list? thing)
+		  (there-exists? thing tlp))
+		 (else (tlp (cdr thing)))))
 	  (else #f))))
 
 (define (s:arity v) (v:arity (s:->vector v)))
@@ -435,6 +436,68 @@ USA.
 
 |#
 
+
+;;; Given two structures their outer product makes a structure
+#|
+(define (s:outer-product s1 s2)
+  (let lp ((s s2))
+    (if (structure? s)
+	(s:generate (s:length s) (s:same s)
+		    (lambda (i) (lp (s:ref s i))))
+	(g:* s1 s))))
+#|
+(pe (s:outer-product (up 'a0 'a1)
+		   (down 'b0 'b1 'b2)))
+(down (up (* a0 b0) (* a1 b0))
+      (up (* a0 b1) (* a1 b1))
+      (up (* a0 b2) (* a1 b2)))
+|#
+|#
+
+(define (s:outer-product struct2 struct1)
+  (s:map/r (lambda (s1)
+	     (s:map/r (lambda (s2)
+			(g:* s1 s2))
+		      struct2))
+	   struct1))
+#|
+(pe (s:outer-product (up 'a0 'a1)
+		   (down 'b0 'b1 'b2)))
+(down (up (* a0 b0) (* a1 b0))
+      (up (* a0 b1) (* a1 b1))
+      (up (* a0 b2) (* a1 b2)))
+
+;;; cf.
+
+(pe (m:outer-product (column-matrix 'a0 'a1)
+		     (row-matrix 'b0 'b1 'b2)))
+(matrix-by-rows (list (* a0 b0) (* a0 b1) (* a0 b2))
+		(list (* a1 b0) (* a1 b1) (* a1 b2)))
+
+
+
+(let* ((s (up 'dt (up 'dx 'dy) (down 'dpx 'dpy)))
+       (s* (compatible-shape s)))
+  (* s* (s:outer-product s s*) s))
+#|
+(+ (* (expt dpx 2) (expt x29083 2))
+   (* 2 dpx dpy x29083 x29084)
+   (* 2 dpx dt x29080 x29083)
+   (* 2 dpx dx x29081 x29083)
+   (* 2 dpx dy x29082 x29083)
+   (* (expt dpy 2) (expt x29084 2))
+   (* 2 dpy dt x29080 x29084)
+   (* 2 dpy dx x29081 x29084)
+   (* 2 dpy dy x29082 x29084)
+   (* (expt dt 2) (expt x29080 2))
+   (* 2 dt dx x29080 x29081)
+   (* 2 dt dy x29080 x29082)
+   (* (expt dx 2) (expt x29081 2))
+   (* 2 dx dy x29081 x29082)
+   (* (expt dy 2) (expt x29082 2)))
+|#
+|#
+
 (define (structure:expt t n)
   (cond ((fix:= n 1) t)
 	((fix:> n 1) (g:* t (structure:expt t (fix:- n 1))))
@@ -504,6 +567,7 @@ USA.
 (assign-operation 'square      s:square                structure?)
 
 (assign-operation 'dot-product s:dot-product           structure?    structure?)
+(assign-operation 'outer-product s:outer-product       structure?    structure?)
 
 (assign-operation '*           scalar*structure        scalar?    structure?)
 (assign-operation '*           structure*scalar        structure? scalar?)
@@ -693,6 +757,14 @@ USA.
 				   (lambda (i)
 				     (matrix-ref mat i j))))))
 	(else mat)))
+
+(define (submatrix s lowrow hirow+1 lowcol hicol+1)
+  (cond ((structure? s)
+	 (m:submatrix (structure->matrix s) lowrow hirow+1 lowcol hicol+1))
+	((matrix? s)
+	 (m:submatrix s lowrow hirow+1 lowcol hicol+1))
+	(else (error "Wrong type submatrix" s))))
+
 #|
 (define (up-structure->list s)
   (map s:canonicalize
@@ -705,6 +777,9 @@ USA.
 ;;; Sometimes a 2-tensor must be viewed as a matrix for some purpose,
 ;;; for example to invert it.  The following are the required coercions 
 ;;; between tensor structures and matrices.
+
+;;; Convention for A^m_n: rightmost index, n, is length of outermost
+;;; structure.
 
 ;;; a row of n rows each m long -> n rows X m columns
 
@@ -734,7 +809,13 @@ USA.
 			    (lambda (j)
 			      (matrix-ref mat i j))))))
 
-
+#|
+((compose mnm->a_mn a_mn->mnm) (row (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+#|
+(down (down a b) (down c d) (down e f))
+|#
+|#
+
 ;;; a col of n cols each m long -> m rows X n columns
 
 (define (A^mn->Mmn s)
@@ -762,6 +843,12 @@ USA.
 		(s:generate (m:num-rows mat) 'column
 			    (lambda (i)
 			      (matrix-ref mat i j))))))
+#|
+((compose mmn->a^mn a^mn->mmn) (column (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+#|
+(up (up a b) (up c d) (up e f))
+|#
+|#
 
 ;;; a row of n cols each m long -> m rows X n columns
 
@@ -789,8 +876,13 @@ USA.
 		(s:generate (m:num-rows mat) 'column
 			    (lambda (i)
 			      (matrix-ref mat i j))))))
-
-
+#|
+((compose mmn->A^m_n A^m_n->mmn) (row (column 'a 'b) (column 'c 'd) (column 'e 'f)))
+#|
+(down (up a b) (up c d) (up e f))
+|#
+|#
+
 ;;; a col of n rows each m long -> n rows X m columns
 
 (define (A_m^n->Mnm s)
@@ -817,14 +909,12 @@ USA.
 		(s:generate (m:num-cols mat) 'row
 			    (lambda (j)
 			      (matrix-ref mat i j))))))
-
-
-(define (submatrix s lowrow hirow+1 lowcol hicol+1)
-  (cond ((structure? s)
-	 (m:submatrix (structure->matrix s) lowrow hirow+1 lowcol hicol+1))
-	((matrix? s)
-	 (m:submatrix s lowrow hirow+1 lowcol hicol+1))
-	(else (error "Wrong type submatrix" s))))
+#|
+((compose mnm->A_m^n A_m^n->mnm) (column (row 'a 'b) (row 'c 'd) (row 'e 'f)))
+#|
+(up (down a b) (down c d) (down e f))
+|#
+|#
 
 ;;; A few lonely tensor operations here -- this will expand later.
 
@@ -858,18 +948,54 @@ USA.
 	((up-of-downs? s) (A_m^n->Mnm s))
 	((down-of-ups? s) (A^m_n->Mmn s))
 	(else (error "structure->matrix" s))))
-
+
 (define (s:invert s)
   (cond ((2-down? s)
-	 (Mmn->A^mn (m:invert (A_mn->Mnm s))))
+	 (Mmn->A^mn (m:invert (m:transpose (A_mn->Mnm s)))))
 	((2-up? s)
-	 (Mnm->A_mn (m:invert (A^mn->Mmn s))))
+	 (Mnm->A_mn (m:invert (m:transpose (A^mn->Mmn s)))))
 	((up-of-downs? s)
 	 (Mnm->A_m^n (m:invert (A_m^n->Mnm s))))
 	((down-of-ups? s)
 	 (Mmn->A^m_n (m:invert (A^m_n->Mmn s))))
 	(else (error "s:invert" s))))
 
+#|
+;;;; Test by equation solving.  All answers should be <e f>.
+
+;;; down of downs
+(let ((a (down (down 'a 'b) (down 'c 'd)))
+      (b (up 'e 'f)))
+  (* a (* (s:invert a) b)))
+#|
+(up e f)
+|#
+
+;;; up of ups
+(let ((a (up (up 'a 'b) (up 'c 'd)))
+      (b (down 'e 'f)))
+  (* a (* (s:invert a) b)))
+#|
+(down e f)
+|#
+
+;;; up of downs
+(let ((a (up (down 'a 'b) (down 'c 'd)))
+      (b (down 'e 'f)))
+  (* a (* (s:invert a) b)))
+#|
+(down e f)
+|#
+
+;;; down of ups
+(let ((a (down (up 'a 'b) (up 'c 'd)))
+      (b (up 'e 'f)))
+  (* a (* (s:invert a) b)))
+#|
+(up e f)
+|#
+|#
+
 (define (scalar/tensor x s)
   (g:* x (s:invert s)))
 
@@ -884,14 +1010,73 @@ USA.
 
 (define (s:solve-ud-rs rv s)
   (g:* rv (s:invert s)))
+
+(define (s:transpose2 s)
+  (cond ((2-down? s)
+	 (Mnm->A_mn (m:transpose (A_mn->Mnm s))))
+	((2-up? s)
+	 (Mmn->A^mn (m:transpose (A^mn->Mmn s))))
+	((up-of-downs? s)
+	 (Mmn->A^m_n (A_m^n->Mnm s)))
+	((down-of-ups? s)
+	 (Mnm->A_m^n (A^m_n->Mmn s)))
+	(else (error "s:transpose2" s))))
 
-(assign-operation 'invert             s:invert         2-tensor?)
-(assign-operation '/   scalar/tensor  scalar?          2-tensor?)
+(define (s:transpose-up->down s)
+  (vector->down (up->vector s)))
 
-(assign-operation '/   s:solve-rs     row?             2-down?)
-(assign-operation '/   s:solve-cs     column?          2-up?)
-(assign-operation '/   s:solve-ud-rs  row?             up-of-downs?)
-(assign-operation '/   s:solve-du-cs  column?          down-of-ups?)
+(define (s:transpose-down->up s)
+  (vector->up (down->vector s)))
+
+#|
+(define (transpose-test left-multiplier thing right-multiplier)
+  ;; Should produce numerical zero and a zero structure
+  (list (- (* left-multiplier (* thing right-multiplier))
+	   (* (* (s:transpose2 thing) left-multiplier) right-multiplier))
+	(- (s:transpose left-multiplier thing right-multiplier)
+	   (s:transpose2 thing))))
+
+;;; down down
+(transpose-test (up 'a 'b)
+		(down (down 'c 'd) (down 'e 'f) (down 'g 'h))
+		(up 'i 'j 'k))
+#| (0 (down (down 0 0 0) (down 0 0 0))) |#
+
+;;; up up
+(transpose-test (down 'a 'b)
+		(up (up 'c 'd) (up 'e 'f) (up 'g 'h))
+		(down 'i 'j 'k))
+(0 (up (up 0 0 0) (up 0 0 0)))
+
+;;; up down
+(transpose-test (up 'a 'b)
+		(up (down 'c 'd) (down 'e 'f) (down 'g 'h))
+		(down 'i 'j 'k))
+#|
+(0 (down (up 0 0 0) (up 0 0 0)))
+|#
+
+;;; down up
+(transpose-test (down 'a 'b)
+		(down (up 'c 'd) (up 'e 'f) (up 'g 'h))
+		(up 'i 'j 'k))
+#|
+(0 (up (down 0 0 0) (down 0 0 0)))
+|#
+|#
+
+(assign-operation 'invert             s:invert                 2-tensor?)
+
+(assign-operation 'transpose          s:transpose2             2-tensor?)
+(assign-operation 'transpose          s:transpose-up->down     up?)
+(assign-operation 'transpose          s:transpose-down->up     down?)
+
+(assign-operation '/   scalar/tensor  scalar?                  2-tensor?)
+
+(assign-operation '/   s:solve-rs     row?                     2-down?)
+(assign-operation '/   s:solve-cs     column?                  2-up?)
+(assign-operation '/   s:solve-ud-rs  row?                     up-of-downs?)
+(assign-operation '/   s:solve-du-cs  column?                  down-of-ups?)
 
 (define (s:determinant s)
   (m:determinant (structure->matrix s)))
@@ -901,35 +1086,8 @@ USA.
 
 (assign-operation 'determinant s:determinant 2-tensor?)
 (assign-operation 'trace       s:trace       2-tensor?)
-
-#|
-(define (flip-indices s)
-  (cond ((up-of-downs? s)
-	 (s:generate (s:length (s:ref s 0)) 'down
-		     (lambda (i)
-		       (s:generate (s:length s) 'up
-				   (lambda (j)
-				     (s:ref (s:ref s j) i))))))
-	((down-of-ups? s)
-	 (s:generate (s:length (s:ref s 0)) 'up
-		     (lambda (i)
-		       (s:generate (s:length s) 'down
-				   (lambda (j)
-				     (s:ref (s:ref s j) i))))))
-	((2-down? s)
-	 (s:generate (s:length (s:ref s 0)) 'down
-		     (lambda (i)
-		       (s:generate (s:length s) 'down
-				   (lambda (j)
-				     (s:ref (s:ref s j) i))))))
-	((2-up? s)
-	 (s:generate (s:length (s:ref s 0)) 'up
-		     (lambda (i)
-		       (s:generate (s:length s) 'up
-				   (lambda (j)
-				     (s:ref (s:ref s j) i))))))
-	(else (error "flip-indices" s))))
-|#
+
+;;; This just changes the up and downness of a structure
 
 (define (flip-indices s)
   (if (structure? s)
@@ -938,12 +1096,24 @@ USA.
 		  (lambda (i)
 		    (flip-indices (s:ref s i))))
       s))
+#|
+(flip-indices (up 'a (up 'b 'c) (down 'd (up 'e 'f) 'g)))
+#|
+(down a (down b c) (up d (down e f) g))
+|#
+|#
 
 
 (define (flip-outer-index s)
   (assert (structure? s))
   (s:generate (s:length s) (s:opposite s)
 	      (lambda (i) (s:ref s i))))
+#|
+(flip-outer-index (up 'a (up 'b 'c) (down 'd (up 'e 'f) 'g)))
+#|
+(down a (up b c) (down d (up e f) g))
+|#
+|#
 
 (define (typical-object s)
   (if (structure? s)
@@ -951,8 +1121,13 @@ USA.
 		  (lambda (i)
 		    (typical-object (s:ref s i))))
       (generate-uninterned-symbol 'x)))
-
-
+#|
+(typical-object (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
+#|
+(up x328 (up x329 x330) (down x331 x332) (up x333 x334))
+|#
+|#
+
 (define (structure->access-chains struct)
   (let lp ((struct struct) (chain '()))
     (if (structure? struct)
@@ -960,6 +1135,13 @@ USA.
 		    (lambda (i)
 		      (lp (s:ref struct i) (cons i chain))))
 	(reverse chain))))
+#|
+(structure->access-chains (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
+#|
+(up (0) (up (1 0) (1 1)) (down (2 0) (2 1)) (up (3 0) (3 1)))
+|#
+|#
+
 
 (define (structure->prototype name struct)
   (s:map/r (lambda (chain)
@@ -971,9 +1153,17 @@ USA.
 					     (number->string el)))
 			    chain)))))
 	   (structure->access-chains struct)))
+#|
+(structure->prototype 'foo (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
+#|
+(up foo:0 (up foo:1:0 foo:1:1) (down foo:2:0 foo:2:1) (up foo:3:0 foo:3:1))
+|#
+|#
 
 
 #|
+;;; In src/mechanics/canonical.scm
+
 (define (linear-function->multiplier F argument)
   ((derivative F) argument))
 
@@ -985,12 +1175,23 @@ USA.
   (if (structure? s)
       (flip-indices (s:zero-like s))
       (g:zero-like s)))
+#|
+(compatible-zero (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
+#|
+(down 0 (down 0 0) (up 0 0) (down 0 0))
+|#
+|#
 
 (define (compatible-shape s)
   (if (structure? s)
       (typical-object (flip-indices s))
       (typical-object s)))
-
+#|
+(compatible-shape (up 't (up 'u 'v) (down 'r 's) (up 'v1 'v2)))
+#|
+(down x335 (down x336 x337) (up x338 x339) (down x340 x341))
+|#
+|#
 
 (define (s:transpose-outer struct)
   (s:generate (s:length (s:ref struct 0))
@@ -1001,45 +1202,24 @@ USA.
 			    (lambda (j)
 			      (s:ref (s:ref struct j)
 				     i))))))
-
-
-;;; Given two structures their outer product makes a structure
 #|
-(define (s:outer-product s1 s2)
-  (let lp ((s s2))
-    (if (structure? s)
-	(s:generate (s:length s) (s:same s)
-		    (lambda (i) (lp (s:ref s i))))
-	(g:* s1 s))))
+;;; used only in symmetrize-Christoffel in 
+;;; src/calculus/covariant-derivative.scm
+
+(define foo
+  (down (down (up 'x 'y)
+	      (up 'z 'w))
+	(down (up 'a 'b)
+	      (up 'c 'd))))
+
+(s:transpose-outer foo)
 #|
-(pe (s:outer-product (up 'a0 'a1)
-		   (down 'b0 'b1 'b2)))
-(down (up (* a0 b0) (* a1 b0))
-      (up (* a0 b1) (* a1 b1))
-      (up (* a0 b2) (* a1 b2)))
+(down (down (up x y)
+	    (up a b))
+      (down (up z w)
+	    (up c d)))
 |#
 |#
-
-(define (s:outer-product struct1 struct2)
-  (s:map/r (lambda (s1)
-	     (s:map/r (lambda (s2)
-			(g:* s1 s2))
-		      struct2))
-	   struct1))
-#|
-(pe (s:outer-product (up 'a0 'a1)
-		   (down 'b0 'b1 'b2)))
-(up (down (* a0 b0) (* a0 b1) (* a0 b2))
-    (down (* a1 b0) (* a1 b1) (* a1 b2)))
-
-;;; cf.
-
-(pe (m:outer-product (column-matrix 'a0 'a1)
-		     (row-matrix 'b0 'b1 'b2)))
-(matrix-by-rows (list (* a0 b0) (* a0 b1) (* a0 b2))
-		(list (* a1 b0) (* a1 b1) (* a1 b2)))
-|#
-
 
 ;;; contract assumes multi-index cubical structures
 
@@ -1088,12 +1268,10 @@ USA.
       (list s)))
 
 #|
-
 (ultra-flatten (up 1 2 'a (down 3 4) (up (down 'c 'd) 'e)))
 ;Value 16: (1 2 a 3 4 c d e)
 
 ;;; similar to s:fringe (reverse)
-
 |#
 
 (define (s:dimension s)
@@ -1105,10 +1283,8 @@ USA.
       1))
 
 #|
-
 (s:dimension (up 1 2 'a (down 3 4) (up (down 'c 'd) 'e)))
 ;Value: 8
-
 |#
 
 (define (ultra-unflatten shape list)
@@ -1121,21 +1297,17 @@ USA.
 	    (s:structure (s:same shape) (list->vector (reverse s)))
 	    ))
       (car list)))
-
 #|
-
 (ultra-unflatten
       (up 'x 'x 'x (down 'x 'x) (up (down 'x 'x) 'x))
       (list 1 2 'a 3 4 'c 'd 'e))
 ;Value 30: #(1 2 a (*down* #(3 4)) #((*down* #(c d)) e))
 
-(pe (- 
-     (ultra-unflatten
-      (up 'x 'x 'x (down 'x 'x) (up (down 'x 'x) 'x))
-      (list 1 2 'a 3 4 'c 'd 'e))
-     (up 1 2 'a (down 3 4) (up (down 'c 'd) 'e))))
+(pe (- (ultra-unflatten
+	(up 'x 'x 'x (down 'x 'x) (up (down 'x 'x) 'x))
+	(list 1 2 'a 3 4 'c 'd 'e))
+       (up 1 2 'a (down 3 4) (up (down 'c 'd) 'e))))
 (up 0 0 0 (down 0 0) (up (down 0 0) 0))
-
 |#
 
 
@@ -1156,8 +1328,12 @@ USA.
       (down (down (down 0 0) (down m2 0)) (down (down 0 0) (down 0 m2))))
 |#
 
+(define *careful-conversion* #t)
+
 (define (s->m ls ms rs)
-  ;;(assert (numerical-quantity? (g:* ls (g:* ms rs))))
+  (if *careful-conversion*
+      (assert (numerical-quantity? (g:* ls (g:* ms rs)))
+              "Innapropriate s->m" ls ms rs))
   (let ((nrows (s:dimension ls))
 	(ncols (s:dimension rs)))
     (m:generate nrows ncols
@@ -1184,14 +1360,19 @@ USA.
 (define (m->s ls m rs)
   (let ((ncols (m:num-cols m))
 	(col-shape (compatible-shape ls)))
-    (ultra-unflatten (compatible-shape rs)
-		     (let lp ((j 0))
-		       (if (fix:= j ncols)
-			   '()
-			   (let ((colj (m:nth-col m j)))
-			     (cons (ultra-unflatten col-shape
-						    (vector->list colj))
-				   (lp (fix:+ j 1)))))))))
+    (let ((ms
+           (ultra-unflatten (compatible-shape rs)
+                            (let lp ((j 0))
+                              (if (fix:= j ncols)
+                                  '()
+                                  (let ((colj (m:nth-col m j)))
+                                    (cons (ultra-unflatten col-shape
+                                                           (vector->list colj))
+                                          (lp (fix:+ j 1)))))))))
+      (if *careful-conversion*
+          (assert (numerical-quantity? (g:* ls (g:* ms rs)))
+                  "Innapropriate m->s" ls ms rs))
+      ms)))
 
 #|
 (pe (m->s vs (s->m vs (((expt D 2) L1) vs) vs) vs))
@@ -1214,15 +1395,88 @@ USA.
 
 
 ;;; (* <a| O |b>) = (* <b| (s:transpose O) |a>)
-
+#|
 (define (s:transpose ls ms rs)
   (m->s (compatible-shape rs)
 	(m:transpose (s->m ls ms rs))
 	(compatible-shape ls)))
+|#
 
+(define (s:transpose ls ms rs)
+   (m->s rs
+         (m:transpose (s->m ls ms rs))
+         ls))
 
 (define (s:inverse ls ms rs)		;but see s:invert...
   (m->s (compatible-shape rs)
 	(m:invert
 	 (s->m ls ms rs))
 	(compatible-shape ls)))
+
+
+;;; Any one argument function of a structure can be seen
+;;; as a matrix.  This is only useful if the function 
+;;; has a linear multiplier (e.g. derivative)
+
+(define ((as-matrix F) s)
+  (let ((v (F s)))
+    (s->m (compatible-shape (g:* v s)) v s)))
+
+#|
+(define ((D-as-matrix F) s)
+  (s->m (compatible-shape (F s)) ((D F) s) s))
+
+
+(define C-general
+  (literal-function 'C
+    (-> (UP Real
+	    (UP Real Real)
+	    (DOWN Real Real))
+	(UP Real
+	    (UP Real Real)
+	    (DOWN Real Real)))))
+
+
+(define s (up 't (up 'x 'y) (down 'px 'py)))
+
+((as-matrix (D C-general)) s)
+#|
+(matrix-by-rows
+ (list (((partial 0) C^0) (up t (up x y) (down px py)))
+       (((partial 1 0) C^0) (up t (up x y) (down px py)))
+       (((partial 1 1) C^0) (up t (up x y) (down px py)))
+       (((partial 2 0) C^0) (up t (up x y) (down px py)))
+       (((partial 2 1) C^0) (up t (up x y) (down px py))))
+ (list (((partial 0) C^1^0) (up t (up x y) (down px py)))
+       (((partial 1 0) C^1^0) (up t (up x y) (down px py)))
+       (((partial 1 1) C^1^0) (up t (up x y) (down px py)))
+       (((partial 2 0) C^1^0) (up t (up x y) (down px py)))
+       (((partial 2 1) C^1^0) (up t (up x y) (down px py))))
+ (list (((partial 0) C^1^1) (up t (up x y) (down px py)))
+       (((partial 1 0) C^1^1) (up t (up x y) (down px py)))
+       (((partial 1 1) C^1^1) (up t (up x y) (down px py)))
+       (((partial 2 0) C^1^1) (up t (up x y) (down px py)))
+       (((partial 2 1) C^1^1) (up t (up x y) (down px py))))
+ (list (((partial 0) C^2_0) (up t (up x y) (down px py)))
+       (((partial 1 0) C^2_0) (up t (up x y) (down px py)))
+       (((partial 1 1) C^2_0) (up t (up x y) (down px py)))
+       (((partial 2 0) C^2_0) (up t (up x y) (down px py)))
+       (((partial 2 1) C^2_0) (up t (up x y) (down px py))))
+ (list (((partial 0) C^2_1) (up t (up x y) (down px py)))
+       (((partial 1 0) C^2_1) (up t (up x y) (down px py)))
+       (((partial 1 1) C^2_1) (up t (up x y) (down px py)))
+       (((partial 2 0) C^2_1) (up t (up x y) (down px py)))
+       (((partial 2 1) C^2_1) (up t (up x y) (down px py)))))
+|#
+
+((- (D-as-matrix C-general)
+    (as-matrix (D C-general)))
+ s)
+#|
+(matrix-by-rows (list 0 0 0 0 0)
+		(list 0 0 0 0 0)
+		(list 0 0 0 0 0)
+		(list 0 0 0 0 0)
+		(list 0 0 0 0 0))
+|#
+|#

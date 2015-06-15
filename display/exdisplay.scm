@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -729,11 +729,30 @@ USA.
    140
    (glue-horiz (list "\\ddot{" (insure-bp uptable 140 (car args)) "}"))))
 
-
 (define (2d:unparse-dotdotted uptable args)
   (make-box-with-bp
    140
    (glue-horiz (list "(ddot " (insure-bp uptable 140 (car args)) ")"))))
+
+(define (tex:unparse-primed uptable args)
+  (make-box-with-bp
+   140
+   (glue-horiz (list "{" (insure-bp uptable 140 (car args)) "\\prime}"))))
+
+(define (2d:unparse-primed uptable args)
+  (make-box-with-bp
+   140
+   (glue-horiz (list "(prime " (insure-bp uptable 140 (car args)) ")"))))
+
+(define (tex:unparse-primeprimed uptable args)
+  (make-box-with-bp
+   140
+   (glue-horiz (list "{" (insure-bp uptable 140 (car args)) "\\prime\\prime}"))))
+
+(define (2d:unparse-primeprimed uptable args)
+  (make-box-with-bp
+   140
+   (glue-horiz (list "(primeprime " (insure-bp uptable 140 (car args)) ")"))))
 
 #|
 (define (unparse-second-derivative uptable args)
@@ -797,6 +816,8 @@ USA.
 (define (2d:unparse-matrix uptable matrix-list)
   ;;first pad all elements in each column to the max width in the
   ;;column
+  (define (transpose matrix-lists)
+    (apply map (cons list matrix-lists)))
   (let* ((matrix-with-widended-columns
 	  (transpose
 	   (map (lambda (column)
@@ -921,6 +942,8 @@ USA.
     (matrix ,2d:unparse-matrix)
     (dotted ,2d:unparse-dotted)
     (dotdotted ,2d:unparse-dotdotted)
+    (primed ,2d:unparse-primed)
+    (primeprimed ,2d:unparse-primeprimed)
     ))
 
 (define 2d:symbol-substs
@@ -957,6 +980,8 @@ USA.
     (sqrt ,tex:unparse-sqrt)
     (dotted ,tex:unparse-dotted)
     (dotdotted ,tex:unparse-dotdotted)
+    (primed ,tex:unparse-primed)
+    (primeprimed ,tex:unparse-primeprimed)
     ))
 
 (define tex:symbol-substs
@@ -1091,6 +1116,13 @@ USA.
 (define dot-string "dot")
 (define dot-string-length (string-length dot-string))
 
+(define primeprime-string "primeprime")
+(define primeprime-string-length (string-length primeprime-string))
+
+(define prime-string "prime")
+(define prime-string-length (string-length prime-string))
+
+#|
 (define (unparse-string string symbol-substs uptable)
   (if (= (string-length string) 1)
       string
@@ -1110,8 +1142,40 @@ USA.
 				 ,(string->symbol (string-head string n)))
 			       symbol-substs uptable)
 		      (make-box-with-bp 190 string))))
+	    ((string-search-forward primeprime-string string)
+	     => (lambda (n)
+		  (if (= (+ n primeprime-string-length) ;terminal primeprime
+			 (string-length string))
+		      (unparse `(primeprimed
+				 ,(string->symbol (string-head string n)))
+			       symbol-substs uptable)
+		      (make-box-with-bp 190 string))))
+            ((string-search-forward prime-string string)
+	     => (lambda (n)
+		  (if (= (+ n prime-string-length) ;terminal prime
+			 (string-length string))
+		      (unparse `(primed
+				 ,(string->symbol (string-head string n)))
+			       symbol-substs uptable)
+		      (make-box-with-bp 190 string))))
 	    (else
 	     (make-box-with-bp 190 string)))))
+|#
+
+(define (unparse-string string symbol-substs uptable)
+  (define (for-terminal special-string special-string-length special-symbol)
+    (let ((n (string-search-forward special-string string)))
+      (if (and n (= (+ n special-string-length) (string-length string)))
+	  (unparse `(,special-symbol
+		     ,(string->symbol (string-head string n)))
+		   symbol-substs uptable)
+	  #f)))
+  (cond ((= (string-length string) 1) string)
+	((for-terminal dotdot-string     dotdot-string-length     'dotdotted))
+	((for-terminal dot-string        dot-string-length        'dotted))
+	((for-terminal primeprime-string primeprime-string-length 'primeprimed))
+	((for-terminal prime-string      prime-string-length      'primed))
+	(else (make-box-with-bp 190 string))))
 
 #|
 (define (split-at-underscore-or-caret string cont)
@@ -1135,8 +1199,6 @@ USA.
 	      (string-tail string (+ index 1))))))
 
 
-(define (transpose matrix-lists)
-  (apply map (cons list matrix-lists)))
 
 ;;; Some forms have funny rules.  For example, ((expt A 2) f) would
 ;;;             2

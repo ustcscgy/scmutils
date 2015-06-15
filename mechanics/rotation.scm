@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -56,6 +56,18 @@ USA.
 
 (define (rotate-z-matrix angle)
   (rotate-z-matrix-2 (cos angle) (sin angle)))
+
+
+(define (angle&axis->rotation-matrix theta n)
+  ;; (assert (v:unit? n))
+  (let ((x (ref n 0)) (y (ref n 1)) (z (ref n 2)))
+    (let ((colatitude (acos z))
+	  (longitude (atan y x)))
+      (* (rotate-z-matrix longitude)
+	 (rotate-y-matrix colatitude)
+	 (rotate-z-matrix theta)
+	 (m:transpose (rotate-y-matrix colatitude))
+	 (m:transpose (rotate-z-matrix longitude))))))
 
 ;;; Rotation tuples
 

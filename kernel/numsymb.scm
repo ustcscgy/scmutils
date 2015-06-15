@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -30,8 +30,13 @@ USA.
 
 ;;; Algebraic constructors for symbolic experiments.
 
-;;; Disable simplification on construction -- wastes time.
-(define enable-constructor-simplifications #f)
+;;; Enable simplification on construction -- wastes time?
+(define enable-constructor-simplifications? #t)
+
+(define (enable-constructor-simplifications doit?)
+  (assert (boolean? doit?) "argument must be a boolean.")
+  (clear-memoizer-tables)
+  (set! enable-constructor-simplifications? doit?))
 
 ;;; Disable intermediate simplification -- wastes time.
 (define incremental-simplifier #f)
@@ -265,7 +270,7 @@ USA.
         (else `(+ ,a1 ,a2))))
 
 (define (symb:add x y)
-  (if enable-constructor-simplifications
+  (if enable-constructor-simplifications?
       (symb1:+ x y)
       (symb:+ x y)))
 
@@ -315,7 +320,7 @@ USA.
         (else `(* ,m1 ,m2))))
 
 (define (symb:mul x y)
-  (if enable-constructor-simplifications
+  (if enable-constructor-simplifications?
       (symb1:* x y)
       (symb:* x y)))
 
@@ -359,16 +364,17 @@ USA.
         (else `(- ,a1 ,a2))))
 
 (define (symb:dif x y)
-  (if enable-constructor-simplifications
+  (if enable-constructor-simplifications?
       (symb1:- x y)
       (symb:- x y)))
 
 (define (symb:dif:n args)
   (cond ((null? args) :zero)
-	((null? (cdr args)) (symb:- :zero (car args)))
+	((null? (cdr args))
+         (symb:dif :zero (car args)))
 	(else
-	 (symb:- (car args)
-		 (symb:add:n (cdr args))))))
+	 (symb:dif (car args)
+                   (symb:add:n (cdr args))))))
 
 (define (symb:difference . args)
   (symb:dif:n args))
@@ -409,16 +415,17 @@ USA.
         (else `(/ ,m1 ,m2))))
 
 (define (symb:quo x y)
-  (if enable-constructor-simplifications
+  (if enable-constructor-simplifications?
       (symb1:/ x y)
       (symb:/ x y)))
 
 (define (symb:quo:n args)
   (cond ((null? args) :one)
-	((null? (cdr args)) (symb:/ :one (car args)))
+	((null? (cdr args))
+         (symb:quo :one (car args)))
 	(else
-	 (symb:/ (car args)
-		 (symb:mul:n (cdr args))))))
+	 (symb:quo (car args)
+                   (symb:mul:n (cdr args))))))
 
 (define (symb:quotient . args)
   (symb:quo:n args))
@@ -451,8 +458,7 @@ USA.
 	((number? e)
 	 (cond ((zero? e) :one)
 	       ((one? e) b)
-	       ((and (integer? e) sqrt-expt-simplify?
-		     (even? e) (sqrt? b))
+	       ((and (integer? e) (even? e) (sqrt? b))
 		(symb:expt (car (operands b)) (quotient e 2)))
 	       ((and (expt? b)
 		     (number? (cadr (operands b)))
@@ -812,9 +818,11 @@ USA.
 	       ((difference? a2)
 		(if (null? (cdr (operands a2)))
 		    (addup-args (operands a1) (operands a2))
-		    (addup-args (append (operands a1) (list (car (operands a2))))
+		    (addup-args (append (operands a1)
+                                        (list (car (operands a2))))
 				(cdr (operands a2)))))
-	       (else (addup-args (append (operands a1) (list a2)) '()))))
+	       (else (addup-args (append (operands a1)
+                                         (list a2)) '()))))
 	((difference? a1)
 	 (if (null? (cdr (operands a1)))
 	     (cond ((sum? a2) (addup-args (operands a2) (operands a1)))
@@ -830,9 +838,12 @@ USA.
 		   ((difference? a2)
 		    (if (null? (cdr (operands a2)))
 			(addup-args (list (car (operands a1)))
-				    (append (cdr (operands a1)) (operands a2)))
-			(addup-args (list (car (operands a1)) (car (operands a2)))
-				    (append (cdr (operands a1)) (cdr (operands a2))))))
+				    (append (cdr (operands a1))
+                                            (operands a2)))
+			(addup-args (list (car (operands a1))
+                                          (car (operands a2)))
+				    (append (cdr (operands a1))
+                                            (cdr (operands a2))))))
 		   (else (addup-args (list (car (operands a1)) a2)
 				     (cdr (operands a1)))))))
 	(else
@@ -844,8 +855,7 @@ USA.
 		    (addup-args (append (list a1) (list (car (operands a2))))
 				(cdr (operands a2)))))
 	       (else (addup-args (list a1 a2) '()))))))
-
-	   
+
 (define (addup-args pos neg)
   (define (make-answer sum pos neg)
     (if (zero? sum)
@@ -861,11 +871,15 @@ USA.
 		    `(+ ,@pos))
 		(if (null? (cdr pos))
 		    (if (null? (cdr neg))
-			`(- ,(car pos) ,(car neg))
+                        (if (equal? (car pos) (car neg))
+                            :zero
+                            `(- ,(car pos) ,(car neg)))
 			`(- ,(car pos) (+ ,@neg)))
 		    (if (null? (cdr neg))
 			`(- (+ ,@pos) ,(car neg))
-			`(- (+ ,@pos) (+ ,@neg))))))
+                        (if (equal? pos neg)
+                            :zero
+                            `(- (+ ,@pos) (+ ,@neg)))))))
 	(if (null? pos)
 	    (if (null? neg)
 		sum
@@ -892,8 +906,7 @@ USA.
 	   (plp (cdr p) (+ sum (car p)) respos))
 	  (else
 	   (plp (cdr p) sum (cons (car p) respos))))))
-
-
+
 (define (symb1:* a1 a2)
   (cond ((product? a1)
 	 (cond ((product? a2)
@@ -901,7 +914,8 @@ USA.
 	       ((quotient? a2)
 		(if (null? (cdr (operands a2)))
 		    (mulup-args (operands a1) (operands a2))
-		    (mulup-args (append (operands a1) (list (car (operands a2))))
+		    (mulup-args (append (operands a1)
+                                        (list (car (operands a2))))
 				(cdr (operands a2)))))
 	       (else (mulup-args (append (operands a1) (list a2)) '()))))
 	((quotient? a1)
@@ -919,9 +933,12 @@ USA.
 		   ((quotient? a2)
 		    (if (null? (cdr (operands a2)))
 			(mulup-args (list (car (operands a1)))
-				    (append (cdr (operands a1)) (operands a2)))
-			(mulup-args (list (car (operands a1)) (car (operands a2)))
-				    (append (cdr (operands a1)) (cdr (operands a2))))))
+				    (append (cdr (operands a1))
+                                            (operands a2)))
+			(mulup-args (list (car (operands a1))
+                                          (car (operands a2)))
+				    (append (cdr (operands a1))
+                                            (cdr (operands a2))))))
 		   (else (mulup-args (list (car (operands a1)) a2)
 				     (cdr (operands a1)))))))
 	(else
@@ -933,58 +950,50 @@ USA.
 		    (mulup-args (append (list a1) (list (car (operands a2))))
 				(cdr (operands a2)))))
 	       (else (mulup-args (list a1 a2) '()))))))
-
-
+
 (define (mulup-args pos neg)
-  (define (make-answer factor pos neg)
-    (if (zero? factor)
-	factor
-	(if (one? factor)
-	    (if (null? pos)
-		(if (null? neg)
-		    :one
-		    (if (null? (cdr neg))
-			`(/ ,:one ,(car neg))
-			`(/ ,:one (* ,@neg))))
-		(if (null? neg)
-		    (if (null? (cdr pos))
-			(car pos)
-			`(* ,@pos))
-		    (if (null? (cdr pos))
-			(if (null? (cdr neg))
-			    `(/ ,(car pos) ,(car neg))
-			    `(/ ,(car pos) (* ,@neg)))
-			(if (null? (cdr neg))
-			    `(/ (* ,@pos) ,(car neg))
-			    `(/ (* ,@pos) (* ,@neg))))))
-	    (if (null? pos)
-		(if (null? neg)
-		    factor
-		    (if (null? (cdr neg))
-			`(/ ,factor ,(car neg))
-			`(/ ,factor (* ,@neg))))
-		(if (null? neg)
-		    `(* ,factor ,@pos)
-		    (if (null? (cdr neg))			
-			`(/ (* ,factor ,@pos) ,(car neg))
-			`(/ (* ,factor ,@pos) (* ,@neg))))))))
-  (let plp ((p pos) (factor :one) (respos '()))
+  (define (make-product numfact factors)
+    (if (null? factors)
+        numfact
+        (if (one? numfact)
+            (if (null? (cdr factors))
+                (car factors)
+                `(* ,@factors))
+            (if (null? (cdr factors))
+                `(* ,numfact ,(car factors))
+                `(* ,numfact ,@factors)))))
+  (define (make-answer pfactor pos nfactor neg)
+    (let ((num (make-product pfactor pos))
+          (den (make-product nfactor neg)))
+      (cond ((and (number? den) (zero? den))
+             (error "zero divide in mulup-args"))
+            ((and (number? num) (zero? num))
+             :zero)
+            ((and (number? den) (one? den))
+             num)
+            ((and (number? num) (number? den))
+             (/ num den))
+            ((equal? num den)
+             :one)
+            (else
+             `(/ ,num ,den)))))
+  (let plp ((p pos) (pfactor :one) (respos '()))
     (cond ((null? p)
-	   (let nlp ((n neg) (factor factor) (resneg '()))
+	   (let nlp ((n neg) (nfactor :one) (resneg '()))
 	     (cond ((null? n)
-		    (make-answer factor
+		    (make-answer pfactor
 				 (reverse respos)
+                                 nfactor
 				 (reverse resneg)))
 		   ((number? (car n))
-		    (nlp (cdr n) (/ factor (car n)) resneg))
+		    (nlp (cdr n) (* nfactor (car n)) resneg))
 		   (else
-		    (nlp (cdr n) factor (cons (car n) resneg))))))
+		    (nlp (cdr n) nfactor (cons (car n) resneg))))))
 	  ((number? (car p))
-	   (plp (cdr p) (* factor (car p)) respos))
+	   (plp (cdr p) (* pfactor (car p)) respos))
 	  (else
-	   (plp (cdr p) factor (cons (car p) respos))))))
-
-	   
+	   (plp (cdr p) pfactor (cons (car p) respos))))))
+	   
 (define (symb1:- a1 a2)
   (cond ((sum? a1)
 	 (cond ((sum? a2)
@@ -997,7 +1006,8 @@ USA.
 	       (else (addup-args (operands a1) (list a2)))))
 	((difference? a1)
 	 (if (null? (cdr (operands a1)))
-	     (cond ((sum? a2) (addup-args '() (append (operands a1) (operands a2))))
+	     (cond ((sum? a2)
+                    (addup-args '() (append (operands a1) (operands a2))))
 		   ((difference? a2)
 		    (if (null? (cdr (operands a2)))
 			(addup-args (operands a2) (operands a1))
@@ -1010,9 +1020,11 @@ USA.
 				(append (cdr (operands a1)) (operands a2))))
 		   ((difference? a2)
 		    (if (null? (cdr (operands a2)))
-			(addup-args (append (list (car (operands a1))) (operands a2))
+			(addup-args (append (list (car (operands a1)))
+                                            (operands a2))
 				    (cdr (operands a1)))
-			(addup-args (cons (car (operands a1)) (cdr (operands a2)))
+			(addup-args (cons (car (operands a1))
+                                          (cdr (operands a2)))
 				    (append (cdr (operands a1))
 					    (list (car (operands a2)))))))
 		   (else (addup-args (list (car (operands a1)))
@@ -1026,8 +1038,7 @@ USA.
 		    (addup-args (append (list a1) (cdr (operands a2)))
 				(list (car (operands a2))))))
 	       (else (addup-args (list a1) (list a2)))))))
-
-
+
 (define (symb1:/ a1 a2)
   (cond ((product? a1)
 	 (cond ((product? a2)
@@ -1040,7 +1051,8 @@ USA.
 	       (else (mulup-args (operands a1) (list a2)))))
 	((quotient? a1)
 	 (if (null? (cdr (operands a1)))
-	     (cond ((product? a2) (mulup-args '() (append (operands a1) (operands a2))))
+	     (cond ((product? a2)
+                    (mulup-args '() (append (operands a1) (operands a2))))
 		   ((quotient? a2)
 		    (if (null? (cdr (operands a2)))
 			(mulup-args (operands a2) (operands a1))
@@ -1053,9 +1065,11 @@ USA.
 				(append (cdr (operands a1)) (operands a2))))
 		   ((quotient? a2)
 		    (if (null? (cdr (operands a2)))
-			(mulup-args (append (list (car (operands a1))) (operands a2))
+			(mulup-args (append (list (car (operands a1)))
+                                            (operands a2))
 				    (cdr (operands a1)))
-			(mulup-args (cons (car (operands a1)) (cdr (operands a2)))
+			(mulup-args (cons (car (operands a1))
+                                          (cdr (operands a2)))
 				    (append (cdr (operands a1))
 					    (list (car (operands a2)))))))
 		   (else (mulup-args (list (car (operands a1)))
@@ -1069,3 +1083,23 @@ USA.
 		    (mulup-args (append (list a1) (cdr (operands a2)))
 				(list (car (operands a2))))))
 	       (else (mulup-args (list a1) (list a2)))))))
+
+;;; answers #t if can prove that access chain is terminal in args.
+
+(define (symb:elementary-access? access-chain args)
+  (define (sea chain thing)
+    (cond ((and (not (null? chain))
+		(pair? thing)
+		(or (eq? (car thing) 'up)
+		    (eq? (car thing) 'down)))
+	   (sea (cdr chain)
+		(list-ref (cdr thing) (car chain))))
+	  ((null? chain)
+	   (or (not (pair? thing))
+	       (not (or (eq? (car thing) 'up)
+			(eq? (car thing) 'down)))))
+	  (else #f)))
+  (if (= (length args) 1)
+      (sea access-chain (car args))
+      (sea (cdr access-chain)
+	   (list-ref args (car access-chain)))))

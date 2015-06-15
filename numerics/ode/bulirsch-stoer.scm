@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -314,7 +314,8 @@ USA.
 		    ;; In Jack's C program the first two conditions
 		    ;; below are interchanged and the minimum number
 		    ;; of iterations is set to (fix:< m 4)
-		    (cond ;;(fail) ;;not good to (outside (* 0.9 delta-t)) or to m-loop with m+1
+		    (cond ;;(fail) 
+                          ;;not good to (outside (* 0.9 delta-t)) or to m-loop with m+1
 			  ((< verr 2.0)
 			   (continuation (vector-copy new-state-estimate)
 					 delta-t

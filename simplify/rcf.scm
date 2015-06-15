@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -296,9 +296,11 @@ USA.
 	(if (even? count)
 	    (expt-iter (rcf:square x) (fix:quotient count 2) answer)
 	    (expt-iter x (fix:-1+ count) (rcf:* x answer)))))
-  (if (fix:negative? exponent)
-      (rcf:invert (expt-iter base (int:negate exponent) rcf:one))
-      (expt-iter base exponent rcf:one)))
+  (cond ((not (exact-integer? exponent))
+	 (error "Can only raise a RCF to an exact integer power" base exponent))
+	((fix:negative? exponent)
+	 (rcf:invert (expt-iter base (int:negate exponent) rcf:one)))
+	(else (expt-iter base exponent rcf:one))))
 
 (define (rcf:arg-scale r points)
   (if (ratform? r)
@@ -410,7 +412,7 @@ USA.
   (let ((evars
 	 (sort (list-difference (variables-in expr)
 				rcf:operators-known)
-	       (if (default-object? less?) variable? less?))))
+	       (if (default-object? less?) variable<? less?))))
     (cont ((expression-walker
 	    (pair-up evars
 		     (poly:new-variables (length evars))

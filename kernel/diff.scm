@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -658,56 +658,22 @@ USA.
 ;;; This stuff allows derivatives to work in code where there are
 ;;; conditionals if the finite parts are numerical.
 
-#|
-;;; These kill system
-(define (diff:unary-comparator p)
-  (define (p? x)
-    (p (finite-part x)))
-  p?)
 
-(assign-operation 'zero? (diff:unary-comparator g:zero?) differential?)
-(assign-operation 'one?  (diff:unary-comparator g:one?)  differential?)
-|#
-
-#|
-;;; These slow down derivatives!
 (define (diff:zero? x)
-  (and (number? (infinitesimal-part x))
-       (n:zero? (infinitesimal-part x))
-       (g:zero? (finite-part x))))
+  (assert (differential? x))
+  (for-all? (differential-term-list x)
+    (lambda (term)
+      (let ((c (differential-coefficient term)))
+	(g:zero? c)))))
 
 (assign-operation 'zero? diff:zero? differential?)
 
 (define (diff:one? x)
-  (and (number? (infinitesimal-part x))
-       (n:zero? (infinitesimal-part x))
-       (g:one? (finite-part x))))
+  (assert (differential? x))
+  (and (g:one? (finite-part x))
+       (diff:zero? (infinitesimal-part x))))
 
 (assign-operation 'one? diff:one? differential?)
-|#
-
-
-;;; Evan these slow down derivatives!
-(define (diff:zero? x)
-  (let ((f (finite-part x)))
-    (and (number? f)
-	 (n:zero? f)
-	 (let ((i (infinitesimal-part x)))
-	   (and (number? i)
-		(n:zero? i))))))
-
-(assign-operation 'zero? diff:zero? differential?)
-
-(define (diff:one? x)
-    (let ((f (finite-part x)))
-    (and (number? f)
-	 (n:one? f)
-	 (let ((i (infinitesimal-part x)))
-	   (and (number? i)
-		(n:zero? i))))))
-
-(assign-operation 'one? diff:one? differential?)
-
 
 #|
 ;;; this does not slow down derivatives!
@@ -883,6 +849,12 @@ USA.
 	   (s:map/r dist obj))
 	  ((matrix? obj)
 	   ((m:elementwise dist) obj))
+	  ((quaternion? obj)
+	   (quaternion
+	    (dist (quaternion-ref obj 0))
+	    (dist (quaternion-ref obj 1))
+	    (dist (quaternion-ref obj 2))
+	    (dist (quaternion-ref obj 3))))
 	  ((function? obj)
 	   (hide-tag-in-procedure dx (compose dist obj)))
 	  ((operator? obj)
@@ -938,6 +910,13 @@ USA.
 	 (s:map/r (replace-differential-tag oldtag newtag) object))
 	((matrix? object)
 	 ((m:elementwise (replace-differential-tag oldtag newtag)) object))
+	((quaternion? object)
+	 (let ((r (replace-differential-tag oldtag newtag)))
+	   (quaternion
+	    (r (quaternion-ref object 0))
+	    (r (quaternion-ref object 1))
+	    (r (quaternion-ref object 2))
+	    (r (quaternion-ref object 3)))))
 	((series? object)
 	 (make-series (g:arity object)
 		      (map-stream (replace-differential-tag oldtag newtag)

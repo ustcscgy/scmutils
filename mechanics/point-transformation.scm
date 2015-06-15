@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -27,28 +27,48 @@ USA.
 ;;; Makes a canonical point transformation from a 
 ;;;  time-invariant coordinate transformation T(q)
 
-(define (F->CT F)
-  (define (CT H-state)
+(define (F->CH F)
+  (define (CH H-state)
     (let ((t (time H-state))
-	  (q (coordinate H-state))
-	  (p (momentum H-state)))
-      (let ((qo (F H-state)))
-	(->H-state t
-		   qo
-		   (* p
-		      (s:inverse (compatible-shape qo)
-				 (((partial 1) F) H-state)
-				 (compatible-shape p)))))))
-  CT)
+	  (pprime (momentum H-state))
+	  (q (F H-state)))
+      (up t
+	  q
+	  (* pprime
+	     (s:inverse (compatible-shape q)
+			(((partial 1) F) H-state)
+			(compatible-shape pprime))))))
+  CH)
+
+(define F->CT F->CH)
+
+(define (F->K F)
+  (define (K s)
+    (let ((pprime (momentum s))
+	  (q (F s)))
+      (- (* (* pprime
+	       (s:inverse (compatible-shape q)
+			  (((partial 1) F) s)
+			  (compatible-shape pprime)))
+	    (((partial 0) F) s)))))
+  K)
+	   
+
 
 #|
 ;;; For display in book -- assumes flat coordinates
 
-(define ((F->CT F) H-state)
+(define ((F->CH F) H-state)
   (->H-state (time H-state)
              (F H-state)
              (* (momentum H-state)
                 (invert (((partial 1) F) H-state)))))
+
+(define ((F->K F) H-state)
+  (- (* (* (momentum H-state)
+	   (invert (((partial 1) F) H-state)))
+	(((partial 0) F) H-state))))
+
 |#
 #|
 

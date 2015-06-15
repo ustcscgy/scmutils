@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -68,33 +68,6 @@ USA.
    (list ns dt sdt)))
 |#
 
-#|
-(define (advance-generator advancer)
-  (define (advance start-state step-required h-suggested max-h continue done)
-    ;; done = (lambda (end-state step-achieved h-suggested) ... )
-    ;; continue = (lambda (state step-achieved h-taken next)
-                    ;; next = (lambda () ...))
-    (let lp ((state start-state)
-	     (step-achieved 0.0)
-	     (h (min-step-size step-required h-suggested max-h)))
-      (if advance-wallp?
-	  (pp `(advance: ,step-achieved ,state)))
-      (continue state step-achieved h
-	(lambda ()
-          (advancer state h
-            (lambda (new-state step-obtained h-suggested)
-              (let ((ndt (+ step-achieved step-obtained)))
-                (if (close-enuf? step-required ndt
-                                 *independent-variable-tolerance*)
-                    (done new-state ndt h-suggested)
-                    (lp new-state
-                        ndt
-                        (min-step-size (- step-required ndt)
-                                       h-suggested
-                                       max-h))))))))))
-  advance)
-|#
-
 (define (advance-generator advancer)
   (define (advance start-state goal-increment h-suggested max-h 
 		   continue done)

@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -197,7 +197,7 @@ The general strategy is:
 ;;; that in the following code we find the first
 ;;; reference to justifications.
 
-(define (isolate-var var eqs succeed fail)
+(define (isolate-var  var eqs succeed fail)
   ;; succeed = (lambda (new-substitution equation-used) ...)
   ;; fail    = (lambda () ...)
   (let lp ((eqs-to-scan eqs))
@@ -431,8 +431,7 @@ The general strategy is:
       (cond ((pair? expression)
 	     (let ((rator (operator expression))
 		   (rands (operands expression)))
-	       (cond ((and (= (length rands) 1)
-			   (eq? (car rands) variable))
+	       (cond ((and (= (length rands) 1) (eq? (car rands) variable))
 		      (continue expression
 				(list-adjoin expression map)
 				(list-adjoin rator functions)))
@@ -444,11 +443,10 @@ The general strategy is:
 		      (walk-expression rator map functions
 			(lambda (rator-result rator-map rator-functions)
 			  (walk-list rands rator-map rator-functions
-				     (lambda (rands-result rands-map rands-functions)
-				       (continue (cons rator-result
-						       rands-result)
-						 rands-map
-						 rands-functions)))))))))
+			     (lambda (rands-result rands-map rands-functions)
+			       (continue (cons rator-result rands-result)
+					 rands-map
+					 rands-functions)))))))))
 	    ((number? expression)
 	     (continue (if (and (inexact? expression)
 				(< (abs expression) *zero-threshold*))
@@ -761,3 +759,21 @@ The general strategy is:
  (0 (H D E F B J) ())
  (0 (A H D J E F B K) ()))
 |#
+
+;;; To make this less painful, 
+;;; given a structure of residuals that should be zero.
+
+
+(define (simple-solve struct unknowns)
+  (define (make-equations struct)
+    (let ((l (s:fringe struct)))
+      (map (lambda (e n)
+	     (make-equation e (list (symbol 'eq: n))))
+	   l
+	   (iota (length l)))))
+  (cons '*solution*
+	(solve-incremental (make-equations struct)
+			   unknowns)))
+
+
+

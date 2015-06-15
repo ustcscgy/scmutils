@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -28,21 +28,38 @@ USA.
 
 (declare (usual-integrations))
 
-;;; Rule syntax:
+;;; Rule syntax.
+;;; Rule does not apply if consequent expression returns #f.
 
 (define (rule:compile rule)
-  (let* ((pattern-expression (pattern:compile (rule:pattern rule)))
-	 (predicate-expression (predicate:compile (rule:predicate rule)))
-	 (skeleton-expression (skel:compile (rule:skeleton rule))))
-    (let ((vars (pattern:vars pattern-expression)))
-      (let ((consequent-expression
-	     (if (eq? predicate-expression 'none)
-		 `(lambda ,vars ,skeleton-expression)
-		 `(lambda ,vars
-		    (let ((predicate-value ,predicate-expression))
-		      (and predicate-value ,skeleton-expression))))))
-	`(rule:make ,pattern-expression
-		    ,consequent-expression)))))
+  (cond ((= (length rule) 3)
+         (let* ((pattern-expression
+                 (pattern:compile (rule:pattern rule)))
+                (predicate-expression
+                 (predicate:compile (rule:predicate rule)))
+                (skeleton-expression
+                 (skel:compile (rule:skeleton rule))))
+           (let ((vars (pattern:vars pattern-expression)))
+             (let ((consequent-expression
+                    (if (eq? predicate-expression 'none)
+                        `(lambda ,vars ,skeleton-expression)
+                        `(lambda ,vars
+                           (let ((predicate-value ,predicate-expression))
+                             (and predicate-value
+                                  ,skeleton-expression))))))
+               `(rule:make ,pattern-expression
+                           ,consequent-expression)))))
+        ((= (length rule) 2)
+         (let* ((pattern-expression
+                 (pattern:compile (rule:pattern rule))))
+           (let ((vars (pattern:vars pattern-expression)))
+             (let ((consequent-expression
+                    `(lambda ,vars
+                       ,(rule:consequent rule))))
+               `(rule:make ,pattern-expression
+                           ,consequent-expression)))))
+        (else
+         (error "Badly-formed rule" rule))))
 
 (define (rule:pattern rule)
   (car rule))
@@ -52,6 +69,9 @@ USA.
 
 (define (rule:skeleton rule)
   (caddr rule))
+
+(define (rule:consequent rule)
+  (cadr rule))
 
 (define (pattern:compile pattern) 
   (define (compile pattern)

@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,7 +35,9 @@ USA.
     (or (boolean? expr)
 	(null? expr)
 	(pathname? expr)
-	(undefined-value? expr)))
+	(undefined-value? expr)
+	(and (pair? expr)
+	     (not (list? expr)))))
   (cond ((list? expr)
 	 (let ((subs
 		(map (lambda (x) (g:simplify x))
@@ -48,12 +50,9 @@ USA.
 	       (g:simplify (cdr expr))))
 	(else expr)))
 
-
-
-
 (define g:simplify
   (make-generic-operator 1 'simplify default-simplify))
-
+
 #|
 (define (simplify-undefined expr) '*undefined-value*)
 (assign-operation 'simplify simplify-undefined undefined-value?)

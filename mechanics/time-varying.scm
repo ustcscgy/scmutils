@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -35,7 +35,14 @@ USA.
 
 
 ;;; Tests that K yields a canonical transformation if the C is
-;;; symplectic. 
+;;; symplectic.  (The qp-canonical? code is really a symplectic 
+;;; test without factoring out the Hamiltonian.)
+
+(define ((qp-canonical? C H) s)
+  (- (J-func ((D H) (C s)))
+     (* ((D C) s)
+	(J-func
+	 ((D (compose H C)) s)))))
 
 (define ((canonical-K? C K) s)
   (let ((s* (compatible-shape s)))
@@ -48,7 +55,7 @@ USA.
   (let ((DCs ((D C) s))
 	(s* (compatible-shape s)))
     (- (T-func s*)
-       (* DCs ((phase-space-derivative K) s)))))
+       (* DCs ((Hamiltonian->state-derivative K) s)))))
 |#
 
 #|

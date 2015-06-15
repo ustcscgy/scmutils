@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -528,6 +528,26 @@ USA.
 (define (m:negate mat)
   ((m:elementwise g:negate) mat))
 
+(define (m:dot-product-row r1 r2)
+  (v:dot-product (row-matrix->vector r1)
+		 (row-matrix->vector r2)))
+
+(define (m:dot-product-column c1 c2)
+  (v:dot-product (column-matrix->vector c1)
+		 (column-matrix->vector c2)))
+
+
+(define (m:cross-product-row r1 r2)
+  (vector->row-matrix
+   (v:cross-product (row-matrix->vector r1)
+		    (row-matrix->vector r2))))
+
+(define (m:cross-product-column c1 c2)
+  (vector->column-matrix
+   (v:cross-product (column-matrix->vector c1)
+		    (column-matrix->vector c2))))
+
+
 (define (m:exp mat)
   (series:value exp-series (list mat)))
 
@@ -762,6 +782,16 @@ USA.
 (assign-operation '/   m:rsolve         up? square-matrix?)
 (assign-operation '/   m:rsolve         down? square-matrix?)
 (assign-operation '/   matrix/matrix    matrix? square-matrix?)
+
+(assign-operation 'dot-product m:dot-product-row row-matrix? row-matrix?)
+(assign-operation 'dot-product m:dot-product-column column-matrix? column-matrix?)
+
+(assign-operation 'outer-product m:outer-product column-matrix? row-matrix?)
+
+
+(assign-operation 'cross-product m:cross-product-row row-matrix? row-matrix?)
+(assign-operation 'cross-product m:cross-product-column column-matrix? column-matrix?)
+
 		       
 (assign-operation 'expt  m:expt  square-matrix? exact-integer?)
 
@@ -773,6 +803,7 @@ USA.
 
 (assign-operation 'determinant m:determinant square-matrix?)
 (assign-operation 'trace       m:trace       square-matrix?)
+(assign-operation 'transpose   m:transpose   matrix?)
 
 ;;; Abstract matrices generalize matrix quantities.
 

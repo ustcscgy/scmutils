@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -183,6 +183,8 @@ USA.
 
 ;;; Take perfect squares out of square roots.
 
+#|
+;;; Serious bug here -- GJS
 (define (root-out-squares expression)
   (define (walk expr)
     (if (pair? expr)
@@ -211,6 +213,49 @@ USA.
 			     ((fix:= power 1)
 			      (symb:* evens b))
 			     (else evens))))))
+	      (else
+	       (lp (cdr factors)
+		   (symb:* (car factors) odds)
+		   evens))))))
+  (walk expression))
+|#
+
+;;; Bug fixed here -- GJS
+
+(define (root-out-squares expression)
+  (define (walk expr)
+    (if (pair? expr)
+	(if (eq? (operator expr) 'sqrt)
+	    (process-sqrt expr)
+	    (cons (walk (car expr))
+		  (walk (cdr expr))))
+	expr))
+  (define (process-sqrt expr)
+    (let ((fact-exp (poly:factor (car (operands expr)))))
+      (let lp ((factors (if (product? fact-exp)
+			    (operands fact-exp)
+			    (list fact-exp)))
+	       (odds 1)
+	       (evens 1))
+	(cond ((null? factors)
+               (if (not (and (number? evens) (= evens 1)))
+                   (assume! `(non-negative? ,evens) 'root-out-squares))
+	       (symb:* (symb:sqrt odds) evens))
+	      ((expt? (car factors))
+	       (let ((b (car (operands (car factors))))
+		     (e (cadr (operands (car factors)))))
+		 (if (and (exact-integer? e) (even? e))
+		     (lp (cdr factors)
+			 odds
+			 (let ((power (quotient e 2)))
+			   (cond ((fix:> power 1)
+				  (symb:* evens (symb:expt b power)))
+				 ((fix:= power 1)
+				  (symb:* evens b))
+				 (else evens))))
+		     (lp (cdr factors)
+			 (symb:* (car factors) odds)
+			 evens))))
 	      (else
 	       (lp (cdr factors)
 		   (symb:* (car factors) odds)

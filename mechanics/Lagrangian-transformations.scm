@@ -2,8 +2,8 @@
 
 Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994,
     1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-    2006, 2007, 2008, 2009, 2010, 2011, 2012 Massachusetts Institute
-    of Technology
+    2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013 Massachusetts
+    Institute of Technology
 
 This file is part of MIT/GNU Scheme.
 
@@ -31,16 +31,15 @@ USA.
 
 (define (F->C F)
   (define (C state)
-    (->local (time state)
-	     (F state)
-	     (+ (((partial 0) F) state)
-		(* (((partial 1) F) state) 
-		   (velocity state)))))
+    (up (time state)
+	(F state)
+	(+ (((partial 0) F) state)
+	   (* (((partial 1) F) state) 
+	      (velocity state)))))
   C)
 |#
 
-;;; current definition of F->C
-
+#|
 (define ((F->C F) local)
   (let ((n (vector-length local)))
     ((Gamma-bar
@@ -49,6 +48,7 @@ USA.
           (compose F (Gamma qp))
 	 n)))
      local)))
+|#
 
 #|
 ;;; version for display in text
@@ -61,6 +61,15 @@ USA.
   (Gamma-bar f-bar))
 |#
 
+(define (F->C F)
+  (define (C local)
+    (let ((n (vector-length local)))
+      (define (f-bar q-prime)
+	(define q
+	  (compose F (Gamma q-prime)))
+	(Gamma q n))
+      ((Gamma-bar f-bar) local)))
+  C)
 
 ;;; The following transformations are applicable to 
 ;;;  configuration coordinates. 
@@ -201,6 +210,18 @@ USA.
 
 (define (s->r local)
   (spherical->rectangular (coordinate local)))
+
+(define (rectangular->spherical q)
+  (let ((x (ref q 0))
+	(y (ref q 1))
+	(z (ref q 2)))
+    (let ((r (sqrt (+ (* x x) (* y y) (* z z)))))
+      (let ((theta (acos (/ z r)))
+	    (phi (atan y x)))
+	(up r theta phi)))))
+
+(define (r->s local)
+  (rectangular->spherical (coordinate local)))
 
 #|
 (define (L3-central m Vr)
