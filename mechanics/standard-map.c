@@ -1,6 +1,6 @@
-#| -*-Scheme-*-
+/* -*-C-*-
 
-$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
+$Id: copyright.c,v 1.5 2005/09/25 01:28:09 cph Exp $
 
 Copyright 2005 Massachusetts Institute of Technology
 
@@ -21,13 +21,42 @@ along with MIT/GNU Scheme; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
 USA.
 
-|#
+*/
+#include <stdio.h>
+#include <math.h>
+#define PI 3.14159265358979323846
+#define TWOPI 6.283185307179586476925287
 
-(load "lag" generic-environment)
+main(argc, argv)
+     int argc;
+     char **argv;
+{
+  double x, y, K, yp;
+  int i, n;
+  double pv();
 
-(load "constants" scmutils-base-environment)
+  if(argc != 5) {
+    printf("args: K x y n\n");
+    exit(-1);
+  }
+  sscanf(argv[1], "%lf", &K);
+  sscanf(argv[2], "%lf", &x);
+  sscanf(argv[3], "%lf", &y);
+  sscanf(argv[4], "%d", &n);
 
-(load "pendulum" generic-environment)
-(load "dpend" generic-environment)
+  for(i=0; i<n; i++) {
+    yp = pv(y + K*sin(x));
+    x = pv(x + yp);
+    y=yp;
+    printf("%.16lf %.16lf\n", x, y);
+  }
+}
 
-;(load "poincare-birkhoff" generic-environment)
+double pv(x)
+     double x;
+{
+  double y;
+
+  y = x - TWOPI*floor(x/TWOPI);
+  return(y);
+}

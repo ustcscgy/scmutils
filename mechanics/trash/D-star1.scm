@@ -23,11 +23,15 @@ USA.
 
 |#
 
-(load "lag" generic-environment)
+Idea is to redo stuff so that the 
+arguments to Lagrangian-type functions are explicit
+(and thus can be interrogated by arity).
 
-(load "constants" scmutils-base-environment)
+This means that compose must work to allow L\circ\Gamma
 
-(load "pendulum" generic-environment)
-(load "dpend" generic-environment)
+(D* L)
 
-;(load "poincare-birkhoff" generic-environment)
+   = (lambda (args L +1)
+       (D (compose L
+		   (lambda (t)
+		     #(t, ...)))))

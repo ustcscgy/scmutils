@@ -1,23 +1,26 @@
 #| -*-Scheme-*-
 
-$Id$
+$Id: copyright.scm,v 1.5 2005/09/25 01:28:17 cph Exp $
 
-Copyright (c) 2002 Massachusetts Institute of Technology
+Copyright 2005 Massachusetts Institute of Technology
 
-This program is free software; you can redistribute it and/or modify
+This file is part of MIT/GNU Scheme.
+
+MIT/GNU Scheme is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or (at
 your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
+MIT/GNU Scheme is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.
+along with MIT/GNU Scheme; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301,
+USA.
+
 |#
 
 ;;;;           Variational Mechanics
@@ -239,7 +242,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 |#
 
 (define (path->state-path q #!optional n)
-  (if (default-object? n) (set! n 3))
+  (if (default-object? n)
+      (set! n 3)
+      (assert (fix:> n 1)))
   (lambda (t)
     (list->vector
      (cons t
@@ -412,7 +417,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
   (show-time
    (lambda ()
      (find-path (L-harmonic 1.0 1.0) 0. 1. pi/2 0. 4))))
-PPA process time: 160700 (153800 RUN + 6900 GC); real time: 161913
+;;;maharal process time: 22310 (20740 RUN + 1570 GC); real time: 22316
+;;;PPA process time: 160700 (153800 RUN + 6900 GC); real time: 161913
 
 
 (define p (frame 0.0 pi/2 -1e-4 1e-4))
@@ -449,7 +455,7 @@ PPA process time: 160700 (153800 RUN + 6900 GC); real time: 161913
       ;; compute action
       (Lagrangian-action Lagrangian path t0 t1)))
 
-(find-path (L-harmonic 1. 1.) 0. 1. pi/2 0. 2)
+(find-path (L-harmonic 1. 1.) 0. 1. pi/2 0. 3)
 
 (graphics-close win2)
 |#
@@ -711,8 +717,6 @@ PPA process time: 160700 (153800 RUN + 6900 GC); real time: 161913
 
 (define ((Gamma-bar f) local)
   ((f (osculating-path local)) (time local)))
-
-(define abstract-to-state-function Gamma-bar)
 
 ;;; An alternative method allows taking derivatives in the
 ;;; construction of the Lagrangian.
@@ -1505,7 +1509,7 @@ a
    (* 1/2 m (expt rdot 2))
    (V r))
 |#
- 
+
 ;;; Noether Theorem Support
 
 (define ((Rx angle) q)
